@@ -277,16 +277,47 @@ def smarty_result_text(result: AnalysisResult, record: SignalRecord | None) -> s
         f"DIRECTION: <b>{result.direction}</b>",
         f"CONFIDENCE: <b>{result.confidence:.0f}%</b>",
         f"ENTRY: {format_price(result.price, result.market)}",
+        f"SOURCE: {result.source}",
     ]
+    ind = result.indicators or {}
+    if ind:
+        lines.append("")
+        lines.append("<b>INDICATORS</b>")
+        rsi = ind.get("rsi")
+        macd = ind.get("macd_hist")
+        if isinstance(rsi, (int, float)):
+            lines.append(f"RSI: {rsi:.1f}")
+        if isinstance(macd, (int, float)):
+            lines.append(f"MACD HIST: {macd:+.6f}")
+        lines.append(
+            f"TREND: {ind.get('trend', '—')} · MOMENTUM: {ind.get('momentum', '—')}"
+            f" · VOLATILITY: {ind.get('volatility', '—')}"
+        )
+        support = ind.get("support") or []
+        resistance = ind.get("resistance") or []
+        if support:
+            lines.append(f"SUPPORT: {format_price(support[0], result.market)}")
+        if resistance:
+            lines.append(f"RESISTANCE: {format_price(resistance[0], result.market)}")
     if record is not None:
+        lines.append("")
         lines.append(f"ENTRY TIME: {local_time(record.created_at)}")
         lines.append(f"TRADE DURATION: {duration_label(record.expiry_seconds)}")
         lines.append(f"EXPIRY: {local_time(record.expires_at)}")
         lines.append(f"SIGNAL ID: #{record.id}")
+    elif result.direction == "NO TRADE":
+        lines.append("")
+        lines.append(
+            f"SUGGESTED DURATION: {duration_label(result.suggested_expiry_seconds)} "
+            f"(only if a setup appears)"
+        )
     if result.reasons:
         lines.append("")
         lines.append("<b>TECHNICAL REASONS</b>")
         lines.extend(f"• {reason}" for reason in result.reasons)
+    if result.warnings:
+        lines.append("")
+        lines.extend(f"⚠️ {warning}" for warning in result.warnings)
     lines.append("")
     lines.append(f"STATUS: <b>{'ACTIVE' if record is not None else 'NO TRADE'}</b>")
     lines.append(f"<i>{DISCLAIMER}</i>")

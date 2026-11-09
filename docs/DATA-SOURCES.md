@@ -70,3 +70,27 @@
 - المصدر الأساسي: `GET /assets?market=smarty` من حساب ExpertOption الحقيقي.
 - إن أعاد الجسر قائمة فارغة/فشلاً، يحاول البوت `GET /smarty` (معرّف 240) ويبني أصلاً ديناميكياً واحداً فقط من `payload.asset`.
 - إن فشل الاثنان يظهر `SMARTY_UNAVAILABLE` ولا تُعرض أي عملة بديلة.
+
+## 8. تشخيص مسار SMARTY (2026-11-09)
+
+الأعراض المبلَّغ عنها: `ExpertOption socket closed`، `ExpertOption returned no assets`،
+`token is invalid or expired`، و HTTP 503 على `/assets?market=smarty` وبيانات SMARTY.
+
+الأسباب التي تم إثباتها بالكود والاختبار المحلي:
+
+| السبب | الملف | الإصلاح |
+|---|---|---|
+| طلب `permessage-deflate` (`compress=15`) على WebSocket؛ بوابات ExpertOption تغلق المقبس في هذه الحالة | `eo_bridge/eo_client.py` | `compress=0` |
+| إغلاق المقبس محلياً كان يلغي مهمة الاستقبال، فيموت `_supervise` ولا يوجد إعادة اتصال | `eo_bridge/eo_client.py` | `_wait_closed` يتعامل مع `CancelledError` كمحاولة منتهية |
+| الاشتراكات لم تُمسح عند الانقطاع، فلا يُعاد إرسال `subscribeCandles` بعد الاتصال | `eo_bridge/eo_client.py` | مسح `_subscriptions` عند الإغلاق |
+| أخطاء المصادقة كانت تُترجم إلى `DISCONNECTED` وتُعاد المحاولة كل ثانية | `eo_bridge/eo_client.py` | تصنيف `TOKEN_INVALID` / `AUTH_FAILED` وإرجاعها فوراً، وتهدئة إعادة المحاولة بعد 3 محاولات |
+| أزمنة الشموع قد تصل بالميلي ثانية | `eo_bridge/eo_client.py` | `_normalise_ts` |
+| ترتيب قيم الشمعة قد يكون `[open, close, low, high]` أو `[open, close, high, low]` | `eo_bridge/eo_client.py` | `_row_to_candle` يقبل أول ترتيب OHLC صالح ويرفض الشموع غير المتسقة |
+| شموع بتوقيت مستقبلي تُفسد التحليل | `eo_bridge/eo_client.py` | استبعاد أي شمعة بعد `now + tf` |
+| SMARTY قديم أو غير معروض | `eo_bridge/app.py` | `SMARTY_STALE` و`SMARTY_UNAVAILABLE` بدل إشارة |
+| `/assets?market=smarty` كان يرجع 200 بقائمة فارغة | `eo_bridge/app.py` | 404 `SMARTY_UNAVAILABLE` |
+| خطأ في اسم رمز SMARTY (`SMRTY` / `SMARTY`) كان يوقف التحليل | `providers/eobridge.py` | مطابقة أسماء SMARTY كمرادفات |
+
+ما لم يُثبت بعد: لم يتوفر `EO_TOKEN` حقيقي، لذلك لم تُختبر المصافحة مع خادم
+ExpertOption المباشر ولا معرّف 240 من حمولة حقيقية. كل الاختبارات أعلاه تُشغّل
+بوابة WebSocket محلية تحاكي شكل الحمولة، وهي تثبت منطق الجسر لا الحساب الحقيقي.

@@ -65,6 +65,8 @@ class ExpertOptionBridgeProvider(BaseProvider):
         if response.status_code != 200:
             code = str(payload.get("error") or "EO_BRIDGE_ERROR")
             message = str(payload.get("message") or f"HTTP {response.status_code}")
+            if code in {"TOKEN_INVALID", "AUTH_FAILED", "SESSION_INVALID"}:
+                message += " — refresh EO_TOKEN in the ExpertOption bridge service"
             raise DataUnavailable(code, f"ExpertOption bridge: {message}", f"HTTP {response.status_code}")
         return payload
 
@@ -110,6 +112,13 @@ class ExpertOptionBridgeProvider(BaseProvider):
                 "SOURCE_MISMATCH",
                 f"Bridge data is for market '{returned_market or 'unknown'}', not {asset.market.value}",
             )
+        smarty_names = {"SMRTY", "SMARTY", "SMRT"}
+        if (
+            asset.market is Market.SMARTY
+            and returned_symbol in smarty_names
+            and asset.symbol.replace("/", "").upper() in smarty_names
+        ):
+            return
         if returned_symbol and returned_symbol != asset.symbol.replace("/", ""):
             raise DataUnavailable(
                 "SOURCE_MISMATCH",

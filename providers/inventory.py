@@ -68,8 +68,9 @@ class MarketInventory:
         try:
             try:
                 rows = await self._bridge.fetch_assets(market)
-            except DataUnavailable:
-                if market is not Market.SMARTY:
+            except DataUnavailable as exc:
+                auth_codes = {"TOKEN_INVALID", "AUTH_FAILED", "SESSION_INVALID", "EO_TOKEN_MISSING"}
+                if market is not Market.SMARTY or exc.code in auth_codes:
                     raise
                 rows = await self._smarty_rows()
             assets = self._to_assets(rows, market)

@@ -4,6 +4,7 @@ from __future__ import annotations
 import contextlib
 import hmac
 import logging
+import time as _time
 from typing import Any
 
 from aiohttp import web
@@ -78,6 +79,12 @@ class BridgeApp:
             return _error(exc.code, exc.message)
         if market:
             instruments = [item for item in instruments if item.market == market]
+            if market == "smarty" and not instruments:
+                return _error(
+                    "SMARTY_UNAVAILABLE",
+                    "SMRTY (id 240) is not offered on this ExpertOption account right now",
+                    status=404,
+                )
         return _json(
             {
                 "service": SERVICE,
@@ -180,6 +187,13 @@ class BridgeApp:
         except BridgeError as exc:
             return _error(exc.code, exc.message)
         latest = candles[-1]
+        stale_seconds = max(0.0, _time.time() - latest.time)
+        if stale_seconds > max(120.0, seconds * 3):
+            return _error(
+                "SMARTY_STALE",
+                f"Latest {instrument.symbol} candle is {int(stale_seconds)}s old; no signal from stale data",
+                status=503,
+            )
         payload = self._quote_payload(instrument, latest.time, latest.close, seconds)
         payload.update(
             {

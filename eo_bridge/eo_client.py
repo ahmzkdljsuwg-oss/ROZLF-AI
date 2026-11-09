@@ -128,6 +128,7 @@ class ExpertOptionClient:
 
     async def _supervise(self) -> None:
         backoff = 1.0
+        auth_failures = 0
         while not self._stopping:
             try:
                 await self._connect_once()
@@ -147,10 +148,23 @@ class ExpertOptionClient:
                 await self._close_socket()
             if self._stopping:
                 break
-            delay = min(30.0, backoff) + random.uniform(0, 1.0)
-            logger.info("Reconnecting to ExpertOption in %.1fs", delay)
+            if self._last_error and self._last_error.startswith(("TOKEN_INVALID", "AUTH_FAILED")):
+                auth_failures += 1
+            else:
+                auth_failures = 0
+            if auth_failures >= 3:
+                delay = 600.0
+                logger.error(
+                    "ExpertOption session is still being refused (%s); waiting %.0fs "
+                    "before the next attempt. Refresh EO_TOKEN.",
+                    self._last_error,
+                    delay,
+                )
+            else:
+                delay = min(30.0, backoff) + random.uniform(0, 1.0)
+                logger.info("Reconnecting to ExpertOption in %.1fs", delay)
+                backoff = min(30.0, backoff * 2)
             await asyncio.sleep(delay)
-            backoff = min(30.0, backoff * 2)
 
     async def _connect_once(self) -> None:
         if self._session is None or self._session.closed:
@@ -160,7 +174,7 @@ class ExpertOptionClient:
             self.settings.ws_url,
             headers=HEADERS,
             heartbeat=25,
-            compress=15,
+            compress=0,
             max_msg_size=0,
         )
         self._last_error = None
@@ -169,8 +183,13 @@ class ExpertOptionClient:
         await self._handshake()
 
     async def _wait_closed(self) -> None:
-        if self._receive_task is not None:
-            await self._receive_task
+        task = self._receive_task
+        if task is None or task is asyncio.current_task():
+            return
+        # A locally closed socket cancels the receive task; that must end this
+        # connection attempt, not kill the supervisor that would reconnect.
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await task
 
     async def _close_socket(self) -> None:
         for task in (self._ping_task, self._receive_task):
@@ -182,6 +201,7 @@ class ExpertOptionClient:
         self._ws = None
         self._ping_task = None
         self._receive_task = None
+        self._subscriptions.clear()
         self._connected.clear()
 
     # ------------------------------------------------------------------ sending
@@ -229,14 +249,30 @@ class ExpertOptionClient:
         if self._ws is not None and self._ws.exception() is not None:
             raise BridgeError("SOCKET", str(self._ws.exception()))
 
+    @staticmethod
+    def _classify_error(detail: Any) -> str:
+        """Map ExpertOption error text to a code the bot can show honestly."""
+        text = detail if isinstance(detail, str) else json.dumps(detail, ensure_ascii=False)
+        lowered = text.lower()
+        if "token" in lowered and any(
+            word in lowered for word in ("invalid", "expired", "wrong", "unknown", "unauthoriz")
+        ):
+            return "TOKEN_INVALID"
+        if any(word in lowered for word in ("unauthoriz", "not authorized", "auth")):
+            return "AUTH_FAILED"
+        return "EO_ERROR"
+
     def _dispatch(self, data: dict[str, Any]) -> None:
         action = data.get("action")
         ns = str(data.get("ns")) if data.get("ns") else None
         if action == "error":
             detail = data.get("message")
+            code = self._classify_error(detail)
             if ns and ns in self._pending and not self._pending[ns].done():
-                self._pending[ns].set_exception(BridgeError("EO_ERROR", str(detail)))
-            else:
+                self._pending[ns].set_exception(BridgeError(code, str(detail)))
+            if code in {"TOKEN_INVALID", "AUTH_FAILED"}:
+                self._last_error = f"{code}: {detail}"
+            elif not ns or ns not in self._pending:
                 self._last_error = f"EO: {detail}"
             return
         if action == "token":
@@ -263,21 +299,37 @@ class ExpertOptionClient:
 
     def _ingest_candles(self, message: dict[str, Any]) -> None:
         try:
-            asset_id = int(message.get("assetId") or message.get("assetid") or 0)
-            tf = int(message.get("tf") or 0)
-        except (TypeError, ValueError):
+            asset_id = int(
+                message.get("assetId")
+                or message.get("assetid")
+                or message.get("asset")
+                or 0
+            )
+            tf = int(
+                message.get("tf")
+                or message.get("timeframe")
+                or (message.get("timeframes") or [0])[0]
+                or 0
+            )
+        except (TypeError, ValueError, IndexError):
             return
         if not asset_id or not tf:
             return
         bucket = self._candles.setdefault((asset_id, tf), {})
-        for block in message.get("candles") or []:
+        blocks = message.get("candles")
+        if not blocks:
+            periods = message.get("periods")
+            blocks = [{"periods": periods}] if periods else []
+        for block in blocks:
             periods = block.get("periods") if isinstance(block, dict) else None
             if periods:
                 for period in periods:
                     try:
-                        start = int(period[0])
+                        start = self._normalise_ts(period[0])
                         rows = period[1] or []
                     except (IndexError, TypeError, ValueError):
+                        continue
+                    if start is None:
                         continue
                     self._store_rows(bucket, [(start + index * tf, row) for index, row in enumerate(rows)])
                 continue
@@ -288,21 +340,63 @@ class ExpertOptionClient:
                 self._store_rows(bucket, [(int(block[0]), block[1])])
 
     @staticmethod
-    def _store_rows(bucket: dict[int, Candle], pairs: list[tuple[int, list]]) -> None:
-        for timestamp, row in pairs:
-            if not isinstance(row, list) or len(row) < 4:
-                continue
-            try:
-                bucket[timestamp] = Candle(
+    def _normalise_ts(value: Any) -> int | None:
+        """ExpertOption has shipped period starts in both seconds and ms."""
+        try:
+            timestamp = int(float(value))
+        except (TypeError, ValueError):
+            return None
+        if timestamp <= 0:
+            return None
+        if timestamp > 10_000_000_000:
+            timestamp //= 1000
+        return timestamp
+
+    @staticmethod
+    def _row_to_candle(timestamp: int, row: Any) -> Candle | None:
+        if not isinstance(row, (list, tuple)) or len(row) < 4:
+            return None
+        try:
+            values = [float(value) for value in row[:4]]
+        except (TypeError, ValueError):
+            return None
+        if any(value <= 0 or value != value for value in values):
+            return None
+        # Different ExpertOption builds order the four values differently, so
+        # accept the first ordering that is a valid OHLC bar.
+        candidates = (
+            values,
+            [values[0], values[3], values[2], values[1]],  # open, close, low, high
+            [values[0], values[3], values[1], values[2]],  # open, close, high, low
+        )
+        for open_, high, low, close in candidates:
+            if high >= max(open_, close) and low <= min(open_, close) and high > low:
+                volume = 0.0
+                if len(row) > 4:
+                    try:
+                        volume = float(row[4] or 0)
+                    except (TypeError, ValueError):
+                        volume = 0.0
+                return Candle(
                     time=timestamp,
-                    open=float(row[0]),
-                    high=float(row[1]),
-                    low=float(row[2]),
-                    close=float(row[3]),
-                    volume=float(row[4]) if len(row) > 4 and row[4] is not None else 0.0,
+                    open=open_,
+                    high=high,
+                    low=low,
+                    close=close,
+                    volume=volume,
                 )
-            except (TypeError, ValueError):
+        logger.debug("dropping inconsistent ExpertOption candle row %r", row)
+        return None
+
+    @classmethod
+    def _store_rows(cls, bucket: dict[int, Candle], pairs: list[tuple[Any, Any]]) -> None:
+        for raw_ts, row in pairs:
+            timestamp = cls._normalise_ts(raw_ts)
+            if timestamp is None:
                 continue
+            candle = cls._row_to_candle(timestamp, row)
+            if candle is not None:
+                bucket[timestamp] = candle
 
     # ------------------------------------------------------------------ handshake
     async def _handshake(self) -> None:
@@ -320,16 +414,45 @@ class ExpertOptionClient:
                 "message": {"token": self._token, "actions": actions},
             }
         )
-        deadline = time.monotonic() + 15.0
-        while time.monotonic() < deadline and not self._assets:
-            if self._last_error and "error" in self._last_error.lower():
-                raise BridgeError("AUTH_FAILED", self._last_error)
-            await asyncio.sleep(0.1)
+        await self._wait_for_assets(15.0)
         if not self._assets:
-            raise BridgeError("AUTH_FAILED", "ExpertOption returned no assets; token is invalid or expired")
+            # Some gateways ignore the batch and answer a plain assets request.
+            with contextlib.suppress(BridgeError):
+                await self.refresh_assets()
+        if not self._assets:
+            await self._wait_for_assets(8.0)
+        if not self._assets:
+            raise self._auth_error()
         self._connected.set()
         self._last_error = None
         logger.info("ExpertOption authenticated: %d instruments", len(self._assets))
+
+    async def _wait_for_assets(self, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline and not self._assets:
+            if self._last_error and self._last_error.startswith(("TOKEN_INVALID", "AUTH_FAILED")):
+                return
+            await asyncio.sleep(0.1)
+
+    def _auth_error(self) -> BridgeError:
+        error = self._last_error or ""
+        if error.startswith("TOKEN_INVALID"):
+            return BridgeError(
+                "TOKEN_INVALID",
+                "ExpertOption rejected the session token (expired or signed out): " + error.split(":", 1)[-1].strip(),
+            )
+        if error.startswith("AUTH_FAILED"):
+            return BridgeError("AUTH_FAILED", error.split(":", 1)[-1].strip() or "ExpertOption refused the session")
+        if not self._last_message_at:
+            return BridgeError(
+                "NO_RESPONSE",
+                "ExpertOption closed the socket before answering the handshake; "
+                "check EO_REGION and EO_TOKEN",
+            )
+        return BridgeError(
+            "AUTH_FAILED",
+            error or "ExpertOption returned no assets; token is invalid or expired",
+        )
 
     async def refresh_assets(self) -> list[Instrument]:
         response = await self.request("assets", None, timeout=15.0)
@@ -347,8 +470,12 @@ class ExpertOptionClient:
         if not self.settings.eo_token:
             raise BridgeError("EO_TOKEN_MISSING", "Bridge has no ExpertOption session token")
         if not self.connected:
-            with contextlib.suppress(asyncio.TimeoutError):
-                await asyncio.wait_for(self._connected.wait(), timeout=15.0)
+            deadline = time.monotonic() + 15.0
+            while not self.connected and time.monotonic() < deadline:
+                if self._last_error and self._last_error.startswith(("TOKEN_INVALID", "AUTH_FAILED")):
+                    raise self._auth_error()
+                with contextlib.suppress(asyncio.TimeoutError):
+                    await asyncio.wait_for(self._connected.wait(), timeout=0.2)
         if not self.connected:
             raise BridgeError(
                 "DISCONNECTED",
@@ -395,7 +522,16 @@ class ExpertOptionClient:
                 if bucket:
                     end = min(bucket) - 1
                 span = max(span, tf_seconds * needed)
-        candles = [bucket[ts] for ts in sorted(bucket)][-limit:]
+        now = time.time()
+        horizon = now + max(tf_seconds, 60)
+        ordered = [bucket[ts] for ts in sorted(bucket)]
+        if any(candle.time > horizon for candle in ordered):
+            logger.warning(
+                "dropping ExpertOption candles dated in the future for %s tf=%s",
+                instrument.symbol,
+                tf_seconds,
+            )
+        candles = [candle for candle in ordered if candle.time <= horizon][-limit:]
         if not candles:
             raise BridgeError("NO_CANDLES", f"ExpertOption returned no candles for {instrument.symbol} tf={tf_seconds}")
         return candles
