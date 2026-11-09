@@ -5,7 +5,7 @@ import pytest
 
 from engines.signals.generator import SignalGenerator, supported_durations
 from providers.base import DataUnavailable, utc_now
-from providers.catalog import Market, find_by_symbol, timeframe
+from providers.catalog import Market, dynamic_asset, find_by_symbol, timeframe
 from providers.registry import DataSourceRegistry
 from services.signal_tracker import SignalTracker
 
@@ -56,8 +56,9 @@ def test_durations_respect_timeframe(eurusd):
     allowed = supported_durations(eurusd, timeframe("1min"))
     assert 30 not in allowed
     assert 60 in allowed
-    otc = find_by_symbol("EUR/USD", Market.OTC)
-    assert 30 in supported_durations(otc, timeframe("1min"))
+    otc = dynamic_asset("EURUSD_OTC", Market.OTC, precision=5, bridge_id=179)
+    allowed_otc = supported_durations(otc, timeframe("1min"))
+    assert 30 not in allowed_otc and 60 in allowed_otc
 
 
 async def _add_signal(repo, asset, direction, entry, minutes_ago=8, expiry=300, user=42):

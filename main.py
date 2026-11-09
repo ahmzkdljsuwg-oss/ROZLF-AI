@@ -20,7 +20,10 @@ from bot.middleware.auth import AccessMiddleware
 from config import settings
 from database.repository import Repository
 from engines.signals.generator import SignalGenerator
+from providers.eobridge import ExpertOptionBridgeProvider
+from providers.inventory import MarketInventory
 from providers.registry import build_registry
+from services.health import MarketHealthService
 from services.scanner import AutoScanner
 from services.signal_tracker import SignalTracker
 
@@ -77,7 +80,10 @@ async def main() -> None:
     dp = Dispatcher()
     repo = Repository(settings)
     await repo.init()
-    registry = build_registry(settings)
+    bridge = ExpertOptionBridgeProvider(settings.bridge_url, settings.eo_bridge_key)
+    registry = build_registry(settings, bridge=bridge)
+    inventory = MarketInventory(bridge)
+    health = MarketHealthService(registry, inventory)
     mistral = MistralClient(
         api_key=settings.mistral_api_key,
         model=settings.mistral_model,
@@ -91,6 +97,8 @@ async def main() -> None:
         repo=repo,
         generator=generator,
         mistral=mistral,
+        inventory=inventory,
+        health=health,
     )
 
     async def notify_signal(record) -> None:
@@ -112,7 +120,7 @@ async def main() -> None:
             logger.exception("failed sending verification to %s", chat_id)
 
     tracker = SignalTracker(repo, registry, notifier=notify_verification, grace_seconds=600)
-    scanner = AutoScanner(generator, repo, registry, settings, notifier=notify_signal)
+    scanner = AutoScanner(generator, repo, registry, settings, notifier=notify_signal, inventory=inventory)
     ctx.tracker = tracker
     ctx.scanner = scanner
     set_context(ctx)

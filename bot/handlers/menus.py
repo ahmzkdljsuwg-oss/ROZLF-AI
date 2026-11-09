@@ -13,7 +13,7 @@ from bot.context import get_context
 from bot.keyboards import menus
 from engines.signals.generator import DURATION_LABELS
 from providers.base import DataUnavailable
-from providers.catalog import TIMEFRAMES, Market, assets_for, get_asset, timeframe
+from providers.catalog import SMARTY_ASSET, TIMEFRAMES, Asset, Market, assets_for, get_asset, timeframe
 
 logger = logging.getLogger(__name__)
 router = Router(name="menus")
@@ -86,10 +86,11 @@ async def cmd_status(message: Message) -> None:
 async def _send_status(message: Message) -> None:
     ctx = get_context()
     scanner = ctx.scanner
+    health = await ctx.market_health(force=True)
     text = fmt.status_text(
         ctx.settings,
         ctx.registry.statuses(),
-        ctx.source_map(),
+        health,
         ctx.ai_health(),
     )
     if scanner is not None:
@@ -118,24 +119,93 @@ async def cb_market(callback: CallbackQuery) -> None:
     if market is None:
         await _edit(callback, "MARKET غير معروف.", menus.back_to_main())
         return
+    ctx = get_context()
+    if market is Market.SMARTY:
+        await callback.answer("⏳ فحص SMARTY...")
+        await _show_smarty(callback)
+        return
+    if market.is_expertoption:
+        await callback.answer("⏳ قراءة أصول حساب ExpertOption...")
+        inventory = ctx.inventory
+        if inventory is None:
+            await _edit(
+                callback,
+                fmt.unavailable_text(f"{market.label} MARKET", "MARKET_UNAVAILABLE",
+                                     "Market inventory is not initialised"),
+                menus.unavailable_menu(market),
+            )
+            return
+        try:
+            assets = await inventory.assets(market, force=True)
+        except DataUnavailable as exc:
+            await _edit(
+                callback,
+                fmt.unavailable_text(f"{market.label} MARKET", exc.message, exc.detail),
+                menus.unavailable_menu(market),
+            )
+            return
+        text = fmt.markets_text(market.value, assets, [tf.label for tf in TIMEFRAMES.values()])
+        text += (
+            "\n\n<i>هذه الأصول مكتشفة مباشرة من حساب ExpertOption الخاص بك. "
+            "اختر الأصل ثم الفريم لبدء التحليل.</i>"
+        )
+        await _edit(callback, text, menus.market_menu(market, assets))
+        return
     assets = assets_for(market)
     text = fmt.markets_text(market.value, assets, [tf.label for tf in TIMEFRAMES.values()])
-    if market.is_expertoption:
-        text += "\n\n<i>هذا السوق يعمل فقط عند توصيل جسر ExpertOption موثّق.</i>"
-    await _edit(callback, text, menus.market_menu(market))
+    await _edit(callback, text, menus.market_menu(market, assets))
+
+
+async def _show_smarty(callback: CallbackQuery) -> None:
+    ctx = get_context()
+    inventory = ctx.inventory
+    if inventory is None:
+        await _edit(
+            callback,
+            fmt.unavailable_text("🧠 SMARTY MARKET", "SMARTY_UNAVAILABLE", "Market inventory is not initialised"),
+            menus.unavailable_menu(Market.SMARTY),
+        )
+        return
+    try:
+        assets = await inventory.assets(Market.SMARTY, force=True)
+    except DataUnavailable as exc:
+        await _edit(
+            callback,
+            fmt.unavailable_text("🧠 SMARTY MARKET", "SMARTY_UNAVAILABLE", exc.detail or exc.message),
+            menus.unavailable_menu(Market.SMARTY),
+        )
+        return
+    if not assets:
+        await _edit(
+            callback,
+            fmt.unavailable_text("🧠 SMARTY MARKET", "SMARTY_UNAVAILABLE", "no SMARTY instrument returned"),
+            menus.unavailable_menu(Market.SMARTY),
+        )
+        return
+    asset = assets[0]
+    source = ctx.registry.source_summary(asset)
+    detail = f"ID {asset.bridge_id}" if asset.bridge_id else None
+    await _edit(callback, fmt.smarty_card_text(asset, source, detail), menus.smarty_menu(asset))
 
 
 @router.callback_query(F.data.startswith("ast:"))
 async def cb_asset(callback: CallbackQuery) -> None:
-    asset = get_asset(callback.data.split(":", 1)[1])
+    ctx = get_context()
+    key = callback.data.split(":", 1)[1]
+    asset: Asset | None = get_asset(key)
+    if asset is None and ctx.inventory is not None:
+        asset = await ctx.inventory.resolve(key)
     await callback.answer()
     if asset is None:
         await _edit(callback, "ASSET غير معروف.", menus.back_to_main())
         return
+    if asset.market is Market.SMARTY:
+        await _show_smarty(callback)
+        return
     text = (
         f"<b>{asset.display}</b>\n"
         f"MARKET: {asset.market.label}\n"
-        f"DATA SOURCE: {get_context().registry.source_summary(asset)}\n\n"
+        f"DATA SOURCE: {ctx.registry.source_summary(asset)}\n\n"
         "اختر الفريم لبدء التحليل الفني + SMC:"
     )
     await _edit(callback, text, menus.asset_menu(asset))
@@ -144,6 +214,8 @@ async def cb_asset(callback: CallbackQuery) -> None:
 async def _run_analysis(callback: CallbackQuery, asset_key: str, frame_code: str) -> None:
     ctx = get_context()
     asset = get_asset(asset_key)
+    if asset is None and ctx.inventory is not None:
+        asset = await ctx.inventory.resolve(asset_key)
     if asset is None or frame_code not in TIMEFRAMES:
         await callback.answer("طلب غير صالح", show_alert=True)
         return
@@ -152,12 +224,9 @@ async def _run_analysis(callback: CallbackQuery, asset_key: str, frame_code: str
     try:
         market_data, result = await ctx.generator.fetch_and_analyse(asset, frame_code)
     except DataUnavailable as exc:
-        detail = f"\n\nDETAIL: {exc.detail}" if exc.detail else ""
         await _edit(
             callback,
-            f"<b>ROZLF AI — {asset.display}</b>\n\n<b>{fmt.DATA_UNAVAILABLE}</b>\n"
-            f"{exc.message}{detail}\n\n"
-            "لن يتم إصدار إشارة من بيانات غير موثوقة.",
+            fmt.unavailable_text(f"ROZLF AI — {asset.display}", exc.message, exc.detail),
             menus.back_only(f"ast:{asset.key}", "🔙 BACK"),
         )
         return
@@ -204,6 +273,8 @@ async def cb_signal(callback: CallbackQuery) -> None:
     ctx = get_context()
     _, asset_key, frame_code, duration_raw = callback.data.split(":", 3)
     asset = get_asset(asset_key)
+    if asset is None and ctx.inventory is not None:
+        asset = await ctx.inventory.resolve(asset_key)
     try:
         duration = int(duration_raw)
     except ValueError:
@@ -228,7 +299,7 @@ async def cb_signal(callback: CallbackQuery) -> None:
     except DataUnavailable as exc:
         await _edit(
             callback,
-            f"<b>ROZLF AI — {asset.display}</b>\n\n<b>{fmt.DATA_UNAVAILABLE}</b>\n{exc.message}",
+            fmt.unavailable_text(f"ROZLF AI — {asset.display}", exc.message, exc.detail),
             menus.back_only(f"ast:{asset.key}", "🔙 BACK"),
         )
         return
@@ -267,6 +338,43 @@ async def cb_signal(callback: CallbackQuery) -> None:
         fmt.signal_text(record, ai_note),
         menus.back_only(f"ast:{asset.key}", "🔙 BACK"),
     )
+
+
+@router.callback_query(F.data.startswith("sm:"))
+async def cb_smarty_signal(callback: CallbackQuery) -> None:
+    ctx = get_context()
+    _, asset_key, duration_raw = callback.data.split(":", 2)
+    asset = get_asset(asset_key)
+    if asset is None and ctx.inventory is not None:
+        asset = await ctx.inventory.resolve(asset_key)
+    try:
+        duration = int(duration_raw)
+    except ValueError:
+        duration = 0
+    if asset is None or asset.market is not Market.SMARTY or duration <= 0:
+        await callback.answer("طلب غير صالح", show_alert=True)
+        return
+    await callback.answer("⏳ تحليل SMARTY...")
+    await _edit(callback, f"⏳ SMARTY — {asset.display} — {duration}s...", None)
+    user_settings = await ctx.repo.get_user_settings(
+        callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence}
+    )
+    try:
+        result, record = await ctx.generator.generate(
+            callback.from_user.id,
+            asset,
+            "1min",
+            duration_seconds=duration,
+            min_confidence=user_settings["min_confidence"],
+        )
+    except DataUnavailable as exc:
+        await _edit(
+            callback,
+            fmt.unavailable_text("🧠 SMARTY MARKET", "SMARTY_UNAVAILABLE", exc.detail or exc.message),
+            menus.unavailable_menu(Market.SMARTY),
+        )
+        return
+    await _edit(callback, fmt.smarty_result_text(result, record), menus.smarty_menu(asset))
 
 
 @router.callback_query(F.data == "live")
@@ -404,6 +512,8 @@ def _scanner_text(ctx) -> str:
         text += f"LAST SCAN: {fmt.local_time(scanner.last_run)}\nSIGNALS: {scanner.last_found}\n"
     if scanner.last_error:
         text += f"LAST ERROR: {scanner.last_error[:150]}\n"
+    for market, reason in getattr(scanner, "last_skips", {}).items():
+        text += f"SKIPPED {market}: {reason[:120]}\n"
     text += (
         "\nالفحص يغطي: FOREX M5/M15، GOLD M15، OTC/SMARTY M1/M5 (عند توفر جسر موثّق).\n"
         "يتم منع الإشارات المكررة وتجاهل البيانات الضعيفة تلقائياً."

@@ -41,6 +41,22 @@ class TwelveDataProvider(BaseProvider):
     def _supports(self, asset: Asset) -> bool:
         return asset.twelve_data_symbol is not None
 
+    def status(self):
+        status = super().status()
+        detail = (
+            "no TWELVE_DATA_API_KEY set — demo key only covers a few FX symbols, GOLD needs a live key"
+            if self.demo_mode
+            else "live API key"
+        )
+        return status.__class__(
+            id=status.id,
+            name=status.name,
+            configured=status.configured,
+            can_serve_candles=status.can_serve_candles,
+            markets=status.markets,
+            detail=detail,
+        )
+
     async def _http(self) -> httpx.AsyncClient:
         if self._client is None:
             self._client = httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=10.0))
@@ -51,8 +67,7 @@ class TwelveDataProvider(BaseProvider):
             await self._client.aclose()
             self._client = None
 
-    @staticmethod
-    def _check_payload(payload: Any, symbol: str) -> None:
+    def _check_payload(self, payload: Any, symbol: str) -> None:
         if not isinstance(payload, dict):
             raise DataUnavailable("BAD_RESPONSE", f"Twelve Data returned an unexpected payload for {symbol}")
         if payload.get("status") != "error" and "code" not in payload:
@@ -62,7 +77,12 @@ class TwelveDataProvider(BaseProvider):
         if code == 429:
             raise DataUnavailable("RATE_LIMITED", "Twelve Data rate limit reached", message)
         if code in (401, 403):
-            raise DataUnavailable("INVALID_KEY", "Twelve Data API key rejected", message)
+            hint = " (no TWELVE_DATA_API_KEY set; the demo key rejects this symbol)" if self.demo_mode else ""
+            raise DataUnavailable(
+                "INVALID_KEY",
+                "Twelve Data API key rejected" + hint,
+                message,
+            )
         if "not available" in message.lower() or "not found" in message.lower():
             raise DataUnavailable(
                 "SYMBOL_NOT_IN_PLAN",

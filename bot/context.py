@@ -11,6 +11,8 @@ from database.repository import Repository
 from engines.signals.generator import SignalGenerator
 from providers.catalog import Market, assets_for
 from providers.registry import DataSourceRegistry
+from providers.inventory import MarketInventory
+from services.health import MarketHealthService
 from services.scanner import AutoScanner
 from services.signal_tracker import SignalTracker
 
@@ -23,6 +25,8 @@ class AppContext:
     repo: Repository
     generator: SignalGenerator
     mistral: MistralClient
+    inventory: MarketInventory | None = None
+    health: MarketHealthService | None = None
     tracker: SignalTracker | None = None
     scanner: AutoScanner | None = None
 
@@ -37,6 +41,11 @@ class AppContext:
 
     def ai_health(self) -> dict:
         return self.mistral.health()
+
+    async def market_health(self, force: bool = False) -> dict:
+        if self.health is None:
+            return {}
+        return await self.health.snapshot(force=force)
 
 
 _context: AppContext | None = None

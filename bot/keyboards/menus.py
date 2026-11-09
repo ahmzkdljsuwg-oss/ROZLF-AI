@@ -29,12 +29,42 @@ def main_menu() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def market_menu(market: Market) -> InlineKeyboardMarkup:
+def market_menu(market: Market, assets: list[Asset] | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    for asset in assets_for(market):
+    for asset in assets if assets is not None else assets_for(market):
         builder.button(text=asset.display, callback_data=f"ast:{asset.key}")
     builder.adjust(2)
-    builder.row(_button("🔙 BACK", "menu:main"), _button("🏠 MAIN", "menu:main"))
+    builder.row(
+        _button("🔄 REFRESH", f"mkt:{market.value}"),
+        _button("🏠 MAIN", "menu:main"),
+    )
+    return builder.as_markup()
+
+
+SMARTY_TRADE_DURATIONS: tuple[int, ...] = (60, 120, 180, 300)
+
+
+def smarty_menu(asset: Asset) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for seconds in SMARTY_TRADE_DURATIONS:
+        builder.button(
+            text=f"⚡ {DURATION_LABELS[seconds]}",
+            callback_data=f"sm:{asset.key}:{seconds}",
+        )
+    builder.adjust(2)
+    builder.row(
+        _button("🔄 LIVE CHECK", f"ast:{asset.key}"),
+        _button("🏠 MAIN", "menu:main"),
+    )
+    return builder.as_markup()
+
+
+def unavailable_menu(market: Market) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        _button("🔄 RETRY", f"mkt:{market.value}"),
+        _button("🏠 MAIN", "menu:main"),
+    )
     return builder.as_markup()
 
 

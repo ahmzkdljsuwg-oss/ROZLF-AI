@@ -51,16 +51,55 @@ class ExpertOptionBridgeProvider(BaseProvider):
         except httpx.HTTPError as exc:
             raise DataUnavailable("NETWORK", f"ExpertOption bridge unreachable: {exc}") from exc
         if response.status_code == 401:
-            raise DataUnavailable("EO_BRIDGE_UNAUTHORIZED", "ExpertOption bridge rejected the API key")
-        if response.status_code != 200:
-            raise DataUnavailable("EO_BRIDGE_ERROR", f"ExpertOption bridge returned HTTP {response.status_code}")
+            raise DataUnavailable("EO_BRIDGE_UNAUTHORIZED", "ExpertOption bridge rejected the API key (EO_BRIDGE_KEY)")
         try:
             payload = response.json()
         except ValueError as exc:
+            if response.status_code != 200:
+                raise DataUnavailable(
+                    "EO_BRIDGE_ERROR", f"ExpertOption bridge returned HTTP {response.status_code}"
+                ) from exc
             raise DataUnavailable("BAD_RESPONSE", "ExpertOption bridge returned non-JSON data") from exc
         if not isinstance(payload, dict):
             raise DataUnavailable("BAD_RESPONSE", "ExpertOption bridge returned an unexpected payload")
+        if response.status_code != 200:
+            code = str(payload.get("error") or "EO_BRIDGE_ERROR")
+            message = str(payload.get("message") or f"HTTP {response.status_code}")
+            raise DataUnavailable(code, f"ExpertOption bridge: {message}", f"HTTP {response.status_code}")
         return payload
+
+    async def fetch_assets(self, market: Market) -> list[dict[str, Any]]:
+        payload = await self._get("/assets", {"market": market.value})
+        rows = payload.get("assets")
+        if not isinstance(rows, list) or not rows:
+            raise DataUnavailable(
+                "EMPTY",
+                f"ExpertOption account exposes no {market.label} assets",
+                f"bridge /assets?market={market.value} returned 0 instruments",
+            )
+        return [row for row in rows if isinstance(row, dict)]
+
+    async def smarty(self) -> dict[str, Any]:
+        """Live SMARTY instrument + candles; raises SMARTY_UNAVAILABLE when absent."""
+        return await self._get("/smarty", {"timeframe": "1min", "limit": 2})
+
+    async def health(self) -> dict[str, Any]:
+        payload = await self._get("/health", {})
+        return payload
+
+    def status(self):
+        status = super().status()
+        detail = ""
+        if not self.configured:
+            detail = "EO_BRIDGE_URL / EO_BRIDGE_KEY not set"
+        return status.__class__(
+            id=status.id,
+            name=status.name,
+            configured=status.configured,
+            can_serve_candles=status.can_serve_candles,
+            markets=status.markets,
+            detail=detail,
+        )
 
     @staticmethod
     def _check_market(payload: dict[str, Any], asset: Asset) -> None:

@@ -16,7 +16,7 @@ def _text(name: str, default: str | None = None) -> str | None:
     value = os.getenv(name)
     if value is None:
         return default
-    value = value.strip()
+    value = value.strip().strip('"').strip("'").strip()
     return value or default
 
 
@@ -89,6 +89,18 @@ class Settings:
             scan_markets=_text("SCAN_MARKETS", "FOREX,GOLD") or "FOREX,GOLD",
             max_scan_signals=max(1, _number("MAX_SCAN_SIGNALS", 3, int)),
         )
+
+    @property
+    def bridge_url(self) -> str | None:
+        """Normalised bridge URL: a pasted host without scheme still works."""
+        url = (self.eo_bridge_url or "").strip().rstrip("/")
+        if not url:
+            return None
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
+        if url.endswith("/docs"):
+            url = url[: -len("/docs")]
+        return url
 
     @property
     def scan_interval(self) -> int:

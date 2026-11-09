@@ -202,16 +202,31 @@ def verification_text(record: SignalRecord) -> str:
     )
 
 
-def status_text(settings: Settings, statuses: list[dict], sources: dict[str, str], ai_health: dict) -> str:
+def status_text(settings: Settings, statuses: list[dict], health: dict, ai_health: dict) -> str:
     lines = ["<b>ROZLF AI — SYSTEM STATUS</b>", "━━━━━━━━━━━━━━━━━━"]
+    lines.append("<b>PROVIDERS</b>")
     for status in statuses:
-        state = "🟢 CONNECTED" if status["configured"] else "⚪ NOT CONFIGURED"
+        state = "🟢 CONFIGURED" if status["configured"] else "⚪ NOT CONFIGURED"
         role = "candles" if status["can_serve_candles"] else "quotes"
         lines.append(f"{status['name']}: {state} ({role})")
+        if status.get("detail"):
+            lines.append(f"   · {status['detail']}")
     lines.append("")
-    lines.append("<b>MARKET COVERAGE</b>")
-    for market, source in sources.items():
-        lines.append(f"{market_label(market)}: {source}")
+    lines.append("<b>MARKET COVERAGE (LIVE PROBE)</b>")
+    for market in (Market.FOREX, Market.GOLD, Market.OTC, Market.SMARTY):
+        entry = health.get(market.value)
+        if entry is None:
+            lines.append(f"{market_label(market.value)}: ⚪ NOT PROBED")
+            continue
+        if entry.ok:
+            stamp = local_time(entry.last_time)
+            lines.append(f"{market_label(market.value)}: 🟢 LIVE — {entry.source}")
+            lines.append(f"   · {entry.asset} · last candle {stamp}")
+        else:
+            lines.append(f"{market_label(market.value)}: 🔴 UNAVAILABLE")
+            lines.append(f"   · {entry.error}")
+            if entry.detail:
+                lines.append(f"   · {entry.detail[:160]}")
     lines.append("")
     ai_state = "🟢 READY" if ai_health.get("configured") else "⚪ NOT CONFIGURED"
     lines.append(f"MISTRAL AI: {ai_state}")
@@ -224,6 +239,57 @@ def status_text(settings: Settings, statuses: list[dict], sources: dict[str, str
     lines.append("")
     lines.append(f"MIN CONFIDENCE: {settings.min_confidence:.0f}%")
     lines.append(f"SCAN INTERVAL: {settings.scan_interval}s")
+    return "\n".join(lines)
+
+
+def unavailable_text(title: str, message: str, detail: str | None = None) -> str:
+    lines = [f"<b>{title}</b>", "━━━━━━━━━━━━━━━━━━", f"<b>{DATA_UNAVAILABLE}</b>", message]
+    if detail:
+        lines.append(f"DETAIL: {detail}")
+    lines.append("")
+    lines.append("لن يتم إصدار أي إشارة من بيانات ناقصة أو غير موثوقة.")
+    return "\n".join(lines)
+
+
+def smarty_card_text(asset: Asset, source_state: str, detail: str | None = None) -> str:
+    lines = [
+        "<b>🧠 SMARTY MARKET</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        f"ASSET: <b>{asset.display}</b>",
+        f"MARKET: SMARTY (ExpertOption)",
+        f"EO ASSET ID: {asset.bridge_id or 'N/A'}",
+        f"DATA SOURCE: {source_state}",
+    ]
+    if detail:
+        lines.append(f"STATUS: {detail}")
+    lines.append("")
+    lines.append("اختر مدة الصفقة لتحليل SMARTY وإصدار الإشارة:")
+    lines.append("<i>مدة الصفقة مستقلة عن فريم الشموع المستخدم في التحليل.</i>")
+    return "\n".join(lines)
+
+
+def smarty_result_text(result: AnalysisResult, record: SignalRecord | None) -> str:
+    lines = [
+        "<b>ROZLF AI — SMARTY ANALYSIS</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        f"ASSET: <b>{result.asset_display}</b>",
+        f"MARKET: SMARTY",
+        f"DIRECTION: <b>{result.direction}</b>",
+        f"CONFIDENCE: <b>{result.confidence:.0f}%</b>",
+        f"ENTRY: {format_price(result.price, result.market)}",
+    ]
+    if record is not None:
+        lines.append(f"ENTRY TIME: {local_time(record.created_at)}")
+        lines.append(f"TRADE DURATION: {duration_label(record.expiry_seconds)}")
+        lines.append(f"EXPIRY: {local_time(record.expires_at)}")
+        lines.append(f"SIGNAL ID: #{record.id}")
+    if result.reasons:
+        lines.append("")
+        lines.append("<b>TECHNICAL REASONS</b>")
+        lines.extend(f"• {reason}" for reason in result.reasons)
+    lines.append("")
+    lines.append(f"STATUS: <b>{'ACTIVE' if record is not None else 'NO TRADE'}</b>")
+    lines.append(f"<i>{DISCLAIMER}</i>")
     return "\n".join(lines)
 
 

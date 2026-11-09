@@ -94,17 +94,27 @@ class Asset:
     price_precision: int = 5
     twelve_data_symbol: str | None = None
     bridge_symbol: str | None = None
+    bridge_id: int | None = None
+    name: str | None = None
 
     @property
     def display(self) -> str:
-        return f"{self.symbol} ({self.market.label})"
+        return f"{self.name or self.symbol} ({self.market.label})"
 
     @property
     def quote_currency(self) -> str:
         return self.symbol.split("/")[-1] if "/" in self.symbol else ""
 
 
-def _asset(symbol: str, market: Market, precision: int, td: str | None = None, bridge: str | None = None) -> Asset:
+def _asset(
+    symbol: str,
+    market: Market,
+    precision: int,
+    td: str | None = None,
+    bridge: str | None = None,
+    bridge_id: int | None = None,
+    name: str | None = None,
+) -> Asset:
     key = f"{symbol.replace('/', '_')}_{market.value}".upper()
     return Asset(
         key=key,
@@ -113,6 +123,24 @@ def _asset(symbol: str, market: Market, precision: int, td: str | None = None, b
         price_precision=precision,
         twelve_data_symbol=td,
         bridge_symbol=bridge or symbol.replace("/", ""),
+        bridge_id=bridge_id,
+        name=name,
+    )
+
+
+def dynamic_asset(
+    symbol: str, market: Market, precision: int = 5, bridge_id: int | None = None, name: str | None = None
+) -> Asset:
+    """ExpertOption asset discovered from the live bridge (OTC / SMARTY)."""
+    key = f"{market.value.upper()}_{bridge_id or symbol}".replace("/", "_").upper()
+    return Asset(
+        key=key,
+        symbol=symbol,
+        market=market,
+        price_precision=precision,
+        bridge_symbol=symbol,
+        bridge_id=bridge_id,
+        name=name,
     )
 
 
@@ -132,28 +160,34 @@ FOREX_ASSETS: tuple[Asset, ...] = tuple(
     _asset(symbol, Market.FOREX, precision, td=symbol) for symbol, precision in _FOREX_SPECS
 )
 GOLD_ASSETS: tuple[Asset, ...] = (_asset("XAU/USD", Market.GOLD, 2, td="XAU/USD"),)
-# No public, licence-compatible ExpertOption OTC/Smarty feed exists; these assets
-# are only usable when the operator supplies a verified read-only bridge.
-OTC_ASSETS: tuple[Asset, ...] = tuple(
-    _asset(symbol, Market.OTC, precision) for symbol, precision in _FOREX_SPECS[:6]
-) + (_asset("XAU/USD", Market.OTC, 2), _asset("BTC/USD", Market.OTC, 2))
-SMARTY_ASSETS: tuple[Asset, ...] = tuple(
-    _asset(symbol, Market.SMARTY, precision) for symbol, precision in _FOREX_SPECS[:6]
-) + (_asset("XAU/USD", Market.SMARTY, 2),)
+# SMARTY is a single ExpertOption instrument (id 240), never a currency list.
+SMARTY_ASSET: Asset = _asset(
+    "SMRTY", Market.SMARTY, 2, bridge="SMRTY", bridge_id=240, name="SMARTY SMRTY #240"
+)
+SMARTY_ASSETS: tuple[Asset, ...] = (SMARTY_ASSET,)
+# OTC assets are discovered from the operator's own ExpertOption account at
+# runtime (`/assets?market=otc` on the bridge); nothing is hardcoded here.
+OTC_ASSETS: tuple[Asset, ...] = ()
 
-ASSETS: tuple[Asset, ...] = FOREX_ASSETS + GOLD_ASSETS + OTC_ASSETS + SMARTY_ASSETS
+ASSETS: tuple[Asset, ...] = FOREX_ASSETS + GOLD_ASSETS + SMARTY_ASSETS
 _BY_KEY: dict[str, Asset] = {asset.key: asset for asset in ASSETS}
 _BY_SYMBOL: dict[tuple[str, Market], Asset] = {(a.symbol, a.market): a for a in ASSETS}
+_DYNAMIC: dict[str, Asset] = {}
+
+
+def register_dynamic(assets: list[Asset]) -> None:
+    for asset in assets:
+        _DYNAMIC[asset.key] = asset
 
 MARKET_ORDER: tuple[Market, ...] = (Market.SMARTY, Market.OTC, Market.FOREX, Market.GOLD)
 
 
 def get_asset(key: str) -> Asset | None:
-    return _BY_KEY.get(key)
+    return _BY_KEY.get(key) or _DYNAMIC.get(key)
 
 
 def assets_for(market: Market) -> list[Asset]:
-    return [asset for asset in ASSETS if asset.market == market]
+    return [asset for asset in (*ASSETS, *_DYNAMIC.values()) if asset.market == market]
 
 
 def find_by_symbol(symbol: str, market: Market | None = None) -> Asset | None:
@@ -165,4 +199,4 @@ def find_by_symbol(symbol: str, market: Market | None = None) -> Asset | None:
 
 
 def all_assets() -> list[Asset]:
-    return list(ASSETS)
+    return [*ASSETS, *_DYNAMIC.values()]

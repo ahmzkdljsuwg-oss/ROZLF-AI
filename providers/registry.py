@@ -117,6 +117,29 @@ class DataSourceRegistry:
             raise DataUnavailable("STALE_QUOTE", f"{asset.display} quote is {int(age)}s old")
         return quote
 
+    async def probe(self, asset: Asset, tf: Timeframe | str = "5min", limit: int = 200) -> dict[str, object]:
+        """Fetch real candles once and report the true outcome for status panels."""
+        try:
+            data = await self.fetch(asset, tf, limit=limit)
+        except DataUnavailable as exc:
+            return {
+                "ok": False,
+                "asset": asset.display,
+                "source": None,
+                "code": exc.code,
+                "error": exc.message,
+                "detail": exc.detail,
+            }
+        return {
+            "ok": True,
+            "asset": asset.display,
+            "source": data.source,
+            "bars": data.validation.bar_count,
+            "last_time": data.last_time,
+            "error": None,
+            "detail": None,
+        }
+
     def statuses(self) -> list[dict[str, object]]:
         return [provider.status().as_dict() for provider in self._providers]
 
@@ -132,17 +155,22 @@ class DataSourceRegistry:
                 logger.exception("failed closing provider %s", provider.id)
 
 
-def build_registry(config) -> DataSourceRegistry:
+def build_registry(config, bridge=None) -> DataSourceRegistry:
     """Wire every provider that has credentials configured."""
     from providers.eobridge import ExpertOptionBridgeProvider
     from providers.swissquote import SwissquoteProvider
+    from providers.yahoo import YahooForexProvider
     from providers.twelvedata import TwelveDataProvider
 
-    registry = DataSourceRegistry(
+    bridge = bridge or ExpertOptionBridgeProvider(
+        getattr(config, "bridge_url", None) or config.eo_bridge_url,
+        config.eo_bridge_key,
+    )
+    return DataSourceRegistry(
         [
             TwelveDataProvider(config.twelve_data_api_key),
+            YahooForexProvider(),
             SwissquoteProvider(),
-            ExpertOptionBridgeProvider(config.eo_bridge_url, config.eo_bridge_key),
+            bridge,
         ]
     )
-    return registry

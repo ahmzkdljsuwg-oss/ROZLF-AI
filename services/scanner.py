@@ -10,8 +10,9 @@ from config import Settings
 from database.repository import Repository, SignalRecord
 from engines.signals.generator import SignalGenerator
 from engines.technical.analyzer import AnalysisResult
-from providers.base import utc_now
+from providers.base import DataUnavailable, utc_now
 from providers.catalog import Asset, Market, assets_for, timeframe
+from providers.inventory import MarketInventory
 from providers.registry import DataSourceRegistry
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ SCAN_PLAN: dict[Market, tuple[str, ...]] = {
     Market.FOREX: ("5min", "15min"),
     Market.GOLD: ("15min",),
     Market.OTC: ("1min", "5min"),
-    Market.SMARTY: ("1min", "5min"),
+    Market.SMARTY: ("1min",),
 }
 
 Notifier = Callable[[SignalRecord], Awaitable[None]]
@@ -34,11 +35,14 @@ class AutoScanner:
         registry: DataSourceRegistry,
         settings: Settings,
         notifier: Notifier | None = None,
+        inventory: MarketInventory | None = None,
     ) -> None:
         self.generator = generator
         self.repo = repo
         self.registry = registry
         self.settings = settings
+        self.inventory = inventory
+        self.last_skips: dict[str, str] = {}
         self.notifier = notifier
         self.running = False
         self.last_run: datetime | None = None
@@ -106,23 +110,29 @@ class AutoScanner:
                 continue
 
     def enabled_markets(self) -> list[Market]:
-        wanted = set(self.market_selection())
-        markets = [market for market in SCAN_PLAN if market.value in wanted]
-        if not markets:
-            markets = [Market.FOREX, Market.GOLD]
-        available: list[Market] = []
-        for market in markets:
-            if market in (Market.OTC, Market.SMARTY):
-                if self.registry.source_summary(assets_for(market)[0]) == "NONE":
-                    continue
-            available.append(market)
-        return available
+        wanted = {name.upper() for name in self.market_selection()}
+        markets = [market for market in SCAN_PLAN if market.value.upper() in wanted]
+        return markets or [Market.FOREX, Market.GOLD]
+
+    async def market_assets(self, market: Market) -> list[Asset]:
+        if market not in (Market.OTC, Market.SMARTY):
+            return assets_for(market)
+        label = market.value.upper()
+        if self.inventory is None:
+            self.last_skips[label] = "market inventory not initialised"
+            return []
+        try:
+            return await self.inventory.assets(market)
+        except DataUnavailable as exc:
+            self.last_skips[label] = exc.message
+            return []
 
     async def scan_once(self, user_ids: list[int] | None = None, min_confidence: float | None = None) -> list[SignalRecord]:
         threshold = min_confidence if min_confidence is not None else self.settings.min_confidence
         now = utc_now()
         markets = self.enabled_markets()
         found: list[AnalysisResult] = []
+        self.last_skips = {}
 
         async def analyse(asset: Asset, frame_code: str) -> AnalysisResult | None:
             async with self._semaphore:
@@ -141,7 +151,7 @@ class AutoScanner:
 
         tasks = []
         for market in markets:
-            for asset in assets_for(market):
+            for asset in await self.market_assets(market):
                 for frame_code in SCAN_PLAN[market]:
                     tasks.append(analyse(asset, frame_code))
         if not tasks:

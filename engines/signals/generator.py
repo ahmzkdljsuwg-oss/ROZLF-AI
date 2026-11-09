@@ -35,8 +35,6 @@ def supported_durations(asset: Asset, tf: Timeframe) -> list[int]:
         supported = [300, 900]
     else:
         supported = [60, 120, 180, 300]
-        if asset.market in (Market.OTC, Market.SMARTY):
-            supported.insert(0, 30)
     return supported
 
 

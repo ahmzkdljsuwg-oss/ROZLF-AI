@@ -11,7 +11,7 @@ import pytest_asyncio
 from config import settings as base_settings
 from database.repository import Repository
 from providers.base import BaseProvider, Candle, DataUnavailable, Quote, utc_now
-from providers.catalog import Asset, Market, Timeframe, find_by_symbol, timeframe
+from providers.catalog import Asset, Market, Timeframe, dynamic_asset, find_by_symbol, timeframe
 
 
 def make_candles(
@@ -91,4 +91,4 @@ def eurusd() -> Asset:
 
 @pytest.fixture
 def btc_otc() -> Asset:
-    return find_by_symbol("BTC/USD", Market.OTC)
+    return dynamic_asset("BTCUSD_OTC", Market.OTC, precision=2, bridge_id=999)
