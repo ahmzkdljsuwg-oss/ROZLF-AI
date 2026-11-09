@@ -139,7 +139,7 @@ async def main() -> None:
     runner = await _health_server(ctx, state)
 
     async def on_startup() -> None:
-        await bot.set_my_bot_commands(
+        await bot.set_my_commands(
             [
                 BotCommand(command="start", description="فتح لوحة التحكم"),
                 BotCommand(command="status", description="حالة البيانات والذكاء الاصطناعي"),
