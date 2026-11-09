@@ -74,7 +74,11 @@ PYTHONPATH=. python scripts/live_smoke.py
 
 1. ادفع المشروع إلى GitHub (تم ربط المستودع).
 2. في Railway: **New Project → Deploy from GitHub repo**.
-3. Railway يقرأ `railway.json` + `Dockerfile` ويشغّل `python main.py`.
+3. Railway يقرأ `railway.json` + `Dockerfile`، ويشغّل الأمر:
+   `sh -c "python scripts/verify_build.py && exec python main.py"`.
+   أي أن كل بناء وتشغيل يطبع `ROZLF BUILD SHA` ويتأكد أن `main.py` لا يحتوي
+   `set_my_bot_commands`؛ عند وجوده يفشل البناء/التشغيل برسالة `ROZLF BUILD CHECK FAILED`.
+   إن ظهر SHA قديم في السجل فهذا يعني أن Railway لم يسحب آخر `main` وتجب إعادة الربط/Redeploy.
 4. أضف المتغيرات من قسم **Variables** (على الأقل `TELEGRAM_BOT_TOKEN`).
 5. للتخزين الدائم: أضف **PostgreSQL** من Railway وانسخ `DATABASE_URL` (سيتحول تلقائياً إلى `postgresql+asyncpg://`).
 6. استخدم **نسخة واحدة فقط** (numReplicas=1) — تشغيل نسختين Polling يعطي `TelegramConflictError` (والبوت يوضح ذلك في اللوج ويتوقف).

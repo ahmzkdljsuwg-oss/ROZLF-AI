@@ -1,2 +1,2 @@
-web: python main.py
-worker: python main.py
+web: sh -c "python scripts/verify_build.py && exec python main.py"
+worker: sh -c "python scripts/verify_build.py && exec python main.py"
