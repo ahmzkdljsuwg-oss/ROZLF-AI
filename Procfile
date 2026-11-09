@@ -1,1 +1,2 @@
-web: python -m rozlf
+web: python main.py
+worker: python main.py

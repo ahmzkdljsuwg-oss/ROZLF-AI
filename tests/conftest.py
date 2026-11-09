@@ -1,110 +1,94 @@
+"""Shared fixtures: synthetic candles, fake provider, temp database."""
 from __future__ import annotations
 
-import asyncio
-import math
-import time
+import random
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 
 import pytest
-from aiogram import Bot
-from aiogram.client.session.base import BaseSession
-from aiogram.methods import AnswerCallbackQuery, EditMessageText, GetMe, SendMessage, SendPhoto
-from aiogram.types import Message, User
-from aiogram.methods.base import TelegramType
+import pytest_asyncio
 
-from rozlf.config import Settings
-from rozlf.database.repository import SignalRepository
-from rozlf.providers.base import Candle
+from config import settings as base_settings
+from database.repository import Repository
+from providers.base import BaseProvider, Candle, DataUnavailable, Quote, utc_now
+from providers.catalog import Asset, Market, Timeframe, find_by_symbol, timeframe
 
 
-def make_candles(n: int = 200, *, trend: float = 0.0004, start: float = 1.1000, timeframe: int = 300) -> list[Candle]:
-    now = int(time.time()) // timeframe * timeframe
+def make_candles(
+    n: int = 200,
+    *,
+    start: float = 1.1000,
+    drift: float = 0.00004,
+    noise: float = 0.00002,
+    tf_seconds: int = 300,
+    end: datetime | None = None,
+    seed: int = 7,
+) -> list[Candle]:
+    rng = random.Random(seed)
+    end = end or utc_now() - timedelta(seconds=tf_seconds)
+    times = [end - timedelta(seconds=tf_seconds * (n - 1 - i)) for i in range(n)]
     candles: list[Candle] = []
     price = start
-    for i in range(n):
-        wave = math.sin(i / 5.0) * 0.0020
-        open_ = price
-        close = price + trend + wave * 0.6
-        high = max(open_, close) + abs(wave) * 0.5 + 0.0002
-        low = min(open_, close) - abs(wave) * 0.5 - 0.0002
-        candles.append(Candle(now - (n - i) * timeframe, open_, high, low, close, 100.0 + i))
+    for index, stamp in enumerate(times):
+        open_price = price
+        close = open_price + drift + rng.uniform(-noise, noise)
+        high = max(open_price, close) + abs(rng.uniform(0, noise))
+        low = min(open_price, close) - abs(rng.uniform(0, noise))
+        candles.append(Candle(time=stamp, open=open_price, high=high, low=low, close=close, volume=100 + index))
         price = close
-    # keep the last candle recent so freshness validation passes
-    candles[-1] = Candle(
-        int(time.time()) // timeframe * timeframe,
-        candles[-1].open,
-        candles[-1].high,
-        candles[-1].low,
-        candles[-1].close,
-        candles[-1].volume,
-    )
     return candles
 
 
-def flat_candles(n: int = 200, timeframe: int = 300) -> list[Candle]:
-    return make_candles(n, trend=0.0, timeframe=timeframe)
+class FakeProvider(BaseProvider):
+    id = "fake"
+    name = "Fake Feed"
+    markets = frozenset({Market.FOREX, Market.GOLD})
+
+    def __init__(self, candles: list[Candle] | None = None, quote_price: float | None = None) -> None:
+        self.candles = candles or make_candles()
+        self.quote_price = quote_price
+        self.fail = False
+
+    async def fetch_candles(self, asset: Asset, timeframe: Timeframe, limit: int = 300) -> list[Candle]:
+        if self.fail:
+            raise DataUnavailable("NETWORK", "fake provider failure")
+        return list(self.candles[-limit:])
+
+    async def fetch_quote(self, asset: Asset) -> Quote:
+        if self.quote_price is None:
+            raise DataUnavailable("QUOTE_UNAVAILABLE", "no fake quote")
+        price = self.quote_price
+        return Quote(symbol=asset.symbol, bid=price - 0.00005, ask=price + 0.00005, time=utc_now(), source=self.name)
 
 
 @pytest.fixture
-def settings() -> Settings:
-    return Settings(
-        _env_file=None,
-        telegram_bot_token="123:TEST",
-        telegram_chat_id="42",
-        twelve_data_api_key="",
-        mistral_api_key="",
+def settings(tmp_path):
+    return replace(
+        base_settings,
+        telegram_bot_token="123456:TESTTOKEN",
+        telegram_chat_id=42,
+        database_url=f"sqlite+aiosqlite:///{tmp_path / 'test.db'}",
+        mistral_api_key=None,
+        eo_bridge_url=None,
+        eo_bridge_key=None,
+        min_confidence=60.0,
+        scanner_enabled=False,
     )
 
 
-@pytest.fixture
-def candles() -> list[Candle]:
-    return make_candles()
+@pytest_asyncio.fixture
+async def repo(settings):
+    repository = Repository(settings)
+    await repository.init()
+    yield repository
+    await repository.close()
 
 
 @pytest.fixture
-async def repo(tmp_path):
-    database = await SignalRepository.create(f"sqlite+aiosqlite:///{tmp_path}/test.db")
-    yield database
-    await database.close()
-
-
-class CannedSession(BaseSession):
-    """Captures outgoing Telegram calls and returns valid fake objects."""
-
-    def __init__(self):
-        super().__init__()
-        self.calls: list[tuple[str, dict]] = []
-
-    async def close(self) -> None:
-        return None
-
-    async def stream_content(self, *args, **kwargs):  # pragma: no cover - never used in tests
-        raise NotImplementedError
-
-    async def make_request(self, bot, method, timeout=None) -> TelegramType:  # type: ignore[override]
-        name = method.__class__.__name__
-        self.calls.append((name, method.model_dump(exclude_none=True)))
-        if isinstance(method, GetMe):
-            return User(id=1, is_bot=True, first_name="ROZLF", username="rozlf_test_bot")
-        if isinstance(method, (SendMessage, SendPhoto, EditMessageText)):
-            chat_id = getattr(method, "chat_id", None) or getattr(getattr(method, "chat", None), "id", 42)
-            return Message.model_validate(
-                {
-                    "message_id": len(self.calls),
-                    "date": int(time.time()),
-                    "chat": {"id": int(chat_id), "type": "private"},
-                    "text": getattr(method, "text", None) or getattr(method, "caption", None) or "",
-                }
-            )
-        if isinstance(method, AnswerCallbackQuery):
-            return True
-        return True
+def eurusd() -> Asset:
+    return find_by_symbol("EUR/USD", Market.FOREX)
 
 
 @pytest.fixture
-def bot_session() -> CannedSession:
-    return CannedSession()
-
-
-@pytest.fixture
-def bot(bot_session) -> Bot:
-    return Bot(token="123:TEST", session=bot_session)
+def btc_otc() -> Asset:
+    return find_by_symbol("BTC/USD", Market.OTC)

@@ -1,68 +1,156 @@
-from __future__ import annotations
+"""Signal lifecycle: create, duplicate guard, verification, statistics."""
+from datetime import timedelta
 
 import pytest
 
-from rozlf.engines.signals.generator import (
-    ALLOWED_EXPIRIES,
-    RiskPolicy,
-    SignalDraft,
-    SignalRejected,
-    choose_expiry,
-    persist_signal,
-)
-from rozlf.engines.technical.analyzer import analyze
-from rozlf.engines.validation import validate_candles
-from rozlf.providers.base import Asset
-from conftest import make_candles
+from engines.signals.generator import SignalGenerator, supported_durations
+from providers.base import DataUnavailable, utc_now
+from providers.catalog import Market, find_by_symbol, timeframe
+from providers.registry import DataSourceRegistry
+from services.signal_tracker import SignalTracker
 
-ASSET = Asset(symbol="EURUSD", name="EUR/USD", market="FOREX", provider="test")
+from tests.conftest import FakeProvider
 
 
-def draft(timeframe: int = 300, *, candles=None, source="test"):
-    data = candles or make_candles(200, timeframe=timeframe)
-    analysis = analyze(data, timeframe)
-    if analysis.direction == "NO TRADE":
-        analysis = analysis.__class__(**{**analysis.as_dict(), "direction": "UP", "score": 80})
-    return SignalDraft(
-        asset=ASSET,
-        timeframe=timeframe,
-        analysis=analysis,
-        source=source,
-        validation_quality=validate_candles(data, timeframe).quality,
-        candles=data,
+async def test_signal_is_stored_and_listed(settings, repo, eurusd):
+    registry = DataSourceRegistry([FakeProvider(quote_price=1.1000)])
+    generator = SignalGenerator(registry, repo, settings)
+
+    result, record = await generator.generate(42, eurusd, "5min", duration_seconds=300, min_confidence=0.0)
+    assert record is not None
+    assert record.direction in {"UP", "DOWN"}
+    assert record.status == "ACTIVE"
+    assert record.reasons
+    active = await repo.active_signals(42)
+    assert [item.id for item in active] == [record.id]
+
+    stats = await repo.statistics(42)
+    assert stats["total"] == 1 and stats["active"] == 1 and stats["accuracy"] is None
+
+
+async def test_no_trade_never_becomes_signal(settings, repo, eurusd):
+    from engines.signals.generator import SignalGenerator as Gen
+
+    class NoTradeGen(Gen):
+        async def fetch_and_analyse(self, asset, tf):
+            _, result = await super().fetch_and_analyse(asset, tf)
+            result.direction = "NO TRADE"
+            return None, result
+
+    registry = DataSourceRegistry([FakeProvider()])
+    generator = NoTradeGen(registry, repo, settings)
+    result, record = await generator.generate(42, eurusd, "5min")
+    assert record is None
+    assert result.direction == "NO TRADE"
+
+
+async def test_min_confidence_blocks_signal(settings, repo, eurusd):
+    registry = DataSourceRegistry([FakeProvider(quote_price=1.1)])
+    generator = SignalGenerator(registry, repo, settings)
+    result, record = await generator.generate(42, eurusd, "5min", min_confidence=99.0)
+    assert record is None
+    assert result.confidence < 99.0
+
+
+def test_durations_respect_timeframe(eurusd):
+    allowed = supported_durations(eurusd, timeframe("1min"))
+    assert 30 not in allowed
+    assert 60 in allowed
+    otc = find_by_symbol("EUR/USD", Market.OTC)
+    assert 30 in supported_durations(otc, timeframe("1min"))
+
+
+async def _add_signal(repo, asset, direction, entry, minutes_ago=8, expiry=300, user=42):
+    return await repo.add_signal(
+        user_id=user,
+        asset_key=asset.key,
+        asset_display=asset.display,
+        market=asset.market.value,
+        timeframe="5min",
+        direction=direction,
+        confidence=70.0,
+        entry_price=entry,
+        source="Fake Feed",
+        reasons=["test fixture"],
+        warnings=[],
+        expiry_seconds=expiry,
+        created_at=utc_now() - timedelta(minutes=minutes_ago),
     )
 
 
-def test_choose_expiry_only_allowed_values():
-    for tf in (30, 60, 300, 900, 1800, 3600):
-        assert choose_expiry(tf) in ALLOWED_EXPIRIES
+async def test_verification_win(settings, repo, eurusd):
+    provider = FakeProvider(quote_price=1.1000)
+    registry = DataSourceRegistry([provider])
+    record = await _add_signal(repo, eurusd, "UP", 1.1000)
+    provider.quote_price = 1.1010
+
+    tracker = SignalTracker(repo, registry)
+    assert await tracker.verify_due() == 1
+
+    stats = await repo.statistics(42)
+    assert stats["wins"] == 1 and stats["verified"] == 1 and stats["accuracy"] == 100.0
 
 
-async def test_persist_and_duplicate_blocked(repo):
-    row = await persist_signal(repo, draft(), RiskPolicy(min_score=0))
-    assert row.id
-    with pytest.raises(SignalRejected) as exc:
-        await persist_signal(repo, draft(), RiskPolicy(min_score=0))
-    assert exc.value.code == "DUPLICATE"
+async def test_verification_loss_and_draw(settings, repo, eurusd):
+    provider = FakeProvider(quote_price=1.1000)
+    registry = DataSourceRegistry([provider])
+    await _add_signal(repo, eurusd, "UP", 1.1000, user=42)
+    await _add_signal(repo, eurusd, "DOWN", 1.1000, user=43)
+    provider.quote_price = 1.0990
 
-
-async def test_daily_limit(repo):
-    await persist_signal(repo, draft(), RiskPolicy(min_score=0, max_per_day=1))
-    other = draft(900)
-    other.analysis.direction = "DOWN"
-    with pytest.raises(SignalRejected) as exc:
-        await persist_signal(repo, other, RiskPolicy(min_score=0, max_per_day=1))
-    assert exc.value.code == "DAILY_LIMIT"
-
-
-async def test_low_score_rejected(repo):
-    with pytest.raises(SignalRejected) as exc:
-        await persist_signal(repo, draft(), RiskPolicy(min_score=99))
-    assert exc.value.code == "LOW_SCORE"
-
-
-async def test_statistics_counts(repo):
-    await persist_signal(repo, draft(), RiskPolicy(min_score=0))
+    tracker = SignalTracker(repo, registry)
+    assert await tracker.verify_due() == 2
     stats = await repo.statistics()
-    assert stats["open"] == 1
-    assert stats["total"] == 1
+    assert stats["wins"] == 1 and stats["losses"] == 1
+    assert stats["accuracy"] == 50.0
+
+
+async def test_draw_detected(settings, repo, eurusd):
+    provider = FakeProvider(quote_price=1.1000)
+    registry = DataSourceRegistry([provider])
+    await _add_signal(repo, eurusd, "UP", 1.1000)
+    provider.quote_price = 1.1000
+
+    tracker = SignalTracker(repo, registry)
+    assert await tracker.verify_due() == 1
+    stats = await repo.statistics(42)
+    assert stats["draws"] == 1 and stats["accuracy"] is None
+
+
+async def test_unverifiable_marked_unverified(settings, repo, eurusd):
+    registry = DataSourceRegistry([FakeProvider(quote_price=None)])
+    await _add_signal(repo, eurusd, "UP", 1.1000, minutes_ago=20)
+    tracker = SignalTracker(repo, registry, grace_seconds=60)
+    assert await tracker.verify_due() == 1
+    stats = await repo.statistics(42)
+    assert stats["unverified"] == 1
+    assert stats["verified"] == 0
+    assert stats["accuracy"] is None
+
+
+async def test_open_signals_excluded_from_accuracy(settings, repo, eurusd):
+    registry = DataSourceRegistry([FakeProvider(quote_price=1.1000)])
+    generator = SignalGenerator(registry, repo, settings)
+    await generator.generate(42, eurusd, "5min", duration_seconds=300, min_confidence=0.0)
+    stats = await repo.statistics(42)
+    assert stats["active"] == 1
+    assert stats["accuracy"] is None
+
+
+async def test_duplicate_scan_suppressed(settings, repo, eurusd):
+    from services.scanner import AutoScanner
+
+    registry = DataSourceRegistry([FakeProvider(quote_price=1.1)])
+    generator = SignalGenerator(registry, repo, settings)
+    scanner = AutoScanner(generator, repo, registry, settings)
+    first = await scanner.scan_once(user_ids=[42], min_confidence=0.0)
+    second = await scanner.scan_once(user_ids=[42], min_confidence=0.0)
+    assert first
+    assert second == []
+
+
+async def test_market_data_unavailable_is_honest(settings, repo, btc_otc):
+    registry = DataSourceRegistry([FakeProvider(quote_price=1.1)])
+    generator = SignalGenerator(registry, repo, settings)
+    with pytest.raises(DataUnavailable):
+        await generator.generate(42, btc_otc, "1min", min_confidence=0.0)

@@ -1,9 +1,13 @@
-.venv/
 __pycache__/
 *.py[cod]
-.pytest_cache/
-data/
+.venv/
+venv/
+.env
 *.db
 *.db-journal
-.env
+*.sqlite3
+.pytest_cache/
+.ruff_cache/
+dist/
+*.zip
 .DS_Store

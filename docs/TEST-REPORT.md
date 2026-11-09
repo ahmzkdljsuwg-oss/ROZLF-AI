@@ -1,69 +1,72 @@
-# تقرير الاختبار — ROZLF AI
+# TEST REPORT — ROZLF AI
 
-تاريخ التشغيل: 2026-11-07 · Python 3.13.15 · aiogram 3.31.0 · SQLAlchemy 2.1.8
+تاريخ التشغيل: 2026-11-09
 
-## 1. الوحدات والاختبارات التكاملية
+## 1. الاختبارات الآلية
 
-```
-$ python -m pytest -q
-43 passed
-```
-
-| ملف | ما يغطيه |
-| --- | --- |
-| `tests/test_validation.py` | رفض الشموع الفارغة، التوقيت السيئ، OHLC غير المنطقي، الفجوات، الشموع القديمة |
-| `tests/test_indicators.py` | EMA/SMA/RSI/MACD/Bollinger/ATR و SMC (BOS, CHoCH, FVG, Order Blocks, Sweeps, Premium/Discount) |
-| `tests/test_analyzer.py` | اتجاه صاعد ⇒ UP، هابط ⇒ DOWN، عتبة عالية ⇒ NO TRADE، وجود أسباب ودرجة |
-| `tests/test_signals.py` | اختيار المدة، حدود السياسة (cooldown/الحد اليومي)، رفض الإشارة المكررة |
-| `tests/test_tracker.py` | حسم WIN/LOSS/DRAW من سعر فعلي، وتأجيل الحسم عند سعر أقدم من وقت الانتهاء |
-| `tests/test_mistral.py` | لا مفتاح ⇒ NO_KEY، تحليل JSON داخل code fence، ترويسة Bearer، Vision بـ base64، رد سيئ ⇒ BAD_RESPONSE، إعادة المحاولة عند Rate Limit |
-| `tests/test_handlers.py` | `/start`، `stats:show`، `hist:1`، `set:sources`، `/health`، زر تشغيل الماسح، وحجب محادثة غير مصرّح بها |
-| `tests/test_services.py` | رسم صورة شارت PNG من شموع حقيقية، تجاهل عدد الشموع القليل، إشعار Telegram مع صورة، تعطيل الإشعار بلا chat id، تعامل الماسح مع فشل مصدر |
-
-الاختبارات تستخدم بيانات وهمية داخل `tests/` فقط، ولا تُعرض أبداً كأسعار حقيقية.
-
-## 2. اختبار حقيقي على شبكة الإنترنت (بيانات فعلية)
-
-تشغيل `scripts/scan_once.py` مع `TWELVE_DATA_API_KEY=demo`:
-
-```json
-{
-  "readiness": {"forex_ready": true, "otc_ready": false, "smarty_ready": false, "ai_ready": false},
-  "scans": [
-    {"market": "FOREX", "signals": ["USDJPY", "EURUSD"], "skipped": 16, "available": true, "duration_ms": 2000},
-    {"market": "OTC", "signals": [], "available": false,
-     "detail": "غير مضبوط: أضف EO_BRIDGE_URL وEO_BRIDGE_KEY."},
-    {"market": "SMARTY", "signals": [], "available": false,
-     "detail": "غير مضبوط: أضف EO_BRIDGE_URL وEO_BRIDGE_KEY."}
-  ]
-}
-```
-
-Interpretation:
-- شموع فوركس حقيقية وصلت من Twelve Data، ومرّت فحص الجودة، وأنتجت إشارتين فقط من بين 18 فرصة مفحوصة (16 مرفوضة) — أي أن الفلترة تعمل ولا تُصدر إشارات عشوائية.
-- OTC وSMARTY أعادا DATA UNAVAILABLE كما هو مطلوب عند غياب مصدر حقيقي، ولم يُستخدم فوركس بديلاً عنهما.
-
-## 3. ما لم يُختبر (بصراحة)
-
-| الاختبار | السبب |
-| --- | --- |
-| نداء Mistral حقيقي (نص وصورة) | لا يوجد `MISTRAL_API_KEY` في بيئة البناء؛ الكود والمسارات والأخطاء مُختبرة بمحاكاة HTTP |
-| إرسال فعلي إلى Telegram | لا يوجد `TELEGRAM_BOT_TOKEN` حقيقي؛ التكامل مُختبر بـ session وهمي يحاكي Bot API |
-| بيانات OTC / SMARTY حقيقية | يتطلب `EO_BRIDGE_URL` من مشغّل يملك حساب ExpertOption؛ لا يوجد في هذه البيئة |
-| تشغيل 24/7 على Render | يحتاج نشراً فعلياً وخطة مدفوعة أو keep-alive؛ غير مُنفذ |
-| حسم إشارة على سعر حقيقي بعد دقيقة | يحتاج انتظاراً زمنياً على مصدر حقيقي؛ المنطق مُختبر وحداتياً وفي مسار التسوية الكامل |
-
-## 4. أخطاء وُجدت وأُصلحت أثناء الاختبار
-
-1. `charts.py` كان يستخدم `matplotlib.dates.MaxNLocator` (غير موجود) ⇒ فشل رسم صور الشارت؛ صُحح إلى `matplotlib.ticker` وتحقّقت الصور بإخراج PNG فعلي.
-2. `settings.py` كان يستدعي `registry.statuses()` دون `await` (ثم تعامل مع الناتج ككائنات) ⇒ خطأ في شاشة المصادر؛ صُحح.
-3. تعارض `ai_retries` في اختبار Mistral ⇒ صُحح ببناء معاملات القاموس.
-4. `CannedSession` لم ينفّذ `close`/`stream_content` ⇒ أُضيفا.
-
-## 5. طريقة إعادة التشغيل
+الأمر:
 
 ```bash
-pip install -r requirements-dev.txt
-python -m pytest -q
-TWELVE_DATA_API_KEY=demo PYTHONPATH=. python scripts/scan_once.py
+.venv/bin/python -m pytest -q
 ```
+
+النتيجة الفعلية: **58 passed** (0 failed) في ~2.2 ثانية.
+
+| الملف | ما يغطيه |
+|---|---|
+| `tests/test_config.py` | القيم الافتراضية، قراءة البيئة، الحدود، تحويل DATABASE_URL، allowed ids |
+| `tests/test_validation.py` | شموع صالحة، تكرار/ترتيب، OHLC غير منطقي، بيانات قديمة، شموع قليلة |
+| `tests/test_technical.py` | حدود المؤشرات، اتجاه صاعد/هابط، NO TRADE، مفاهيم SMC، سقف الثقة 92 |
+| `tests/test_providers.py` | مصدر FOREX، رفض OTC بدون مصدر، رفض البيانات القديمة، fallback مزود، غياب quote |
+| `tests/test_signals.py` | إنشاء إشارة وحفظها، NO TRADE لا يُحفظ، حد أدنى للثقة، احترام المدد، WIN/LOSS/DRAW/UNVERIFIED، استبعاد المفتوحة من الدقة، منع تكرار الماسح، رفض OTC |
+| `tests/test_vision.py` | صورة شارت صالحة، صورة صغيرة، صيغة BMP، صورة فارغة/منخفضة التباين، حجم زائد |
+| `tests/test_ai.py` | Mistral غير مهيأ لا يدّعي النجاح، health model، تحويل فشل الشبكة |
+| `tests/test_bot_ui.py` | أزرار اللوحة كلها callbacks حقيقية، قوائم الأسواق، نص الإشارة، تنسيق السعر، المدد، الإحصائيات الفارغة |
+| `tests/test_handlers.py` | mkt callback (حالة علوية/سفلية، سوق مجهول)، img:help، ast callback |
+
+## 2. اختبار بيانات حقيقي (Live)
+
+الأمر:
+
+```bash
+PYTHONPATH=. python scripts/live_smoke.py
+```
+
+النتيجة الفعلية:
+
+```
+== EUR/USD (FOREX) [FOREX]
+source=Twelve Data bars=300 valid=True price=1.12036 direction=UP confidence=92
+== XAU/USD (GOLD) [GOLD]
+DATA UNAVAILABLE: no verified source for XAU/USD (GOLD) M5
+== EUR/USD (OTC) [OTC]
+DATA UNAVAILABLE: no verified source
+== EUR/USD (SMARTY) [SMARTY]
+DATA UNAVAILABLE: no verified source
+```
+
+تفسير:
+- FOREX EUR/USD يعمل على بيانات حقيقية (Twelve Data demo) وشموعها اجتازت التحقق.
+- GOLD و OTC و SMARTY تعيد `DATA UNAVAILABLE` بصدق (لا مفتاح Twelve Data كامل، ولا جسر ExpertOption).
+- Swissquote أعاد quote حقيقي `1.1203 / 1.12033` في نفس التشغيل.
+
+اختبار end-to-end إضافي مع قاعدة بيانات مؤقتة أنشأ إشارة حقيقية:
+`LIVE UP 92 Twelve Data signal=True` ثم حُفظت `status=ACTIVE` وأظهرت الإحصائيات `total=1, active=1, accuracy=None`.
+
+## 3. أخطاء اكتُشفت أثناء الاختبار وأُصلحت
+
+1. **أصوات هبوطية موجبة**: كانت عوامل DOWN تُسجّل نقاطاً موجبة فيُختلط الاتجاه (سوق هابط أعطى UP). صُحّحت الإشارات في `engines/technical/analyzer.py`.
+2. **`market_label`** أعاد `FOREXX`. صُحّح.
+3. **`format_price(None)`** كان يعيد `—`؛ أصبح `N/A`.
+4. **صورة بيضاء تماماً** كانت تمر من فحص الجودة؛ أضيف فحص تباين (stddev < 4 → رفض).
+5. **`PreparedImage`** أسماء حقول غير مطابقة؛ عُدّلت الاختبارات لتطابق `data/quality_score`.
+6. **`MistralClient`** كان يفرض تمرير model/vision_model؛ أصبحت لهما قيم افتراضية.
+7. **Twelve Data** كان يرفض العمل بدون مفتاح رغم وجود demo؛ أصبح يستخدم `apikey=demo` تلقائياً (تغطية EUR/USD و USD/JPY فقط).
+8. **greenlet** كانت ناقصة لتشغيل SQLAlchemy async على SQLite؛ أضيفت إلى `requirements.txt`.
+
+## 4. ما لم يُختبر (بصدق)
+
+- **تشغيل البوت فعلياً على Telegram** لم يُنفّذ لعدم وجود `TELEGRAM_BOT_TOKEN` حقيقي في بيئة البناء. تم التحقق من `import main` وبناء الـ Dispatcher والـ handlers، لكن Polling الحي يحتاج توكن.
+- **Mistral API حقيقي** لم يُستدعَ بدون `MISTRAL_API_KEY`؛ تم اختبار منطق العميل والأخطاء فقط.
+- **OTC / SMARTY** غير قابلين للاختبار لعدم وجود جسر موثّق.
+- **PostgreSQL على Railway** لم يُختبر محلياً؛ الكود يستخدم `asyncpg` ويحوّل الرابط تلقائياً.

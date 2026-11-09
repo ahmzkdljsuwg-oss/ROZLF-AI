@@ -1,38 +1,57 @@
-# مصادر بيانات ROZLF AI — ما تم التحقق منه
+# DATA SOURCES — ROZLF AI
 
-كل ما في هذا الملف ناتج عن فحص فعلي للخدمات من بيئة المشروع (curl/httpx). لم يُفترض أي مصدر «يدعم OTC» لمجرد أنه يدعم الفوركس.
+هذا التقرير يوثّق ما تم فحصه فعلياً في 2026-11. لا يحتوي على أي ادعاء بتوافق لم يُختبر.
 
-## 1. جدول المصادر
+## 1. المصادر المستخدمة فعلياً
 
-| المصدر | نوعه | الاستخدام في المشروع | نتيجة الفحص الفعلي |
-| --- | --- | --- | --- |
-| Twelve Data (`api.twelvedata.com`) | شموع OHLC رسمية | **المصدر الوحيد لشموع الفوركس والذهب** | يعمل. مفتاح `demo` المجاني يخدم `EUR/USD` فقط ويعيد خطأ «symbol not available» لغيره. مع مفتاح مدفوع/مجاني مسجّل يتم فتح بقية الأزواج |
-| Swissquote `forex-data-feed.swissquote.com/public-quotes/bboquotes` | أسعار bid/ask عامة | **مصدر اقتباس فقط** للتحقق من السبريد وحداثة السعر (`can_serve_candles = False`) | 200 لـ EUR/USD و XAU/USD |
-| ExpertOption Bridge (يوفّره المشغّل) | شموع OTC / SMARTY من حساب ExpertOption | **المصدر الوحيد المسموح** لبيانات OTC وSmarty | غير مضبوط في هذه البيئة ⇒ البوت يعرض `DATA UNAVAILABLE` (سلوك مقصود) |
-| Mistral API | AI نص + صور | تحليل الإشارة وتحليل صور الشارت | الكود والاختبارات جاهزة؛ لم يُنفَّذ نداء حقيقي في هذه البيئة لعدم وجود `MISTRAL_API_KEY` |
-| Yahoo Finance query1/query2 | شموع | **مرفوض** | 429 Too Many Requests |
-| open.er-api.com | أسعار صرف | **مرفوض** | 200 لكنه سعر لحظي بلا شموع OHLC |
-| api.gold-api.com | سعر ذهب لحظي | **مرفوض** | 200 لكنه quote فقط بلا شموع |
-| Stooq CSV | شموع يومية | **مرفوض** | CSV = 404 |
-| Frankfurter | أسعار صرف | **مرفوض** | 301، بلاه شموع |
+### Twelve Data (FOREX / GOLD — شموع)
+- Endpoint: `https://api.twelvedata.com/time_series`
+- تم اختبار `EUR/USD`, `interval=1min` بنجاح وأعاد شموع OHLC حقيقية (بدون مفتاح، وضع demo).
+- مع مفتاح `TWELVE_DATA_API_KEY` تزيد الحصص والأصول المتاحة.
+- القيود: حدود الطلبات في وضع demo، وقد تُرفض بعض الأزواج. عند الفشل يتحول المشروع إلى مزود آخر أو يعيد `DATA UNAVAILABLE`.
 
-## 2. طبقة المزوّدين (Provider layer)
+### Swissquote public quotes (FOREX / GOLD — سعر لحظي)
+- Endpoint: `https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/{symbol}`
+- تم اختباره وأعاد bid/ask مع timestamp. يُستخدم للسعر الحالي وللتحقق من نتيجة الإشارة.
+- لا يوفّر شموعاً؛ الشموع تأتي من Twelve Data.
 
-- `can_serve_candles` هي العلم الوحيد الذي يحدد صلاحية مصدر لتوليد إشارة. Swissquote لا يمكنه أن يصبح مصدر شموع بالخطأ.
-- `DataSourceRegistry.candles()` يمرّر كل شموع عبر `engines/validation.py` (عدد كافٍ، توقيت سليم، OHLC منطقي، فجوات، حداثة) ويعيد `ValidationReport` مع كل استجابة.
-- `DataSourceRegistry.provider_for()` يرفض بـ `DataUnavailable(code="NO_PROVIDER")` لأي أصل بلا مزوّد شموع، بدلاً من الرجوع لمصدر سوق آخر.
+### ExpertOption Bridge (OTC / SMARTY — اختياري)
+- أي مصدر OTC أو Smarty يجب أن يمر عبر `EO_BRIDGE_URL` + `EO_BRIDGE_KEY` يوفّرهما المستخدم.
+- العقد المدعوم: `GET /candles` و`GET /quote` مع التحقق من أن السوق المُعاد يطابق السوق المطلوب.
+- بدون إعداد الجسر: يظهر `DATA UNAVAILABLE` ولا تُصدر أي إشارة. **لا يتم استخدام أسعار Forex مكان OTC أو Smarty.**
 
-## 3. OTC و Smarty — القيد الأساسي
+## 2. مستودعات GitHub التي تم فحصها
 
-- ExpertOption **ليس له API عام موثق** للتداول الآلي. لذلك لا يوجد في هذا المشروع أي تسجيل دخول آلي، ولا محاكاة نقرات، ولا استدعاء لواجهات غير موثقة، ولا تخزين Session Token.
-- بيانات OTC/Smarty تُقرأ فقط عبر جسر HTTP للقراءة فقط يوفّره المشغّل (`EO_BRIDGE_URL` + `EO_BRIDGE_KEY`)، ويجب أن يعيد شموعاً للأصل المطلوب نفسه.
-- أثناء البحث رُوجع `ExpertOptionsToolsV2` (مكتبة غير رسمية تعتمد على WebSocket الخاص بالمنصة وتحتاج جلسة حساب). لم تُدمج للتنفيذ، ولا تُستخدم لجلب بيانات OTC في هذا المستودع لعدم وجود مسار مصرّح به.
-- المناطق المعروفة لـ WebSocket: `wss://fr24g1eu.expertoption.com/` (EU)، `...fr24g1in...` (IN)، `...fr24g1hk...` (HK)، `...fr24g1sg...` (SG)، `...fr24g1us...` (US). ذُكرت هنا كمعلومة فقط، والمشروع لا يتصل بها.
-- معرّفات أصول Smarty/OTC في `catalog.py` مأخوذة من قائمة أولية وتحتاج تحققاً مقابل حساب حقيقي قبل الاعتماد عليها؛ لذلك لا تُعرض أي إشارة لها بدون شموع حقيقية من الجسر.
+| المستودع | النجوم | آخر تحديث | الترخيص | ما يقدمه | التوافق / القيود |
+|---|---|---|---|---|---|
+| [ChipaDevTeam/ExpertOptionApi](https://github.com/ChipaDevTeam/ExpertOptionApi) | 6 | 2026-10 | MIT | WebSocket غير رسمي: تسجيل دخول، قائمة أصول (`action: assets`)، شموع (`subscribeCandles`)، أوامر تداول | لا يذكر Smarty أو OTC صراحةً في الشيفرة أو README؛ يتطلب حساباً وتوكن؛ غير مُختبر هنا. يصلح كمرجع لعقد WebSocket فقط |
+| [Anthonyzok521/server_expert_option_read_file](https://github.com/Anthonyzok521/server_expert_option_read_file) | 0 | 2026-10 | MIT | قراءة ملفات/بيانات ExpertOption | غير موثّق، لم يُختبر |
+| zayed331S-max/expertoption-signal-bot | 0 | 2026-10 | — | بوت إشارات | لا شيفرة مصدر موثوقة للأسعار |
+| allroundadvert/ExpertOptionAssistant | 0 | 2026-08 | — | مساعد | غير مناسب كمصدر بيانات |
+| kyanwh1-alt/ExpertOption- | 0 | 2026-07 | — | تجريبي | غير موثّق |
 
-## 4. الأصول والفريمات
+### نتائج البحث عن Smarty / OTC
+- `expertoption+smarty` → **0 مستودعات**
+- `expertoption+otc` → **0 مستودعات**
+- لذلك لا يوجد مصدر عام موثّق لأسعار ExpertOption OTC أو Smarty حتى تاريخ التقرير. المشروع لا يدّعي دعماً حقيقياً لهما بدون جسر موثّق.
 
-- فوركس: EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, NZDUSD, USDCHF, XAUUSD.
-- فريمات فوركس المستخدمة في المسح: M5, M15, M30 (وH1 متاح).
-- فريمات OTC/Smarty في المسح: M1, M5 (الجسر يدعم 30s…1h).
-- المدد المعروضة للإشارة: 30s, 1m, 2m, 3m, 5m, 15m, 30m, 1h — والمولّد يختار فقط مدة يدعمها فريم البيانات.
+## 3. مصادر قريبة تم استبعادها
+
+| المصدر | السبب |
+|---|---|
+| PocketOptionApi (chema-creator) | منصة مختلفة؛ أسعارها ليست أسعار ExpertOption |
+| Quotex / Deriv / IQ Option wrappers | منصات مختلفة |
+| MT4/MT5 bridges | تتطلب حساب وسيط؛ ليست ExpertOption |
+| `xapi-python` (pawelkn) | بروتوكول xStation (XTB) وليس ExpertOption |
+
+## 4. قواعد الاعتماد
+1. لا تُستخدم بيانات شموع إذا كانت قديمة أو ناقصة (`engines/validation.py`).
+2. لا يُسمح بمزج بيانات سواق مختلفة للتحقق من إشارة واحدة.
+3. مصدر الإشارة يُذكر في كل رسالة، ومصدر التحقق يُحفظ في قاعدة البيانات.
+4. أي أصل بلا مصدر متوافق يظهر له `DATA UNAVAILABLE`.
+
+## 5. التوصية لمصادر OTC / Smarty
+- استخدم جسراً مقفلاً (bridge) يتحدث مباشرة إلى حساب ExpertOption المسجّل، ويُرجع:
+  `{"asset": "...", "market": "OTC|SMARTY", "timeframe": "1min", "candles": [{"time", "open", "high", "low", "close"}], "source": "..."}`
+- يجب أن يتحقق الجسر من مطابقة اسم الأصل والسوق والتوقيت، وأن يرفض الأسعار القديمة.
+- عند رفض الجسر للطلب سيظهر `DATA UNAVAILABLE` بدلاً من إشارة.
