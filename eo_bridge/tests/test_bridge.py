@@ -14,7 +14,14 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from eo_bridge.app import BridgeApp
-from eo_bridge.catalog import Instrument, classify, normalise_symbol, resolve, timeframe_seconds
+from eo_bridge.catalog import (
+    Instrument,
+    classify,
+    find_smarty,
+    normalise_symbol,
+    resolve,
+    timeframe_seconds,
+)
 from eo_bridge.eo_client import ExpertOptionClient
 from eo_bridge.settings import BridgeSettings
 
@@ -162,6 +169,34 @@ async def test_candles_are_sorted_ohlc(bridge_client: TestClient) -> None:
     for row in body["candles"]:
         assert row["high"] >= max(row["open"], row["close"])
         assert row["low"] <= min(row["open"], row["close"])
+
+
+async def test_discover_lists_live_otc_assets(bridge_client: TestClient) -> None:
+    response = await bridge_client.get("/discover", headers={"X-API-Key": API_KEY})
+    assert response.status == 200
+    body = await response.json()
+    assert body["discovered"] is True
+    assert body["counts"]["otc"] == 1
+    assert body["otc_symbols"] == ["EURUSD_OTC"]
+    assert body["smarty"][0]["symbol"] == "SMRTY"
+    assert "XAUUSD" in body["gold_symbols"]
+
+
+async def test_smarty_endpoint_returns_id_240(bridge_client: TestClient) -> None:
+    response = await bridge_client.get("/smarty?timeframe=1min&limit=20", headers={"X-API-Key": API_KEY})
+    assert response.status == 200
+    body = await response.json()
+    assert body["asset_id"] == 240
+    assert body["eo_symbol"] == "SMRTY"
+    assert body["market"] == "smarty"
+    assert body["source"] == "ExpertOption"
+    assert body["candles"]
+    assert body["bid"] == body["candles"][-1]["close"]
+
+
+async def test_smarty_endpoint_reports_missing_asset() -> None:
+    instruments = [Instrument(179, "EURUSD_OTC", "EUR/USD OTC", "otc", True, 80, 5)]
+    assert find_smarty(instruments) is None
 
 
 async def test_smarty_pair_is_not_invented(bridge_client: TestClient) -> None:

@@ -81,7 +81,8 @@ async def http_probe(base_url: str, api_key: str) -> None:
         for path, params in (
             ("/health", None),
             ("/assets", {"market": "otc"}),
-            ("/assets", {"market": "smarty"}),
+            ("/discover", None),
+            ("/smarty", {"timeframe": "1min", "limit": 60}),
             ("/quote", {"market": "otc", "symbol": "EURUSD"}),
             ("/candles", {"market": "otc", "symbol": "EURUSD", "timeframe": "1min", "limit": 60}),
         ):

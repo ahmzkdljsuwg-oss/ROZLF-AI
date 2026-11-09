@@ -42,6 +42,8 @@ python -m eo_bridge.main
 ```bash
 curl -s localhost:8080/health
 curl -s -H "X-API-Key: $EO_BRIDGE_KEY" "localhost:8080/assets?market=otc"
+curl -s -H "X-API-Key: $EO_BRIDGE_KEY" "localhost:8080/discover"
+curl -s -H "X-API-Key: $EO_BRIDGE_KEY" "localhost:8080/smarty?timeframe=1min&limit=60"
 curl -s -H "X-API-Key: $EO_BRIDGE_KEY" "localhost:8080/quote?market=otc&symbol=EURUSD"
 curl -s -H "X-API-Key: $EO_BRIDGE_KEY" "localhost:8080/candles?market=otc&symbol=EURUSD&timeframe=5min&limit=120"
 ```
@@ -62,8 +64,13 @@ BRIDGE_URL=https://<service>.up.railway.app EO_BRIDGE_KEY=... python -m eo_bridg
 |---|---|
 | `GET /health` | الحالة: `configured`, `connected`, `assets`, `last_error` (بدون مفتاح) |
 | `GET /assets?market=otc` | الأصول الحقيقية المتاحة مع `id` و`market` |
+| `GET /discover` | اكتشاف تلقائي: عدد أصول كل سوق + قائمة OTC الحقيقية + حالة Smarty + Gold |
+| `GET /smarty?timeframe=1min&limit=120` | Endpoint مخصص لـ Smarty (`SMRTY`, id 240): بيانات الأصل + السعر + الشموع |
 | `GET /quote?market=otc&symbol=EURUSD` | `bid`, `ask`, `time`, `price_type=last_candle_close`, `stale_seconds` |
 | `GET /candles?market=otc&symbol=EURUSD&timeframe=5min&limit=120` | شموع OHLC بالوقت الحقيقي |
+
+- `/discover` هو مصدر الحقيقة لقائمة OTC: لا تُفترض الأصول، بل تُقرأ من حسابك في كل مرة.
+- `/smarty` يبحث عن الأصل id=240 أولاً، ثم باسم `SMRTY`؛ وإن لم يكن معروضاً على حسابك يعيد `SMARTY_UNAVAILABLE` بدل تلفيق أصل.
 
 - الترويسة المطلوبة: `X-API-Key: $EO_BRIDGE_KEY` (عدا `/` و`/health`).
 - الفريمات: `1min, 5min, 15min, 30min, 1h` (وأي عدد ثوانٍ صحيح).

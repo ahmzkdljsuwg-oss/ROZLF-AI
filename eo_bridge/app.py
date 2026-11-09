@@ -8,7 +8,7 @@ from typing import Any
 
 from aiohttp import web
 
-from .catalog import Instrument, resolve, timeframe_seconds
+from .catalog import Instrument, find_smarty, resolve, timeframe_seconds
 from .eo_client import BridgeError, ExpertOptionClient
 from .settings import BridgeSettings
 
@@ -51,7 +51,7 @@ class BridgeApp:
             {
                 "service": SERVICE,
                 "description": "Read-only ExpertOption market data bridge for ROZLF AI",
-                "endpoints": ["/health", "/assets", "/quote", "/candles"],
+                "endpoints": ["/health", "/assets", "/discover", "/smarty", "/quote", "/candles"],
                 "docs": "https://github.com/ahmzkdljsuwg-oss/ROZLF-AI/tree/main/eo_bridge",
             }
         )
@@ -128,6 +128,69 @@ class BridgeApp:
             }
         )
 
+    async def discover(self, _: web.Request) -> web.Response:
+        try:
+            instruments = await self.client.ensure_assets()
+        except BridgeError as exc:
+            return _error(exc.code, exc.message)
+        import time as _time
+
+        by_market: dict[str, list[dict[str, Any]]] = {market: [] for market in ("otc", "smarty", "gold", "forex")}
+        for item in instruments:
+            by_market.setdefault(item.market, []).append(item.as_dict())
+        return _json(
+            {
+                "service": SERVICE,
+                "source": "ExpertOption",
+                "discovered": True,
+                "generated_at": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime()),
+                "counts": {market: len(items) for market, items in by_market.items()},
+                "otc_symbols": sorted(item["symbol"] for item in by_market.get("otc", [])),
+                "smarty": by_market.get("smarty", []),
+                "gold_symbols": sorted(item["symbol"] for item in by_market.get("gold", [])),
+            }
+        )
+
+    async def smarty(self, request: web.Request) -> web.Response:
+        if not self.settings.eo_token:
+            return _error("EO_TOKEN_MISSING", "Bridge has no ExpertOption session token", status=503)
+        try:
+            instruments = await self.client.ensure_assets()
+        except BridgeError as exc:
+            return _error(exc.code, exc.message)
+        instrument = find_smarty(instruments)
+        if instrument is None:
+            return _error(
+                "SMARTY_UNAVAILABLE",
+                "SMRTY (id 240) is not offered on this ExpertOption account right now",
+                status=404,
+            )
+        if not instrument.is_active:
+            return _error("INACTIVE_ASSET", f"{instrument.symbol} is currently closed", status=503)
+        code = request.query.get("timeframe") or "1min"
+        seconds = timeframe_seconds(code)
+        if seconds is None:
+            return _error("BAD_TIMEFRAME", f"Unsupported timeframe '{code}'", status=400)
+        try:
+            limit = max(10, min(int(request.query.get("limit", 120)), 1500))
+        except ValueError:
+            limit = 120
+        try:
+            candles = await self.client.get_candles(instrument, seconds, limit=limit)
+        except BridgeError as exc:
+            return _error(exc.code, exc.message)
+        latest = candles[-1]
+        payload = self._quote_payload(instrument, latest.time, latest.close, seconds)
+        payload.update(
+            {
+                "asset_id": instrument.id,
+                "asset": instrument.as_dict(),
+                "timeframe": code,
+                "candles": [candle.as_dict() for candle in candles],
+            }
+        )
+        return _json(payload)
+
     async def _resolve(self, request: web.Request) -> tuple[Instrument | None, web.Response | None]:
         market = (request.query.get("market") or "").lower()
         symbol = _requested_symbol(request.query.get("symbol", ""))
@@ -179,6 +242,8 @@ class BridgeApp:
         app.router.add_get("/", self.index)
         app.router.add_get("/health", self.health)
         app.router.add_get("/assets", self.assets)
+        app.router.add_get("/discover", self.discover)
+        app.router.add_get("/smarty", self.smarty)
         app.router.add_get("/quote", self.quote)
         app.router.add_get("/candles", self.candles)
 

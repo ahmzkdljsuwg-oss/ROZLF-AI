@@ -114,6 +114,17 @@ def build_instruments(raw_assets: list[dict[str, Any]]) -> list[Instrument]:
     return sorted(seen.values(), key=lambda item: (item.market, item.symbol, item.id))
 
 
+def find_smarty(instruments: list[Instrument]) -> Instrument | None:
+    """Locate the live Smarty instrument by id 240 first, then by symbol."""
+    for item in instruments:
+        if item.id in SMARTY_IDS:
+            return item
+    for item in instruments:
+        if compact_symbol(item.symbol) in {compact_symbol(name) for name in SMARTY_SYMBOLS}:
+            return item
+    return None
+
+
 def resolve(instruments: list[Instrument], market: str, symbol: str) -> Instrument | None:
     """Find the live instrument for a ROZLF (market, symbol) request.
 
