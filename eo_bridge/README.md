@@ -86,10 +86,14 @@ BRIDGE_URL=https://<service>.up.railway.app EO_BRIDGE_KEY=... python -m eo_bridg
 1. أنشئ **New Service ← Deploy from GitHub repo** واختر `ahmzkdljsuwg-oss/ROZLF-AI`.
 2. في إعدادات الخدمة: **Root Directory = `eo_bridge`** (مهم جداً).
 3. Railway سيقرأ `eo_bridge/railway.json` ويستخدم `Dockerfile` وأمر التشغيل `python -m eo_bridge.main` وفحص الصحة `/health`.
-4. أضف المتغيرات: `EO_BRIDGE_KEY`, `EO_TOKEN`, `EO_REGION`, `EO_DEMO`.
-5. من **Settings ← Networking ← Generate Domain** احصل على رابط HTTPS.
-6. أضف في خدمة البوت المتغيرات: `EO_BRIDGE_URL=https://<الرابط>` و`EO_BRIDGE_KEY=<نفس المفتاح>`.
-7. تحقق فعلياً:
+4. إن كان Start Command مضبوطاً يدوياً على `python main.py` داخل لوحة Railway فلا حاجة لتغييره:
+   الصورة تضع مُشغّلاً حقيقياً في `/app/main.py` ينادي `eo_bridge.main`، والكود نفسه يبقى في `/app/eo_bridge`.
+   سبب الأعطال القديمة `can't open file '/app/main.py'` هو أن الصورة كانت تحتوي الحزمة فقط في `/app/eo_bridge`.
+5. لا تغيّر Root Directory عن `eo_bridge`، ولا تضع أمر تشغيل يخص بوت التليجرام (بدون `scripts/verify_build.py`).
+6. أضف المتغيرات: `EO_BRIDGE_KEY`, `EO_TOKEN`, `EO_REGION`, `EO_DEMO`.
+7. من **Settings ← Networking ← Generate Domain** احصل على رابط HTTPS.
+8. أضف في خدمة البوت المتغيرات: `EO_BRIDGE_URL=https://<الرابط>` و`EO_BRIDGE_KEY=<نفس المفتاح>`.
+9. تحقق فعلياً:
    ```bash
    curl -s https://<الرابط>/health
    curl -s -H "X-API-Key: $EO_BRIDGE_KEY" "https://<الرابط>/candles?market=otc&symbol=EURUSD&timeframe=1min&limit=60"
