@@ -77,6 +77,7 @@ class ExpertOptionClient:
         self._subscriptions: set[tuple[int, int]] = set()
         self._assets: list[Instrument] = []
         self._assets_loaded_at = 0.0
+        self._assets_debug: dict[str, Any] = {}
         self._last_message_at = 0.0
         self._last_error: str | None = None
         self._token: str | None = settings.eo_token
@@ -98,6 +99,7 @@ class ExpertOptionClient:
             "region": self.settings.eo_region,
             "demo": self.settings.eo_demo,
             "assets": len(self._assets),
+            "assets_debug": dict(self._assets_debug),
             "last_message_age_seconds": (
                 round(time.time() - self._last_message_at, 1) if self._last_message_at else None
             ),

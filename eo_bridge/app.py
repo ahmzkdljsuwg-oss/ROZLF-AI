@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import hmac
+import os
 import logging
 import time as _time
 from typing import Any
@@ -68,6 +69,8 @@ class BridgeApp:
             "connected": status["connected"],
             "last_message_age_seconds": status["last_message_age_seconds"],
             "last_error": status["last_error"],
+            "build": os.environ.get("RAILWAY_GIT_COMMIT_SHA", "unknown")[:7],
+            "assets_debug": status.get("assets_debug") or {},
         }
         return _json(payload, status=200)
 
