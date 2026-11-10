@@ -202,7 +202,7 @@ class BridgeApp:
         tested: dict[str, Any] = {}
         for tf in (5, 10, 15, 30, 60, 180, 300, 900):
             try:
-                probe = await self.client.get_candles(instrument, tf, limit=60)
+                probe = await self.client.get_candles(instrument, tf, limit=200)
             except BridgeError as exc:
                 tested[str(tf)] = {"error": exc.code, "detail": str(exc.message)[:200]}
                 continue
@@ -216,7 +216,7 @@ class BridgeApp:
         for tf in (5, 10, 15, 60, 30, 180, 300, 900):
             if isinstance(tested.get(str(tf)), dict) and "candles" in tested[str(tf)]:
                 try:
-                    candles = await self.client.get_candles(instrument, tf, limit=60)
+                    candles = await self.client.get_candles(instrument, tf, limit=200)
                     seconds = tf
                     break
                 except BridgeError:
