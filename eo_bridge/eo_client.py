@@ -367,23 +367,31 @@ class ExpertOptionClient:
                 or message.get("asset")
                 or 0
             )
-            tf = int(
-                message.get("tf")
-                or message.get("timeframe")
-                or (message.get("timeframes") or [0])[0]
-                or 0
-            )
-        except (TypeError, ValueError, IndexError):
+        except (TypeError, ValueError):
             return
-        if not asset_id or not tf:
+        if not asset_id:
             return
-        bucket = self._candles.setdefault((asset_id, tf), {})
+        try:
+            message_tf = int(message.get("tf") or message.get("timeframe") or 0)
+        except (TypeError, ValueError):
+            message_tf = 0
         blocks = message.get("candles")
+        if isinstance(blocks, dict):
+            blocks = [blocks]
         if not blocks:
             periods = message.get("periods")
-            blocks = [{"periods": periods}] if periods else []
+            blocks = [{"tf": message_tf, "periods": periods}] if periods else []
         for block in blocks:
-            periods = block.get("periods") if isinstance(block, dict) else None
+            if not isinstance(block, dict):
+                continue
+            try:
+                tf = int(block.get("tf") or message_tf or 0)
+            except (TypeError, ValueError):
+                tf = message_tf
+            if not tf:
+                continue
+            bucket = self._candles.setdefault((asset_id, tf), {})
+            periods = block.get("periods")
             if periods:
                 for period in periods:
                     try:
@@ -395,11 +403,8 @@ class ExpertOptionClient:
                         continue
                     self._store_rows(bucket, [(start + index * tf, row) for index, row in enumerate(rows)])
                 continue
-            # Live candle shapes: {"t": ts, "v": [o,h,l,c]} or [ts, [o,h,l,c]]
-            if isinstance(block, dict) and "t" in block and isinstance(block.get("v"), list):
+            if "t" in block and isinstance(block.get("v"), list):
                 self._store_rows(bucket, [(int(block["t"]), block["v"])])
-            elif isinstance(block, list) and len(block) >= 2 and isinstance(block[1], list):
-                self._store_rows(bucket, [(int(block[0]), block[1])])
 
     @staticmethod
     def _normalise_ts(value: Any) -> int | None:
