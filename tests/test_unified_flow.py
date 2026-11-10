@@ -10,7 +10,7 @@ from bot import context
 from bot.handlers import menus as handlers
 from engines.technical.analyzer import AnalysisResult
 from providers.base import DataUnavailable
-from providers.catalog import Market, assets_for, dynamic_asset
+from providers.catalog import Market, dynamic_asset
 
 
 def _result(asset, direction="UP", confidence=82.0) -> AnalysisResult:
