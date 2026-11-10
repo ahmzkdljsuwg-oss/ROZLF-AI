@@ -250,7 +250,12 @@ class BridgeApp:
                 "name": instrument.name,
                 "market": instrument.market,
                 "active": instrument.is_active,
-                "expirations": instrument.expirations,
+                "expirations": {
+                    "step_seconds": self.client.raw_asset(instrument.id).get("expiration_step"),
+                    "count": self.client.raw_asset(instrument.id).get("expiration_count"),
+                    "max_seconds": self.client.raw_asset(instrument.id).get("expiration_max_seconds"),
+                    "purchase_time": self.client.raw_asset(instrument.id).get("purchase_time"),
+                },
                 "timeframe": f"{seconds}s",
                 "timeframes_tested": tested,
                 "raw_asset": self.client.raw_asset(instrument.id),
