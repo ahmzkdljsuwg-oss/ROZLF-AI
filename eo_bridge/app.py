@@ -72,6 +72,7 @@ class BridgeApp:
             "build": os.environ.get("RAILWAY_GIT_COMMIT_SHA", "unknown")[:7],
             "assets_debug": status.get("assets_debug") or {},
             "seen_actions": status.get("seen_actions") or {},
+            "msg_shapes": status.get("msg_shapes") or [],
         }
         return _json(payload, status=200)
 

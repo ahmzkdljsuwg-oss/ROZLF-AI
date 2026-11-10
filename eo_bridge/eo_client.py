@@ -79,6 +79,7 @@ class ExpertOptionClient:
         self._assets_loaded_at = 0.0
         self._assets_debug: dict[str, Any] = {}
         self._seen_actions: dict[str, int] = {}
+        self._msg_shapes: list[Any] = []
         self._last_message_at = 0.0
         self._last_error: str | None = None
         self._token: str | None = settings.eo_token
@@ -102,6 +103,7 @@ class ExpertOptionClient:
             "assets": len(self._assets),
             "assets_debug": dict(self._assets_debug),
             "seen_actions": dict(self._seen_actions),
+            "msg_shapes": list(self._msg_shapes),
             "last_message_age_seconds": (
                 round(time.time() - self._last_message_at, 1) if self._last_message_at else None
             ),
@@ -248,10 +250,32 @@ class ExpertOptionClient:
                 data = json.loads(message.data)
             except (ValueError, TypeError):
                 continue
-            if isinstance(data, dict):
+            if isinstance(data, list):
+                if len(self._msg_shapes) < 3:
+                    self._msg_shapes.append(self._shape(data))
+                for item in data:
+                    if isinstance(item, dict):
+                        self._dispatch(item)
+            elif isinstance(data, dict):
+                if len(self._msg_shapes) < 3:
+                    self._msg_shapes.append(self._shape(data))
                 self._dispatch(data)
         if self._ws is not None and self._ws.exception() is not None:
             raise BridgeError("SOCKET", str(self._ws.exception()))
+
+    @staticmethod
+    def _shape(value: Any, depth: int = 0) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: ("<redacted>" if any(secret in key.lower() for secret in ("token", "pass", "email"))
+                      else ExpertOptionClient._shape(item, depth + 1) if depth < 2 else "...")
+                for key, item in list(value.items())[:14]
+            }
+        if isinstance(value, list):
+            return [ExpertOptionClient._shape(value[0], depth + 1)] if value else []
+        if isinstance(value, str) and len(value) > 40:
+            return f"str[{len(value)}]"
+        return value if isinstance(value, (int, float, bool)) or value is None else type(value).__name__
 
     @staticmethod
     def _classify_error(detail: Any) -> str:
