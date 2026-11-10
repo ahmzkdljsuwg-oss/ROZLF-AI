@@ -78,6 +78,7 @@ class ExpertOptionClient:
         self._assets: list[Instrument] = []
         self._assets_loaded_at = 0.0
         self._assets_debug: dict[str, Any] = {}
+        self._seen_actions: dict[str, int] = {}
         self._last_message_at = 0.0
         self._last_error: str | None = None
         self._token: str | None = settings.eo_token
@@ -100,6 +101,7 @@ class ExpertOptionClient:
             "demo": self.settings.eo_demo,
             "assets": len(self._assets),
             "assets_debug": dict(self._assets_debug),
+            "seen_actions": dict(self._seen_actions),
             "last_message_age_seconds": (
                 round(time.time() - self._last_message_at, 1) if self._last_message_at else None
             ),
@@ -266,6 +268,8 @@ class ExpertOptionClient:
 
     def _dispatch(self, data: dict[str, Any]) -> None:
         action = data.get("action")
+        if isinstance(action, str):
+            self._seen_actions[action] = self._seen_actions.get(action, 0) + 1
         ns = str(data.get("ns")) if data.get("ns") else None
         if action == "error":
             detail = data.get("message")
@@ -295,6 +299,8 @@ class ExpertOptionClient:
 
                 self._assets = build_instruments(raw_assets)
                 self._assets_loaded_at = time.time()
+                self._assets_debug = {"raw_count": len(raw_assets), "sample": raw_assets[:2],
+                                      "parsed": len(self._assets)}
                 self._connected.set()
         if ns and ns in self._pending and not self._pending[ns].done():
             self._pending[ns].set_result(data)
@@ -464,6 +470,8 @@ class ExpertOptionClient:
 
             self._assets = build_instruments(raw_assets)
             self._assets_loaded_at = time.time()
+            self._assets_debug = {"raw_count": len(raw_assets), "sample": raw_assets[:2],
+                                  "parsed": len(self._assets)}
         return self.assets
 
     async def ensure_assets(self, max_age_seconds: float = 300.0) -> list[Instrument]:
