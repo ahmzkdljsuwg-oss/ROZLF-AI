@@ -124,6 +124,10 @@ async def cb_market(callback: CallbackQuery) -> None:
         await callback.answer("⏳ فحص SMARTY...")
         await _show_smarty(callback)
         return
+    if market in INDEX_MARKETS:
+        await callback.answer(f"⏳ فحص {market.label}...")
+        await _show_index_market(callback, market)
+        return
     if market.is_expertoption:
         await callback.answer("⏳ قراءة أصول حساب ExpertOption...")
         inventory = ctx.inventory
@@ -154,6 +158,103 @@ async def cb_market(callback: CallbackQuery) -> None:
     assets = assets_for(market)
     text = fmt.markets_text(market.value, assets, [tf.label for tf in TIMEFRAMES.values()])
     await _edit(callback, text, menus.market_menu(market, assets))
+
+
+INDEX_MARKETS = (Market.AI, Market.FOOTBALL, Market.LUXURY)
+
+
+async def _show_index_market(callback: CallbackQuery, market: Market) -> None:
+    ctx = get_context()
+    inventory = ctx.inventory
+    if inventory is None:
+        await _edit(
+            callback,
+            fmt.unavailable_text(market.label, "MARKET_UNAVAILABLE", "Market inventory is not initialised"),
+            menus.unavailable_menu(market),
+        )
+        return
+    try:
+        assets = await inventory.assets(market, force=True)
+    except DataUnavailable as exc:
+        await _edit(
+            callback,
+            fmt.unavailable_text(market.label, exc.code or "MARKET_UNAVAILABLE", exc.detail or exc.message),
+            menus.unavailable_menu(market),
+        )
+        return
+    if not assets:
+        await _edit(
+            callback,
+            fmt.unavailable_text(market.label, "MARKET_UNAVAILABLE", "no instrument returned by ExpertOption"),
+            menus.unavailable_menu(market),
+        )
+        return
+    if len(assets) == 1:
+        await _show_index_asset(callback, assets[0])
+        return
+    await _edit(
+        callback,
+        fmt.smarty_assets_text(assets, market),
+        menus.index_assets_menu(market, assets),
+    )
+
+
+async def _show_index_asset(callback: CallbackQuery, asset: Asset) -> None:
+    ctx = get_context()
+    source = ctx.registry.source_summary(asset)
+    detail = f"ID {asset.bridge_id}" if asset.bridge_id else None
+    await _edit(callback, fmt.smarty_card_text(asset, source, detail), menus.index_menu(asset))
+
+
+@router.callback_query(F.data.startswith("ia:"))
+async def cb_index_asset(callback: CallbackQuery) -> None:
+    ctx = get_context()
+    key = callback.data.split(":", 1)[1]
+    asset = get_asset(key)
+    if asset is None and ctx.inventory is not None:
+        asset = await ctx.inventory.resolve(key)
+    if asset is None or asset.market not in INDEX_MARKETS:
+        await callback.answer("ASSET غير معروف", show_alert=True)
+        return
+    await callback.answer()
+    await _show_index_asset(callback, asset)
+
+
+@router.callback_query(F.data.startswith("ix:"))
+async def cb_index_signal(callback: CallbackQuery) -> None:
+    ctx = get_context()
+    _, asset_key, duration_raw = callback.data.split(":", 2)
+    asset = get_asset(asset_key)
+    if asset is None and ctx.inventory is not None:
+        asset = await ctx.inventory.resolve(asset_key)
+    try:
+        duration = int(duration_raw)
+    except ValueError:
+        duration = 0
+    if asset is None or asset.market not in INDEX_MARKETS or duration <= 0:
+        await callback.answer("طلب غير صالح", show_alert=True)
+        return
+    await callback.answer(f"⏳ تحليل {asset.market.label}...")
+    await _edit(callback, f"⏳ {asset.market.label} — {asset.display} — {duration}s...", None)
+    user_settings = await ctx.repo.get_user_settings(
+        callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence}
+    )
+    try:
+        result, record = await ctx.generator.generate(
+            callback.from_user.id,
+            asset,
+            smarty_timeframe(duration),
+            duration_seconds=duration,
+            min_confidence=user_settings["min_confidence"],
+        )
+    except DataUnavailable as exc:
+        await _edit(
+            callback,
+            fmt.unavailable_text(asset.market.label, exc.code or "UNAVAILABLE", exc.detail or exc.message),
+            menus.unavailable_menu(asset.market),
+        )
+        return
+    await _edit(callback, fmt.smarty_result_text(result, record), menus.index_menu(asset))
 
 
 async def _show_smarty(callback: CallbackQuery) -> None:

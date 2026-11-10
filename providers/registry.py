@@ -15,6 +15,9 @@ QUOTE_PREFERENCE: dict[Market, tuple[str, ...]] = {
     Market.GOLD: ("swissquote", "twelvedata"),
     Market.OTC: ("eo_bridge",),
     Market.SMARTY: ("eo_bridge",),
+    Market.AI: ("eo_bridge",),
+    Market.FOOTBALL: ("eo_bridge",),
+    Market.LUXURY: ("eo_bridge",),
 }
 
 

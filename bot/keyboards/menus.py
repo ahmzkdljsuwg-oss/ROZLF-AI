@@ -18,10 +18,15 @@ def back_to_main() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+INDEX_MARKETS: tuple[Market, ...] = (Market.AI, Market.FOOTBALL, Market.LUXURY)
+
+
 def main_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(_button("🧠 SMARTY MARKET", "mkt:SMARTY"), _button("🌐 OTC MARKET", "mkt:OTC"))
-    builder.row(_button("💱 FOREX MARKET", "mkt:FOREX"), _button("🥇 GOLD ANALYSIS", "mkt:GOLD"))
+    builder.row(_button("💱 FOREX MARKET", "mkt:FOREX"), _button("🧠 SMARTY MARKET", "mkt:SMARTY"))
+    builder.row(_button("🤖 AI INDEX", "mkt:AI"), _button("⚽ FOOTBALL INDEX", "mkt:FOOTBALL"))
+    builder.row(_button("💎 LUXURY INDEX", "mkt:LUXURY"), _button("🌐 OTC MARKET", "mkt:OTC"))
+    builder.row(_button("🥇 GOLD ANALYSIS", "mkt:GOLD"))
     builder.row(_button("🛰 AUTO SCANNER", "scan:menu"), _button("🖼 AI IMAGE ANALYSIS", "img:help"))
     builder.row(_button("📡 LIVE SIGNALS", "live"), _button("🗂 SIGNAL HISTORY", "hist"))
     builder.row(_button("📊 PERFORMANCE STATISTICS", "stats"), _button("⚙️ SETTINGS", "settings"))
@@ -44,7 +49,7 @@ def market_menu(market: Market, assets: list[Asset] | None = None) -> InlineKeyb
 # ExpertOption-native expirations that the bridge can verify with quotes:
 # 30s, 1m, 2m, 3m and 5m. 5s/15s are not offered by the bridge data feed, so
 # they are deliberately not shown.
-SMARTY_TRADE_DURATIONS: tuple[int, ...] = (5, 15, 30, 60, 300)
+SMARTY_TRADE_DURATIONS: tuple[int, ...] = (5, 15, 30, 45, 60, 105, 300)
 
 
 def smarty_assets_menu(assets: list[Asset]) -> InlineKeyboardMarkup:
@@ -69,6 +74,33 @@ def smarty_menu(asset: Asset, durations: tuple[int, ...] | None = None) -> Inlin
     builder.adjust(2)
     builder.row(
         _button("🔙 ASSETS", "mkt:SMARTY"),
+        _button("🏠 MAIN", "menu:main"),
+    )
+    return builder.as_markup()
+
+
+def index_assets_menu(market: Market, assets: list[Asset]) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for asset in assets:
+        builder.button(text=f"🎯 {asset.display}", callback_data=f"ia:{asset.key}")
+    builder.adjust(1)
+    builder.row(
+        _button("🔄 REFRESH", f"mkt:{market.value}"),
+        _button("🏠 MAIN", "menu:main"),
+    )
+    return builder.as_markup()
+
+
+def index_menu(asset: Asset, durations: tuple[int, ...] | None = None) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for seconds in durations or SMARTY_TRADE_DURATIONS:
+        builder.button(
+            text=f"⚡ {DURATION_LABELS[seconds]}",
+            callback_data=f"ix:{asset.key}:{seconds}",
+        )
+    builder.adjust(2)
+    builder.row(
+        _button("🔙 ASSETS", f"mkt:{asset.market.value}"),
         _button("🏠 MAIN", "menu:main"),
     )
     return builder.as_markup()
@@ -134,6 +166,11 @@ def scanner_menu(running: bool, markets: list[str]) -> InlineKeyboardMarkup:
     )
     builder.row(
         _button("🧠 SMARTY " + ("✅" if "SMARTY" in markets else "⬜"), "scan:mk:SMARTY"),
+        _button("🤖 AI " + ("✅" if "AI" in markets else "⬜"), "scan:mk:AI"),
+        _button("⚽ FOOTBALL " + ("✅" if "FOOTBALL" in markets else "⬜"), "scan:mk:FOOTBALL"),
+    )
+    builder.row(
+        _button("💎 LUXURY " + ("✅" if "LUXURY" in markets else "⬜"), "scan:mk:LUXURY"),
         _button("🔄 UPDATE", "scan:menu"),
     )
     builder.row(_button("🏠 MAIN", "menu:main"))

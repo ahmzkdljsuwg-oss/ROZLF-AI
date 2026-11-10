@@ -7,6 +7,7 @@ from datetime import datetime
 from engines.technical.indicators import compute_indicators, frame_from_candles
 from engines.technical.smc import analyze_smc
 from providers.base import DataUnavailable, MarketData, utc_now
+from providers.catalog import Market
 
 
 @dataclass
@@ -196,10 +197,10 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
     chosen = up if direction == "UP" else down
     reasons = [reason for reason, _ in sorted(chosen, key=lambda item: -item[1])][:6]
 
-    if market_data.asset.market.value == "smarty":
+    if market_data.asset.market in (Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY):
         # Expiry follows measured volatility, not the candle frame: quiet
         # conditions need room to move, choppy ones need a shorter window.
-        expiry_seconds = {"LOW": 300, "NORMAL": 60, "HIGH": 15}.get(ind["volatility"], 60)
+        expiry_seconds = {"LOW": 300, "NORMAL": 60, "HIGH": 30}.get(ind["volatility"], 60)
     else:
         expiry_seconds = max(30, market_data.timeframe.seconds)
 

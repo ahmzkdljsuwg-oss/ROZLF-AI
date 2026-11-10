@@ -22,6 +22,9 @@ SCAN_PLAN: dict[Market, tuple[str, ...]] = {
     Market.GOLD: ("15min",),
     Market.OTC: ("1min", "5min"),
     Market.SMARTY: ("1min",),
+    Market.AI: ("1min",),
+    Market.FOOTBALL: ("1min",),
+    Market.LUXURY: ("1min",),
 }
 
 Notifier = Callable[[SignalRecord], Awaitable[None]]

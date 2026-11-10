@@ -54,8 +54,8 @@ async def test_min_confidence_blocks_signal(settings, repo, eurusd):
 
 def test_durations_respect_timeframe(eurusd):
     allowed = supported_durations(eurusd, timeframe("1min"))
-    assert 30 not in allowed
-    assert 60 in allowed
+    assert {30, 45, 60, 105}.issubset(allowed)
+    assert 5 not in allowed and 15 not in allowed
     otc = dynamic_asset("EURUSD_OTC", Market.OTC, precision=5, bridge_id=179)
     allowed_otc = supported_durations(otc, timeframe("1min"))
     assert 30 not in allowed_otc and 60 in allowed_otc

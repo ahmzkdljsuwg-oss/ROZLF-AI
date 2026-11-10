@@ -10,12 +10,14 @@ from providers.base import DataUnavailable, MarketData, utc_now
 from providers.catalog import Asset, Market, Timeframe, get_asset, timeframe
 from providers.registry import DataSourceRegistry
 
-DURATIONS = (30, 60, 120, 180, 300, 900, 1800, 3600)
+DURATIONS = (30, 45, 60, 105, 120, 180, 300, 900, 1800, 3600)
 DURATION_LABELS = {
     5: "5 SEC",
     15: "15 SEC",
     30: "30 SEC",
+    45: "45 SEC",
     60: "1 MIN",
+    105: "1 MIN 45",
     120: "2 MIN",
     180: "3 MIN",
     300: "5 MIN",
@@ -27,9 +29,11 @@ DURATION_LABELS = {
 
 def supported_durations(asset: Asset, tf: Timeframe) -> list[int]:
     """Durations that the analysis resolution can realistically verify."""
-    if asset.market is Market.SMARTY:
-        # Frames confirmed live by the bridge on ExpertOption SMRTY (id 240).
-        return [5, 15, 30, 60, 300]
+    if asset.market.is_expertoption and asset.market is not Market.OTC:
+        # Frames confirmed live by the bridge on ExpertOption SMRTY and the
+        # AI/Football/Luxury indexes: 5s..300s (180s is rejected upstream).
+        return [5, 15, 30, 45, 60, 105, 300]
+    fast = [] if asset.market is Market.OTC else [30, 45, 60, 105]
     if tf.seconds >= 3600:
         supported = [3600]
     elif tf.seconds >= 1800:
@@ -40,6 +44,7 @@ def supported_durations(asset: Asset, tf: Timeframe) -> list[int]:
         supported = [300, 900]
     else:
         supported = [60, 120, 180, 300]
+    return sorted(set(supported) | set(fast))
     return supported
 
 

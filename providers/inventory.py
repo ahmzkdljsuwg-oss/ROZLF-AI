@@ -45,7 +45,7 @@ class MarketInventory:
 
     @property
     def dynamic_markets(self) -> tuple[Market, ...]:
-        return (Market.OTC, Market.SMARTY)
+        return (Market.OTC, Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY)
 
     def cached(self, market: Market) -> Discovery | None:
         entry = self._cache.get(market)

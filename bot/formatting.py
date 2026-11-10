@@ -39,6 +39,9 @@ def market_label(market: str) -> str:
         Market.GOLD.value: "GOLD",
         Market.OTC.value: "OTC",
         Market.SMARTY.value: "SMARTY",
+        Market.AI.value: "AI INDEX",
+        Market.FOOTBALL.value: "FOOTBALL INDEX",
+        Market.LUXURY.value: "LUXURY INDEX",
     }
     return labels.get(market, market)
 
@@ -52,9 +55,12 @@ def welcome_text(settings: Settings) -> str:
         "مرحباً بك في نظام <b>ROZLF AI</b>.\n"
         "تحليل فني + Smart Money Concepts + إشارات موثّقة.\n\n"
         "<b>الأقسام الرئيسية:</b>\n"
-        "🧠 SMARTY MARKET\n"
-        "🌐 OTC MARKET\n"
         "💱 FOREX MARKET\n"
+        "🧠 SMARTY MARKET\n"
+        "🤖 AI INDEX\n"
+        "⚽ FOOTBALL INDEX\n"
+        "💎 LUXURY INDEX\n"
+        "🌐 OTC MARKET\n"
         "🥇 GOLD ANALYSIS\n"
         "🛰 AUTO SCANNER\n"
         "🖼 AI IMAGE ANALYSIS\n"
@@ -213,7 +219,10 @@ def status_text(settings: Settings, statuses: list[dict], health: dict, ai_healt
             lines.append(f"   · {status['detail']}")
     lines.append("")
     lines.append("<b>MARKET COVERAGE (LIVE PROBE)</b>")
-    for market in (Market.FOREX, Market.GOLD, Market.OTC, Market.SMARTY):
+    for market in (
+        Market.FOREX, Market.GOLD, Market.OTC, Market.SMARTY,
+        Market.AI, Market.FOOTBALL, Market.LUXURY,
+    ):
         entry = health.get(market.value)
         if entry is None:
             lines.append(f"{market_label(market.value)}: ⚪ NOT PROBED")
@@ -253,26 +262,27 @@ def unavailable_text(title: str, message: str, detail: str | None = None) -> str
 
 def smarty_card_text(asset: Asset, source_state: str, detail: str | None = None) -> str:
     lines = [
-        "<b>🧠 SMARTY MARKET</b>",
+        f"<b>{market_label(asset.market.value)} — EXPERTOPTION</b>",
         "━━━━━━━━━━━━━━━━━━",
         f"ASSET: <b>{asset.display}</b>",
-        f"MARKET: SMARTY (ExpertOption)",
+        f"MARKET: {market_label(asset.market.value)} (ExpertOption)",
         f"EO ASSET ID: {asset.bridge_id or 'N/A'}",
         f"DATA SOURCE: {source_state}",
     ]
     if detail:
         lines.append(f"STATUS: {detail}")
     lines.append("")
-    lines.append("اختر مدة الصفقة لتحليل SMARTY وإصدار الإشارة:")
+    lines.append(f"اختر مدة الصفقة لتحليل {market_label(asset.market.value)} وإصدار الإشارة:")
     lines.append("<i>مدة الصفقة مستقلة عن فريم الشموع المستخدم في التحليل.</i>")
     return "\n".join(lines)
 
 
-def smarty_assets_text(assets: list[Asset]) -> str:
+def smarty_assets_text(assets: list[Asset], market: Market | None = None) -> str:
+    label = market_label(market.value) if market else "SMARTY"
     lines = [
-        "<b>🧠 SMARTY MARKET</b>",
+        f"<b>{label} MARKET</b>",
         "━━━━━━━━━━━━━━━━━━",
-        "أصول SMARTY المكتشفة من حساب ExpertOption:",
+        f"أصول {label} المكتشفة من حساب ExpertOption:",
         "",
     ]
     for asset in assets:
@@ -316,10 +326,10 @@ def _smc_lines(result: AnalysisResult) -> list[str]:
 def smarty_result_text(result: AnalysisResult, record: SignalRecord | None) -> str:
     ind = result.indicators or {}
     lines = [
-        "<b>ROZLF AI — SMARTY ANALYSIS</b>",
+        f"<b>ROZLF AI — {market_label(result.market)} ANALYSIS</b>",
         "━━━━━━━━━━━━━━━━━━",
         f"ASSET: <b>{result.asset_display}</b>",
-        "MARKET: SMARTY",
+        f"MARKET: {market_label(result.market)}",
         f"DIRECTION: <b>{result.direction}</b>",
         f"CONFIDENCE: <b>{result.confidence:.0f}%</b> "
         f"<i>(UP {result.score_up:.0f} · DOWN {result.score_down:.0f})</i>",
@@ -399,6 +409,9 @@ def markets_text(market: str, assets: list[Asset], tfs: list[str]) -> str:
         Market.GOLD.value: "🥇 GOLD ANALYSIS",
         Market.OTC.value: "🌐 OTC MARKET",
         Market.SMARTY.value: "🧠 SMARTY MARKET",
+        Market.AI.value: "🤖 AI INDEX",
+        Market.FOOTBALL.value: "⚽ FOOTBALL INDEX",
+        Market.LUXURY.value: "💎 LUXURY INDEX",
     }.get(market, market)
     lines = [f"<b>{title}</b>", "━━━━━━━━━━━━━━━━━━"]
     if not assets:

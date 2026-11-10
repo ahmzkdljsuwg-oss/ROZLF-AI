@@ -311,6 +311,7 @@ class BridgeApp:
                 status=404,
             )
         tested: dict[str, Any] = {}
+        candles_ohlc: list[dict[str, Any]] = []
         for tf in (5, 15, 30, 60, 180, 300, 900):
             try:
                 probe = await self.client.get_candles(target, tf, limit=120)
@@ -322,6 +323,11 @@ class BridgeApp:
                 "last_close": probe[-1].close,
                 "last_candle": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime(probe[-1].time)),
             }
+            if tf == 5:
+                candles_ohlc = [
+                    {"time": row.time, "open": row.open, "high": row.high, "low": row.low, "close": row.close}
+                    for row in probe
+                ]
         return _json(
             {
                 "service": SERVICE,
@@ -329,6 +335,7 @@ class BridgeApp:
                 "asset": target.as_dict(),
                 "raw_asset": self.client.raw_asset(target.id),
                 "timeframes_tested": tested,
+                "candles_ohlc": candles_ohlc,
                 "connected": bool(self.client.connected),
                 "last_message_age_seconds": self.client.status().get("last_message_age_seconds"),
                 "last_error": self.client.status().get("last_error"),

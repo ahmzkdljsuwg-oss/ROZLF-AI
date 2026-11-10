@@ -10,6 +10,9 @@ class Market(str, Enum):
     GOLD = "gold"
     OTC = "otc"
     SMARTY = "smarty"
+    AI = "ai"
+    FOOTBALL = "football"
+    LUXURY = "luxury"
 
     @property
     def label(self) -> str:
@@ -18,11 +21,14 @@ class Market(str, Enum):
             Market.GOLD: "GOLD",
             Market.OTC: "OTC",
             Market.SMARTY: "SMARTY",
+            Market.AI: "AI INDEX",
+            Market.FOOTBALL: "FOOTBALL INDEX",
+            Market.LUXURY: "LUXURY INDEX",
         }[self]
 
     @property
     def is_expertoption(self) -> bool:
-        return self in (Market.OTC, Market.SMARTY)
+        return self in (Market.OTC, Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY)
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,7 +68,9 @@ class Expiration:
 
 EXPIRATIONS: tuple[Expiration, ...] = (
     Expiration(30, "30 SEC"),
+    Expiration(45, "45 SEC"),
     Expiration(60, "1 MIN"),
+    Expiration(105, "1 MIN 45 SEC"),
     Expiration(120, "2 MIN"),
     Expiration(180, "3 MIN"),
     Expiration(300, "5 MIN"),
@@ -173,9 +181,21 @@ SMARTY_ASSET: Asset = _asset(
 SMARTY_ASSETS: tuple[Asset, ...] = (SMARTY_ASSET,)
 # OTC assets are discovered from the operator's own ExpertOption account at
 # runtime (`/assets?market=otc` on the bridge); nothing is hardcoded here.
+# ExpertOption index assets, verified live by the bridge (ids confirmed 2026-11-10).
+AI_ASSETS: tuple[Asset, ...] = (
+    _asset("AI_INDEX_OTC_R", Market.AI, 5, bridge="AI_INDEX_OTC_R", bridge_id=285, name="AI Index"),
+)
+FOOTBALL_ASSETS: tuple[Asset, ...] = (
+    _asset("FOOTBALL_INDEX_OTC_R", Market.FOOTBALL, 5, bridge="FOOTBALL_INDEX_OTC_R", bridge_id=278, name="Football Index"),
+)
+LUXURY_ASSETS: tuple[Asset, ...] = (
+    _asset("LUXURY_INDEX_OTC_R", Market.LUXURY, 5, bridge="LUXURY_INDEX_OTC_R", bridge_id=286, name="Luxury Index"),
+)
 OTC_ASSETS: tuple[Asset, ...] = ()
 
-ASSETS: tuple[Asset, ...] = FOREX_ASSETS + GOLD_ASSETS + SMARTY_ASSETS
+ASSETS: tuple[Asset, ...] = (
+    FOREX_ASSETS + GOLD_ASSETS + SMARTY_ASSETS + AI_ASSETS + FOOTBALL_ASSETS + LUXURY_ASSETS
+)
 _BY_KEY: dict[str, Asset] = {asset.key: asset for asset in ASSETS}
 _BY_SYMBOL: dict[tuple[str, Market], Asset] = {(a.symbol, a.market): a for a in ASSETS}
 _DYNAMIC: dict[str, Asset] = {}
@@ -185,7 +205,9 @@ def register_dynamic(assets: list[Asset]) -> None:
     for asset in assets:
         _DYNAMIC[asset.key] = asset
 
-MARKET_ORDER: tuple[Market, ...] = (Market.SMARTY, Market.OTC, Market.FOREX, Market.GOLD)
+MARKET_ORDER: tuple[Market, ...] = (
+    Market.FOREX, Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY, Market.OTC, Market.GOLD
+)
 
 
 def get_asset(key: str) -> Asset | None:
