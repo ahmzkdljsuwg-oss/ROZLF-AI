@@ -178,9 +178,24 @@ class BridgeApp:
             return _error(exc.code, exc.message, status=503)
         instrument = find_smarty(instruments)
         if instrument is None:
-            return _error(
-                "SMARTY_UNAVAILABLE",
-                "SMRTY (id 240) is not offered on this ExpertOption account right now",
+            candidates = [
+                item.as_dict()
+                for item in instruments
+                if "smart" in f"{item.symbol} {item.name}".lower()
+                or "smrty" in f"{item.symbol} {item.name}".lower()
+                or 230 <= item.id <= 260
+            ]
+            counts: dict[str, int] = {}
+            for item in instruments:
+                counts[item.market] = counts.get(item.market, 0) + 1
+            return _json(
+                {
+                    "error": "SMARTY_UNAVAILABLE",
+                    "message": "No asset matched SMRTY/id 240 on this ExpertOption account",
+                    "discovered_assets": len(instruments),
+                    "market_counts": counts,
+                    "candidates": [dict(c) for c in candidates[:20]],
+                },
                 status=404,
             )
         try:
