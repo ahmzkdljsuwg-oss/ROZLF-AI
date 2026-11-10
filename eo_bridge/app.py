@@ -73,6 +73,7 @@ class BridgeApp:
             "assets_debug": status.get("assets_debug") or {},
             "seen_actions": status.get("seen_actions") or {},
             "msg_shapes": status.get("msg_shapes") or [],
+            "timeframes_payload": status.get("timeframes_payload"),
         }
         return _json(payload, status=200)
 
@@ -199,11 +200,11 @@ class BridgeApp:
                 status=404,
             )
         tested: dict[str, Any] = {}
-        for tf in (30, 60, 180, 300, 900):
+        for tf in (5, 10, 15, 30, 60, 180, 300, 900):
             try:
                 probe = await self.client.get_candles(instrument, tf, limit=60)
             except BridgeError as exc:
-                tested[str(tf)] = {"error": exc.code}
+                tested[str(tf)] = {"error": exc.code, "detail": str(exc.message)[:200]}
                 continue
             tested[str(tf)] = {
                 "candles": len(probe),
@@ -212,7 +213,7 @@ class BridgeApp:
             }
         candles = None
         seconds = 60
-        for tf in (60, 30, 180, 300, 900):
+        for tf in (5, 10, 15, 60, 30, 180, 300, 900):
             if isinstance(tested.get(str(tf)), dict) and "candles" in tested[str(tf)]:
                 try:
                     candles = await self.client.get_candles(instrument, tf, limit=60)
@@ -228,6 +229,7 @@ class BridgeApp:
                     "asset": instrument.as_dict(),
                     "raw_asset": self.client.raw_asset(instrument.id),
                     "timeframes_tested": tested,
+                    "timeframes_payload": self.client.status().get("timeframes_payload"),
                 },
                 status=503,
             )

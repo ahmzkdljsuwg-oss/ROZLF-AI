@@ -81,6 +81,7 @@ class ExpertOptionClient:
         self._assets_debug: dict[str, Any] = {}
         self._seen_actions: dict[str, int] = {}
         self._raw_by_id: dict[int, dict[str, Any]] = {}
+        self._timeframes_payload: Any = None
         self._msg_shapes: list[Any] = []
         self._last_message_at = 0.0
         self._last_error: str | None = None
@@ -106,6 +107,7 @@ class ExpertOptionClient:
             "assets_debug": dict(self._assets_debug),
             "seen_actions": dict(self._seen_actions),
             "msg_shapes": list(self._msg_shapes),
+            "timeframes_payload": self._timeframes_payload,
             "last_message_age_seconds": (
                 round(time.time() - self._last_message_at, 1) if self._last_message_at else None
             ),
@@ -328,6 +330,8 @@ class ExpertOptionClient:
             if isinstance(new_token, str) and new_token:
                 self._token = new_token
             return
+        if action == "getCandlesTimeframes":
+            self._timeframes_payload = data.get("message")
         if action == "multipleAction":
             for sub in (data.get("message") or {}).get("actions") or []:
                 self._dispatch(dict(sub))
