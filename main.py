@@ -169,7 +169,7 @@ async def main() -> None:
         await bot.set_my_commands(
             [
                 BotCommand(command="start", description="فتح لوحة التحكم"),
-                BotCommand(command="markets", description="فتح قائمة الأسواق الخمسة"),
+                BotCommand(command="markets", description="فتح قائمة الأسواق السبعة"),
                 BotCommand(command="status", description="حالة البيانات والذكاء الاصطناعي"),
                 BotCommand(command="scan", description="فتح الماسح التلقائي"),
                 BotCommand(command="stats", description="الإحصائيات"),
