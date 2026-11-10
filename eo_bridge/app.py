@@ -198,10 +198,39 @@ class BridgeApp:
                 },
                 status=404,
             )
-        try:
-            candles = await self.client.get_candles(instrument, 60, limit=60)
-        except BridgeError as exc:
-            return _error(exc.code, exc.message, status=503)
+        tested: dict[str, Any] = {}
+        for tf in (30, 60, 180, 300, 900):
+            try:
+                probe = await self.client.get_candles(instrument, tf, limit=60)
+            except BridgeError as exc:
+                tested[str(tf)] = {"error": exc.code}
+                continue
+            tested[str(tf)] = {
+                "candles": len(probe),
+                "last_candle": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime(probe[-1].time)),
+                "last_close": probe[-1].close,
+            }
+        candles = None
+        seconds = 60
+        for tf in (60, 30, 180, 300, 900):
+            if isinstance(tested.get(str(tf)), dict) and "candles" in tested[str(tf)]:
+                try:
+                    candles = await self.client.get_candles(instrument, tf, limit=60)
+                    seconds = tf
+                    break
+                except BridgeError:
+                    continue
+        if candles is None:
+            return _json(
+                {
+                    "error": "NO_CANDLES",
+                    "message": f"ExpertOption returned no candles for {instrument.symbol}",
+                    "asset": instrument.as_dict(),
+                    "raw_asset": self.client.raw_asset(instrument.id),
+                    "timeframes_tested": tested,
+                },
+                status=503,
+            )
         now = _time.time()
         times = [candle.time for candle in candles]
         invalid = [
@@ -219,7 +248,9 @@ class BridgeApp:
                 "market": instrument.market,
                 "active": instrument.is_active,
                 "expirations": instrument.expirations,
-                "timeframe": "1min",
+                "timeframe": f"{seconds}s",
+                "timeframes_tested": tested,
+                "raw_asset": self.client.raw_asset(instrument.id),
                 "candles": len(candles),
                 "first_candle": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime(times[0])),
                 "last_candle": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime(times[-1])),

@@ -80,6 +80,7 @@ class ExpertOptionClient:
         self._assets_loaded_at = 0.0
         self._assets_debug: dict[str, Any] = {}
         self._seen_actions: dict[str, int] = {}
+        self._raw_by_id: dict[int, dict[str, Any]] = {}
         self._msg_shapes: list[Any] = []
         self._last_message_at = 0.0
         self._last_error: str | None = None
@@ -338,7 +339,7 @@ class ExpertOptionClient:
             if raw_assets:
                 from .catalog import build_instruments
 
-                self._merge_assets(build_instruments(raw_assets))
+                self._merge_assets(build_instruments(raw_assets), raw_assets)
                 self._assets_loaded_at = time.time()
                 self._assets_debug = {"raw_count": len(raw_assets), "parsed": len(self._assets),
                                       "sample": [{"id": a.get("id"), "symbol": a.get("symbol"),
@@ -477,7 +478,22 @@ class ExpertOptionClient:
         self._last_error = None
         logger.info("ExpertOption authenticated: %d instruments", len(self._assets))
 
-    def _merge_assets(self, instruments: list[Instrument]) -> None:
+    def raw_asset(self, asset_id: int) -> dict[str, Any]:
+        raw = self._raw_by_id.get(asset_id) or {}
+        keep = (
+            "id", "symbol", "name", "is_active", "is_visible", "is_otc", "type", "asset_type",
+            "mode", "modeId", "group_id", "asset_group_id", "expiration_step", "expiration_count",
+            "expiration_max_seconds", "purchase_time", "start_time", "shutdown_time",
+            "custom_time_enabled", "precision", "profit",
+        )
+        return {key: raw[key] for key in keep if key in raw}
+
+    def _merge_assets(self, instruments: list[Instrument], raw_assets: list[dict[str, Any]] | None = None) -> None:
+        for raw in raw_assets or []:
+            try:
+                self._raw_by_id[int(raw.get("id"))] = raw
+            except (TypeError, ValueError):
+                continue
         # The gateway may push partial asset lists (e.g. one active symbol).
         # Never let a smaller update wipe the full catalog discovered earlier.
         merged = {item.id: item for item in self._assets}
@@ -518,7 +534,7 @@ class ExpertOptionClient:
         if raw_assets:
             from .catalog import build_instruments
 
-            self._merge_assets(build_instruments(raw_assets))
+            self._merge_assets(build_instruments(raw_assets), raw_assets)
             self._assets_loaded_at = time.time()
             self._assets_debug = {"raw_count": len(raw_assets), "parsed": len(self._assets),
                                   "sample": [{"id": a.get("id"), "symbol": a.get("symbol"),
