@@ -31,11 +31,19 @@ def main_menu() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+MARKET_BUTTONS: tuple[tuple[str, str], ...] = (
+    ("💱 FOREX", "mkt:FOREX"),
+    ("🧠 SMARTY", "mkt:SMARTY"),
+    ("🤖 AI INDEX", "mkt:AI"),
+    ("⚽ FOOTBALL INDEX", "mkt:FOOTBALL"),
+    ("💎 LUXURY INDEX", "mkt:LUXURY"),
+)
+
+
 def markets_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(_button("💱 FOREX", "mkt:FOREX"), _button("🧠 SMARTY", "mkt:SMARTY"))
-    builder.row(_button("🤖 AI INDEX", "mkt:AI"), _button("⚽ FOOTBALL INDEX", "mkt:FOOTBALL"))
-    builder.row(_button("💎 LUXURY INDEX", "mkt:LUXURY"))
+    for text, data in MARKET_BUTTONS:
+        builder.row(_button(text, data))
     builder.row(_button("🏠 الرئيسية", "menu:main"))
     return builder.as_markup()
 

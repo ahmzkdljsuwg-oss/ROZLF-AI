@@ -46,6 +46,17 @@ async def cmd_start(message: Message) -> None:
     await _show_main(message)
 
 
+@router.message(Command("markets"))
+async def cmd_markets(message: Message) -> None:
+    await message.answer(
+        "<b>🧠 الأسواق</b>\n━━━━━━━━━━━━━━━━━━\n"
+        "خمسة أسواق: FOREX · SMARTY · AI INDEX · FOOTBALL INDEX · LUXURY INDEX\n"
+        "اختر السوق لعرض الأصول المتاحة فعلياً من مصدر البيانات:",
+        reply_markup=menus.markets_menu(),
+        disable_web_page_preview=True,
+    )
+
+
 @router.message(Command("id"))
 async def cmd_id(message: Message) -> None:
     await message.answer(

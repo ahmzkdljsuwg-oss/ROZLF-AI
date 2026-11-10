@@ -35,7 +35,14 @@ def test_main_menu_has_real_callbacks():
     data = [button.callback_data for row in markup.inline_keyboard for button in row]
     assert data == ["auto", "markets", "trend", "hist", "settings"]
     market_data = [b.callback_data for row in menus.markets_menu().inline_keyboard for b in row]
-    assert "mkt:SMARTY" in market_data and "mkt:FOREX" in market_data
+    assert market_data == [
+        "mkt:FOREX",
+        "mkt:SMARTY",
+        "mkt:AI",
+        "mkt:FOOTBALL",
+        "mkt:LUXURY",
+        "menu:main",
+    ]
     assert "mkt:OTC" not in market_data and "mkt:GOLD" not in market_data
     for item in data:
         assert item

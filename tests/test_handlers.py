@@ -96,7 +96,63 @@ async def test_markets_hub_callback():
     text, keyboard = callback.message.edits[0]
     assert "الأسواق" in text
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert "mkt:FOREX" in data and "mkt:SMARTY" in data
+    assert data == ["mkt:FOREX", "mkt:SMARTY", "mkt:AI", "mkt:FOOTBALL", "mkt:LUXURY", "menu:main"]
+
+
+async def test_football_market_opens_asset_278_durations(monkeypatch):
+    from providers.catalog import Market, dynamic_asset
+
+    asset = dynamic_asset(
+        "FOOTBALL_INDEX_OTC_R", Market.FOOTBALL, precision=5, bridge_id=278, name="Football Index"
+    )
+    _fake_context(monkeypatch, inventory=FakeInventory(assets=[asset]))
+    callback = FakeCallback("mkt:FOOTBALL")
+    await handlers.cb_market(callback)
+    text, keyboard = callback.message.edits[0]
+    assert "FOOTBALL INDEX" in text and "278" in text
+    data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
+    assert f"ix:{asset.key}:30" in data
+    assert f"ix:{asset.key}:60" in data
+
+
+async def test_football_duration_reaches_asset_278_analysis(monkeypatch):
+    from bot import context
+    from providers.catalog import Market, dynamic_asset
+
+    asset = dynamic_asset(
+        "FOOTBALL_INDEX_OTC_R", Market.FOOTBALL, precision=5, bridge_id=278, name="Football Index"
+    )
+    calls = []
+
+    class FakeGenerator:
+        async def generate(self, user_id, chosen, tf, duration_seconds=None, min_confidence=None):
+            calls.append((chosen, tf, duration_seconds))
+            return object(), None
+
+    class FakeRepo:
+        async def get_user_settings(self, user_id, defaults=None):
+            return {"min_confidence": 65.0}
+
+    monkeypatch.setattr(
+        context,
+        "_context",
+        SimpleNamespace(
+            registry=FakeRegistry(),
+            inventory=FakeInventory(assets=[asset]),
+            generator=FakeGenerator(),
+            repo=FakeRepo(),
+            settings=SimpleNamespace(min_confidence=65.0),
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(handlers.fmt, "smarty_result_text", lambda result, record: "ANALYSIS")
+    callback = FakeCallback(f"ix:{asset.key}:30")
+    await handlers.cb_index_signal(callback)
+    assert callback.message.edits[-1][0] == "ANALYSIS"
+    assert len(calls) == 1
+    assert calls[0][0].bridge_id == 278
+    assert calls[0][0].market is Market.FOOTBALL
+    assert calls[0][2] == 30
 
 
 async def test_asset_callback_needs_context(monkeypatch):
