@@ -199,7 +199,7 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
     if market_data.asset.market.value == "smarty":
         # Expiry follows measured volatility, not the candle frame: quiet
         # conditions need room to move, choppy ones need a shorter window.
-        expiry_seconds = {"LOW": 300, "NORMAL": 180, "HIGH": 60}.get(ind["volatility"], 180)
+        expiry_seconds = {"LOW": 300, "NORMAL": 60, "HIGH": 15}.get(ind["volatility"], 60)
     else:
         expiry_seconds = max(30, market_data.timeframe.seconds)
 

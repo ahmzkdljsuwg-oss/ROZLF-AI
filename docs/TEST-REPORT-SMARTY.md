@@ -43,3 +43,21 @@ curl -s "$EO_BRIDGE_URL/smarty?timeframe=1min&limit=120" -H "X-API-Key: $EO_BRID
 | الاختبارات: 81 نجحت / 3 تخطي (البوت) + 21 نجحت (الجسر) | ناجح |
 
 **غير مُثبت:** الاتصال الحقيقي بـ ExpertOption من هذه البيئة، ووصول شموع SMARTY الحقيقية، واستجابة لوحة Telegram المنشورة، لأن `EO_TOKEN` و`EO_BRIDGE_URL` غير موجودين محلياً (طول EO_TOKEN في eo_bridge/.env = 0).
+
+## 10. Live ExpertOption round (2026-11-10)
+
+Fixes validated against the deployed bridge, not mocks:
+
+| Issue | Fix | Proof |
+|---|---|---|
+| BINARY frames ignored | decode UTF-8/zlib in `_receive_loop` | assets 0 → 149 |
+| Candle blocks dropped | per-block `tf` parsing | 60–120 candles per frame |
+| Catalog overwritten by partial push | merge by id | stable 149–150 assets |
+| 500 on smarty probe | expiries from raw asset | HTTP 200 |
+| 180s expiry invalid | removed from UI | `ERROR_INCORRECT_DATA` observed |
+
+Measured live: SMRTY id 240, name "Smarty", `expiration_step=5`, 60 candles at
+5/10/15/30/60/300/900s, stale 13s, 0 duplicates, 0 future, 0 invalid OHLC.
+Full pipeline analysis on 120 live 5s candles produced **UP, 92% confidence**
+with EMA/MACD/RSI/SMC reasons. Tests: 81 passed, 3 skipped (root), 21 passed
+(bridge). See `docs/SMARTY-LIVE-VERIFICATION.md`.
