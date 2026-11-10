@@ -39,7 +39,7 @@ class BridgeApp:
     # ------------------------------------------------------------------ middleware
     @web.middleware
     async def _auth(self, request: web.Request, handler):
-        if request.path in {"/", "/health"}:
+        if request.path in {"/", "/health", "/verify/smarty"}:
             return await handler(request)
         supplied = request.headers.get("X-API-Key") or request.query.get("api_key") or ""
         expected = self.settings.api_key or ""
@@ -163,6 +163,66 @@ class BridgeApp:
             }
         )
 
+
+    async def verify_smarty(self, _: web.Request) -> web.Response:
+        """Unauthenticated liveness probe: proves real SMARTY assets/candles exist.
+
+        Returns metadata only (no token, no keys); a bare last close is included
+        so operators can eyeball that the feed is live.
+        """
+        if not self.settings.eo_token:
+            return _error("EO_TOKEN_MISSING", "Bridge has no ExpertOption session token", status=503)
+        try:
+            instruments = await self.client.ensure_assets()
+        except BridgeError as exc:
+            return _error(exc.code, exc.message, status=503)
+        instrument = find_smarty(instruments)
+        if instrument is None:
+            return _error(
+                "SMARTY_UNAVAILABLE",
+                "SMRTY (id 240) is not offered on this ExpertOption account right now",
+                status=404,
+            )
+        try:
+            candles = await self.client.get_candles(instrument, 60, limit=60)
+        except BridgeError as exc:
+            return _error(exc.code, exc.message, status=503)
+        now = _time.time()
+        times = [candle.time for candle in candles]
+        invalid = [
+            candle for candle in candles
+            if not (candle.high >= max(candle.open, candle.close) and candle.low <= min(candle.open, candle.close))
+        ]
+        stale_seconds = round(max(0.0, now - times[-1]), 1)
+        return _json(
+            {
+                "service": SERVICE,
+                "source": "ExpertOption",
+                "asset_id": instrument.id,
+                "symbol": instrument.symbol,
+                "name": instrument.name,
+                "market": instrument.market,
+                "active": instrument.is_active,
+                "expirations": instrument.expirations,
+                "timeframe": "1min",
+                "candles": len(candles),
+                "first_candle": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime(times[0])),
+                "last_candle": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime(times[-1])),
+                "stale_seconds": stale_seconds,
+                "duplicate_timestamps": len(times) - len(set(times)),
+                "future_candles": sum(1 for ts in times if ts > now + 5),
+                "invalid_ohlc": len(invalid),
+                "last_close": candles[-1].close,
+                "recent": [
+                    {"time": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime(c.time)), "close": c.close}
+                    for c in candles[-3:]
+                ],
+                "connected": bool(self.client.connected),
+                "last_message_age_seconds": self.client.status().get("last_message_age_seconds"),
+                "last_error": self.client.status().get("last_error"),
+            }
+        )
+
     async def smarty(self, request: web.Request) -> web.Response:
         if not self.settings.eo_token:
             return _error("EO_TOKEN_MISSING", "Bridge has no ExpertOption session token", status=503)
@@ -263,6 +323,7 @@ class BridgeApp:
         app.router.add_get("/assets", self.assets)
         app.router.add_get("/discover", self.discover)
         app.router.add_get("/smarty", self.smarty)
+        app.router.add_get("/verify/smarty", self.verify_smarty)
         app.router.add_get("/quote", self.quote)
         app.router.add_get("/candles", self.candles)
 

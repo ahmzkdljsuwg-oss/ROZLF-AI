@@ -340,8 +340,9 @@ class ExpertOptionClient:
 
                 self._assets = build_instruments(raw_assets)
                 self._assets_loaded_at = time.time()
-                self._assets_debug = {"raw_count": len(raw_assets), "sample": raw_assets[:2],
-                                      "parsed": len(self._assets)}
+                self._assets_debug = {"raw_count": len(raw_assets), "parsed": len(self._assets),
+                                      "sample": [{"id": a.get("id"), "symbol": a.get("symbol"),
+                                                  "name": a.get("name")} for a in raw_assets[:3]]}
                 self._connected.set()
         if ns and ns in self._pending and not self._pending[ns].done():
             self._pending[ns].set_result(data)
@@ -511,8 +512,9 @@ class ExpertOptionClient:
 
             self._assets = build_instruments(raw_assets)
             self._assets_loaded_at = time.time()
-            self._assets_debug = {"raw_count": len(raw_assets), "sample": raw_assets[:2],
-                                  "parsed": len(self._assets)}
+            self._assets_debug = {"raw_count": len(raw_assets), "parsed": len(self._assets),
+                                  "sample": [{"id": a.get("id"), "symbol": a.get("symbol"),
+                                              "name": a.get("name")} for a in raw_assets[:3]]}
         return self.assets
 
     async def ensure_assets(self, max_age_seconds: float = 300.0) -> list[Instrument]:
