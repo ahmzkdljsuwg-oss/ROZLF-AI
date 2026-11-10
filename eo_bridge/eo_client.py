@@ -338,7 +338,7 @@ class ExpertOptionClient:
             if raw_assets:
                 from .catalog import build_instruments
 
-                self._assets = build_instruments(raw_assets)
+                self._merge_assets(build_instruments(raw_assets))
                 self._assets_loaded_at = time.time()
                 self._assets_debug = {"raw_count": len(raw_assets), "parsed": len(self._assets),
                                       "sample": [{"id": a.get("id"), "symbol": a.get("symbol"),
@@ -477,6 +477,14 @@ class ExpertOptionClient:
         self._last_error = None
         logger.info("ExpertOption authenticated: %d instruments", len(self._assets))
 
+    def _merge_assets(self, instruments: list[Instrument]) -> None:
+        # The gateway may push partial asset lists (e.g. one active symbol).
+        # Never let a smaller update wipe the full catalog discovered earlier.
+        merged = {item.id: item for item in self._assets}
+        for item in instruments:
+            merged[item.id] = item
+        self._assets = [merged[key] for key in sorted(merged)]
+
     async def _wait_for_assets(self, timeout: float) -> None:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline and not self._assets:
@@ -510,7 +518,7 @@ class ExpertOptionClient:
         if raw_assets:
             from .catalog import build_instruments
 
-            self._assets = build_instruments(raw_assets)
+            self._merge_assets(build_instruments(raw_assets))
             self._assets_loaded_at = time.time()
             self._assets_debug = {"raw_count": len(raw_assets), "parsed": len(self._assets),
                                   "sample": [{"id": a.get("id"), "symbol": a.get("symbol"),
