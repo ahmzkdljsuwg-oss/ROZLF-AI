@@ -54,7 +54,6 @@ class Settings:
     telegram_chat_id: int | None
     mistral_api_key: str | None
     mistral_model: str
-    mistral_vision_model: str
     twelve_data_api_key: str | None
     database_url: str
     log_level: str
@@ -75,7 +74,6 @@ class Settings:
             telegram_chat_id=_number("TELEGRAM_CHAT_ID", None, int),
             mistral_api_key=_text("MISTRAL_API_KEY"),
             mistral_model=_text("MISTRAL_MODEL", "mistral-small-latest") or "mistral-small-latest",
-            mistral_vision_model=_text("MISTRAL_VISION_MODEL", "pixtral-12b-2409") or "pixtral-12b-2409",
             twelve_data_api_key=_text("TWELVE_DATA_API_KEY"),
             database_url=_text("DATABASE_URL", "sqlite+aiosqlite:///./rozlf.db") or "",
             log_level=(_text("LOG_LEVEL", "INFO") or "INFO").upper(),
@@ -142,7 +140,6 @@ class Settings:
             "telegram_chat_id_configured": self.telegram_chat_id is not None,
             "mistral": self.mistral_enabled,
             "mistral_model": self.mistral_model,
-            "mistral_vision_model": self.mistral_vision_model,
             "twelve_data": bool(self.twelve_data_api_key),
             "eo_bridge": bool(self.eo_bridge_url and self.eo_bridge_key),
             "database": "postgresql" if "postgresql" in self.async_database_url else "sqlite",

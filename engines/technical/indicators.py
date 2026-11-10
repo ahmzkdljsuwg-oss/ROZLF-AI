@@ -231,3 +231,130 @@ def compute_indicators(frame: pd.DataFrame) -> dict:
         "volatility": volatility,
         "momentum": momentum,
     }
+
+
+def adx(frame: pd.DataFrame, period: int = 14) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Wilder ADX with +DI/-DI; trend strength needs ADX, direction needs DI."""
+    high, low, close = frame["high"], frame["low"], frame["close"]
+    up = high.diff()
+    down = -low.diff()
+    plus_dm = pd.Series(np.where((up > down) & (up > 0), up, 0.0), index=frame.index)
+    minus_dm = pd.Series(np.where((down > up) & (down > 0), down, 0.0), index=frame.index)
+    prev_close = close.shift(1)
+    true_range = pd.concat(
+        [(high - low), (high - prev_close).abs(), (low - prev_close).abs()], axis=1
+    ).max(axis=1)
+    atr_series = true_range.ewm(alpha=1 / period, adjust=False).mean().replace(0.0, np.nan)
+    plus_di = 100 * plus_dm.ewm(alpha=1 / period, adjust=False).mean() / atr_series
+    minus_di = 100 * minus_dm.ewm(alpha=1 / period, adjust=False).mean() / atr_series
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0.0, np.nan)
+    adx_line = dx.ewm(alpha=1 / period, adjust=False).mean().fillna(0.0)
+    return adx_line, plus_di.fillna(0.0), minus_di.fillna(0.0)
+
+
+def supertrend(frame: pd.DataFrame, period: int = 10, multiplier: float = 3.0) -> tuple[pd.Series, pd.Series]:
+    """ATR bands with trend persistence. Returns (direction series 1/-1, line)."""
+    atr_series = atr(frame, period)
+    mid = (frame["high"] + frame["low"]) / 2
+    upper = (mid + multiplier * atr_series).to_numpy(copy=True)
+    lower = (mid - multiplier * atr_series).to_numpy(copy=True)
+    close = frame["close"].to_numpy()
+    direction = np.ones(len(frame))
+    line = np.array(lower, copy=True)
+    for index in range(1, len(frame)):
+        if close[index - 1] <= upper[index - 1]:
+            upper[index] = min(upper[index], upper[index - 1])
+        if close[index - 1] >= lower[index - 1]:
+            lower[index] = max(lower[index], lower[index - 1])
+        if close[index] > upper[index - 1]:
+            direction[index] = 1
+        elif close[index] < lower[index - 1]:
+            direction[index] = -1
+        else:
+            direction[index] = direction[index - 1]
+        line[index] = lower[index] if direction[index] > 0 else upper[index]
+    return pd.Series(direction, index=frame.index), pd.Series(line, index=frame.index)
+
+
+def vwap(frame: pd.DataFrame) -> pd.Series | None:
+    """Session-agnostic anchored VWAP; only valid when the feed supplies volume."""
+    if "volume" not in frame or float(frame["volume"].sum()) <= 0:
+        return None
+    typical = (frame["high"] + frame["low"] + frame["close"]) / 3
+    cumulative = frame["volume"].cumsum().replace(0.0, np.nan)
+    return (typical * frame["volume"]).cumsum() / cumulative
+
+
+def rsi_divergence(frame: pd.DataFrame, rsi_series: pd.Series, window: int = 3) -> str:
+    """Compare the last two confirmed price/RSI swing pairs (no future data)."""
+    swings = find_swings(frame, window=window)
+    highs = [s for s in swings if s["kind"] == "high"]
+    lows = [s for s in swings if s["kind"] == "low"]
+    if len(highs) >= 2:
+        a, b = highs[-2], highs[-1]
+        if b["price"] > a["price"] and rsi_series.iloc[b["index"]] < rsi_series.iloc[a["index"]]:
+            return "BEARISH"
+    if len(lows) >= 2:
+        a, b = lows[-2], lows[-1]
+        if b["price"] < a["price"] and rsi_series.iloc[b["index"]] > rsi_series.iloc[a["index"]]:
+            return "BULLISH"
+    return "NONE"
+
+
+def macd_divergence(frame: pd.DataFrame, macd_hist: pd.Series, window: int = 3) -> str:
+    swings = find_swings(frame, window=window)
+    highs = [s for s in swings if s["kind"] == "high"]
+    lows = [s for s in swings if s["kind"] == "low"]
+    if len(highs) >= 2:
+        a, b = highs[-2], highs[-1]
+        if b["price"] > a["price"] and macd_hist.iloc[b["index"]] < macd_hist.iloc[a["index"]]:
+            return "BEARISH"
+    if len(lows) >= 2:
+        a, b = lows[-2], lows[-1]
+        if b["price"] < a["price"] and macd_hist.iloc[b["index"]] > macd_hist.iloc[a["index"]]:
+            return "BULLISH"
+    return "NONE"
+
+
+def extended_patterns(frame: pd.DataFrame) -> list[dict]:
+    """Pin bar, inside bar and rejection logic on top of the base patterns."""
+    found: list[dict] = []
+    if len(frame) < 3:
+        return found
+    prev, last = frame.iloc[-2], frame.iloc[-1]
+    body = abs(last["close"] - last["open"])
+    span = max(last["high"] - last["low"], 1e-12)
+    upper = last["high"] - max(last["close"], last["open"])
+    lower = min(last["close"], last["open"]) - last["low"]
+    if body / span <= 0.34 and lower >= span * 0.55 and last["close"] >= last["open"]:
+        found.append({"name": "Bullish Pin Bar", "direction": "bullish"})
+    if body / span <= 0.34 and upper >= span * 0.55 and last["close"] <= last["open"]:
+        found.append({"name": "Bearish Pin Bar", "direction": "bearish"})
+    if last["high"] <= prev["high"] and last["low"] >= prev["low"]:
+        found.append({"name": "Inside Bar", "direction": "neutral"})
+    if lower >= span * 0.6 and last["close"] > last["open"]:
+        found.append({"name": "Bullish Rejection", "direction": "bullish"})
+    if upper >= span * 0.6 and last["close"] < last["open"]:
+        found.append({"name": "Bearish Rejection", "direction": "bearish"})
+    return found
+
+
+def trendline_break(frame: pd.DataFrame) -> str:
+    """Break of the line through the last two confirmed swing highs/lows."""
+    swings = find_swings(frame)
+    close = float(frame["close"].iloc[-1])
+    highs = [s for s in swings if s["kind"] == "high"]
+    lows = [s for s in swings if s["kind"] == "low"]
+    if len(highs) >= 2:
+        a, b = highs[-2], highs[-1]
+        slope = (b["price"] - a["price"]) / max(1, b["index"] - a["index"])
+        projected = b["price"] + slope * (len(frame) - 1 - b["index"])
+        if close > projected:
+            return "BULLISH"
+    if len(lows) >= 2:
+        a, b = lows[-2], lows[-1]
+        slope = (b["price"] - a["price"]) / max(1, b["index"] - a["index"])
+        projected = b["price"] + slope * (len(frame) - 1 - b["index"])
+        if close < projected:
+            return "BEARISH"
+    return "NONE"

@@ -15,7 +15,7 @@ from aiohttp import web
 from ai.mistral import MistralClient
 from bot import formatting as fmt
 from bot.context import AppContext, set_context
-from bot.handlers import images, menus
+from bot.handlers import menus
 from bot.middleware.auth import AccessMiddleware
 from config import settings
 from database.repository import Repository
@@ -87,7 +87,6 @@ async def main() -> None:
     mistral = MistralClient(
         api_key=settings.mistral_api_key,
         model=settings.mistral_model,
-        vision_model=settings.mistral_vision_model,
     )
     generator = SignalGenerator(registry, repo, settings)
     ctx = AppContext(
@@ -129,7 +128,6 @@ async def main() -> None:
     dp.message.outer_middleware(access)
     dp.callback_query.outer_middleware(access)
     dp.include_router(menus.router)
-    dp.include_router(images.router)
 
     async def verification_loop() -> None:
         while True:

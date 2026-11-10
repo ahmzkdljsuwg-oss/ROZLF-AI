@@ -33,9 +33,10 @@ def _record(direction="UP", status="ACTIVE") -> SignalRecord:
 def test_main_menu_has_real_callbacks():
     markup = menus.main_menu()
     data = [button.callback_data for row in markup.inline_keyboard for button in row]
-    assert "mkt:SMARTY" in data and "mkt:OTC" in data and "mkt:FOREX" in data
-    assert "scan:menu" in data and "img:help" in data
-    assert "live" in data and "hist" in data and "stats" in data and "status" in data
+    assert data == ["auto", "markets", "trend", "hist", "settings"]
+    market_data = [b.callback_data for row in menus.markets_menu().inline_keyboard for b in row]
+    assert "mkt:SMARTY" in market_data and "mkt:FOREX" in market_data
+    assert "mkt:OTC" not in market_data and "mkt:GOLD" not in market_data
     for item in data:
         assert item
 
@@ -81,7 +82,7 @@ def test_analysis_text_says_data_unavailable_when_needed():
 def test_welcome_text_shows_sections(settings):
     text = fmt.welcome_text(settings)
     assert "ROZLF AI" in text
-    assert "SMARTY" in text or "MARKET" in text
+    assert "الأسواق" in text and "الترند والاستراتيجيات" in text
 
 
 def test_market_labels():

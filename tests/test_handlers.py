@@ -90,12 +90,13 @@ async def test_unknown_market_rejected(monkeypatch):
     assert "غير معروف" in text
 
 
-async def test_image_help_callback():
-    callback = FakeCallback("img:help")
-    await handlers.cb_image_help(callback)
+async def test_markets_hub_callback():
+    callback = FakeCallback("markets")
+    await handlers.cb_markets(callback)
     text, keyboard = callback.message.edits[0]
-    assert "PNG" in text and "WEBP" in text
-    assert keyboard is not None
+    assert "الأسواق" in text
+    data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
+    assert "mkt:FOREX" in data and "mkt:SMARTY" in data
 
 
 async def test_asset_callback_needs_context(monkeypatch):

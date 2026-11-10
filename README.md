@@ -20,8 +20,9 @@ ROZLF AI بوت Telegram مستقل للتحليل الفني وإشارات ا�
 | إشارات UP / DOWN / NO TRADE مع درجة ثقة محسوبة (ليست عشوائية) | ✅ يعمل |
 | تحقق WIN/LOSS/DRAW/UNVERIFIED بعد انتهاء المدة + إحصائيات دقة | ✅ يعمل |
 | Auto Scanner (تشغيل/إيقاف، اختيار الأسواق، منع التكرار) | ✅ يعمل |
-| تحليل صور الشارت (PNG/JPG/JPEG/WEBP) + فحص الجودة | ✅ يعمل التحقق من الصور؛ التحليل النصي يحتاج `MISTRAL_API_KEY` |
-| Mistral للإشارات والصور | ✅ الكود جاهز ومختبر؛ يحتاج مفتاحاً حقيقياً |
+| محرك استراتيجيات (SMC/ICT/Price Action/Trend/Momentum) | ✅ يعمل مع درجات توافق أدلة وشروط إبطال |
+| تحليل صور الشارت | ❌ أُزيل بالكامل (زر + handlers + اعتماديات) |
+| Mistral لتحليل الإشارات | ✅ يعمل؛ يحتاج مفتاحاً حقيقياً |
 | OTC و SMARTY | ⛔ يظهر `DATA UNAVAILABLE` حتى توصيل جسر ExpertOption موثّق (`EO_BRIDGE_URL`/`EO_BRIDGE_KEY`) |
 | تنفيذ صفقات تلقائي | ❌ غير موجود بالتصميم |
 
@@ -31,11 +32,13 @@ ROZLF AI بوت Telegram مستقل للتحليل الفني وإشارات ا�
 bot/          واجهة Telegram (handlers, keyboards, middleware)
 engines/      forex/gold/otc/smarty providers wrappers + technical + smc + signals
 providers/    قاعدة المزودين، الكتالوج، التحقق، الـ registry
-ai/           Mistral text + vision، فحص الصور
+ai/           Mistral لتحليل الإشارات النصية
+engines/strategies/  محرك الاستراتيجيات الموحّد
+engines/backtest/    اختبار تاريخي سببي (walk-forward)
 services/     scanner، signal tracker، statistics
 database/     SQLAlchemy models + repository
-tests/        pytest suite (58 اختباراً)
-docs/         DATA-SOURCES.md، TEST-REPORT.md
+tests/        pytest suite (93 اختباراً)
+docs/         DATA-SOURCES.md، TEST-REPORT.md، BACKTEST-RESULTS.md
 main.py       نقطة التشغيل (Polling)
 ```
 
@@ -62,7 +65,7 @@ PYTHONPATH=. python scripts/live_smoke.py
 | `TELEGRAM_BOT_TOKEN` | ✅ | توكن البوت من @BotFather |
 | `TELEGRAM_CHAT_ID` | اختياري | لقفل البوت على مستخدم/محادثة واحدة |
 | `DATABASE_URL` | اختياري | افتراضياً SQLite؛ على Railway استخدم PostgreSQL |
-| `MISTRAL_API_KEY` | اختياري | لتحليل AI وتحليل الصور |
+| `MISTRAL_API_KEY` | اختياري | لتحليل AI النصي |
 | `MISTRAL_MODEL` | اختياري | افتراضياً `mistral-small-latest` |
 | `MISTRAL_VISION_MODEL` | اختياري | افتراضياً `pixtral-12b-2409` |
 | `TWELVE_DATA_API_KEY` | اختياري لكنه مهم | بدونه demo mode يدعم EUR/USD و USD/JPY فقط |

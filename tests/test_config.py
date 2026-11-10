@@ -9,7 +9,7 @@ def test_defaults_are_sane(monkeypatch):
         settings = Settings.from_env()
     assert settings.database_url.startswith("sqlite")
     assert settings.mistral_model == "mistral-small-latest"
-    assert settings.mistral_vision_model == "pixtral-12b-2409"
+    assert not hasattr(settings, "mistral_vision_model")
     assert 50 <= settings.min_confidence <= 95
     assert settings.scanner_interval_seconds >= 30
     assert settings.verification_interval_seconds >= 10

@@ -1,0 +1,3314 @@
+[
+  {
+    "asset": "EUR/USD",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 60,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 70,
+      "wins": 18,
+      "losses": 13,
+      "draws": 39,
+      "win_rate": 58.06,
+      "profit_factor": 1.38,
+      "expectancy": 0.0714,
+      "max_drawdown": 6.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T11:05:00+00:00",
+          "trades": 14,
+          "wins": 4,
+          "losses": 0,
+          "draws": 10,
+          "win_rate": 100.0,
+          "profit_factor": null,
+          "expectancy": 0.2857,
+          "max_drawdown": 0.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T11:33:00+00:00",
+          "trades": 14,
+          "wins": 3,
+          "losses": 1,
+          "draws": 10,
+          "win_rate": 75.0,
+          "profit_factor": 3.0,
+          "expectancy": 0.1429,
+          "max_drawdown": 1.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T12:03:00+00:00",
+          "trades": 14,
+          "wins": 3,
+          "losses": 3,
+          "draws": 8,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 1.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T12:35:00+00:00",
+          "trades": 14,
+          "wins": 3,
+          "losses": 6,
+          "draws": 5,
+          "win_rate": 33.33,
+          "profit_factor": 0.5,
+          "expectancy": -0.2143,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T13:03:00+00:00",
+          "trades": 14,
+          "wins": 5,
+          "losses": 3,
+          "draws": 6,
+          "win_rate": 62.5,
+          "profit_factor": 1.67,
+          "expectancy": 0.1429,
+          "max_drawdown": 2.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 21,
+        "wins": 5,
+        "losses": 6,
+        "draws": 10,
+        "win_rate": 45.45,
+        "profit_factor": 0.83,
+        "expectancy": -0.0476,
+        "max_drawdown": 4.0
+      }
+    }
+  },
+  {
+    "asset": "EUR/USD",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 68,
+      "wins": 29,
+      "losses": 19,
+      "draws": 20,
+      "win_rate": 60.42,
+      "profit_factor": 1.53,
+      "expectancy": 0.1471,
+      "max_drawdown": 8.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T11:05:00+00:00",
+          "trades": 13,
+          "wins": 9,
+          "losses": 2,
+          "draws": 2,
+          "win_rate": 81.82,
+          "profit_factor": 4.5,
+          "expectancy": 0.5385,
+          "max_drawdown": 1.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T11:31:00+00:00",
+          "trades": 13,
+          "wins": 6,
+          "losses": 3,
+          "draws": 4,
+          "win_rate": 66.67,
+          "profit_factor": 2.0,
+          "expectancy": 0.2308,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T11:57:00+00:00",
+          "trades": 13,
+          "wins": 2,
+          "losses": 6,
+          "draws": 5,
+          "win_rate": 25.0,
+          "profit_factor": 0.33,
+          "expectancy": -0.3077,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T12:29:00+00:00",
+          "trades": 13,
+          "wins": 5,
+          "losses": 4,
+          "draws": 4,
+          "win_rate": 55.56,
+          "profit_factor": 1.25,
+          "expectancy": 0.0769,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T12:55:00+00:00",
+          "trades": 16,
+          "wins": 7,
+          "losses": 4,
+          "draws": 5,
+          "win_rate": 63.64,
+          "profit_factor": 1.75,
+          "expectancy": 0.1875,
+          "max_drawdown": 2.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 21,
+        "wins": 8,
+        "losses": 6,
+        "draws": 7,
+        "win_rate": 57.14,
+        "profit_factor": 1.33,
+        "expectancy": 0.0952,
+        "max_drawdown": 3.0
+      }
+    }
+  },
+  {
+    "asset": "EUR/USD",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 64,
+      "wins": 24,
+      "losses": 18,
+      "draws": 22,
+      "win_rate": 57.14,
+      "profit_factor": 1.33,
+      "expectancy": 0.0938,
+      "max_drawdown": 4.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:15:00+00:00",
+          "trades": 12,
+          "wins": 2,
+          "losses": 4,
+          "draws": 6,
+          "win_rate": 33.33,
+          "profit_factor": 0.5,
+          "expectancy": -0.1667,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T03:55:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 3,
+          "draws": 5,
+          "win_rate": 57.14,
+          "profit_factor": 1.33,
+          "expectancy": 0.0833,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T06:15:00+00:00",
+          "trades": 12,
+          "wins": 7,
+          "losses": 3,
+          "draws": 2,
+          "win_rate": 70.0,
+          "profit_factor": 2.33,
+          "expectancy": 0.3333,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T08:15:00+00:00",
+          "trades": 12,
+          "wins": 5,
+          "losses": 3,
+          "draws": 4,
+          "win_rate": 62.5,
+          "profit_factor": 1.67,
+          "expectancy": 0.1667,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T10:45:00+00:00",
+          "trades": 16,
+          "wins": 6,
+          "losses": 5,
+          "draws": 5,
+          "win_rate": 54.55,
+          "profit_factor": 1.2,
+          "expectancy": 0.0625,
+          "max_drawdown": 3.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 20,
+        "wins": 7,
+        "losses": 7,
+        "draws": 6,
+        "win_rate": 50.0,
+        "profit_factor": 1.0,
+        "expectancy": 0.0,
+        "max_drawdown": 4.0
+      }
+    }
+  },
+  {
+    "asset": "EUR/USD",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 900,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 63,
+      "wins": 33,
+      "losses": 21,
+      "draws": 9,
+      "win_rate": 61.11,
+      "profit_factor": 1.57,
+      "expectancy": 0.1905,
+      "max_drawdown": 5.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:15:00+00:00",
+          "trades": 12,
+          "wins": 3,
+          "losses": 6,
+          "draws": 3,
+          "win_rate": 33.33,
+          "profit_factor": 0.5,
+          "expectancy": -0.25,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T03:55:00+00:00",
+          "trades": 12,
+          "wins": 6,
+          "losses": 4,
+          "draws": 2,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.1667,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T06:15:00+00:00",
+          "trades": 12,
+          "wins": 9,
+          "losses": 1,
+          "draws": 2,
+          "win_rate": 90.0,
+          "profit_factor": 9.0,
+          "expectancy": 0.6667,
+          "max_drawdown": 1.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T08:15:00+00:00",
+          "trades": 12,
+          "wins": 6,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T10:45:00+00:00",
+          "trades": 15,
+          "wins": 9,
+          "losses": 4,
+          "draws": 2,
+          "win_rate": 69.23,
+          "profit_factor": 2.25,
+          "expectancy": 0.3333,
+          "max_drawdown": 2.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 19,
+        "wins": 10,
+        "losses": 7,
+        "draws": 2,
+        "win_rate": 58.82,
+        "profit_factor": 1.43,
+        "expectancy": 0.1579,
+        "max_drawdown": 4.0
+      }
+    }
+  },
+  {
+    "asset": "GBP/USD",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 60,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 60,
+      "wins": 26,
+      "losses": 27,
+      "draws": 7,
+      "win_rate": 49.06,
+      "profit_factor": 0.96,
+      "expectancy": -0.0167,
+      "max_drawdown": 8.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T11:05:00+00:00",
+          "trades": 12,
+          "wins": 6,
+          "losses": 4,
+          "draws": 2,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.1667,
+          "max_drawdown": 1.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T11:35:00+00:00",
+          "trades": 12,
+          "wins": 6,
+          "losses": 5,
+          "draws": 1,
+          "win_rate": 54.55,
+          "profit_factor": 1.2,
+          "expectancy": 0.0833,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T11:59:00+00:00",
+          "trades": 12,
+          "wins": 6,
+          "losses": 5,
+          "draws": 1,
+          "win_rate": 54.55,
+          "profit_factor": 1.2,
+          "expectancy": 0.0833,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T12:39:00+00:00",
+          "trades": 12,
+          "wins": 5,
+          "losses": 6,
+          "draws": 1,
+          "win_rate": 45.45,
+          "profit_factor": 0.83,
+          "expectancy": -0.0833,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T13:05:00+00:00",
+          "trades": 12,
+          "wins": 3,
+          "losses": 7,
+          "draws": 2,
+          "win_rate": 30.0,
+          "profit_factor": 0.43,
+          "expectancy": -0.3333,
+          "max_drawdown": 4.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 18,
+        "wins": 4,
+        "losses": 11,
+        "draws": 3,
+        "win_rate": 26.67,
+        "profit_factor": 0.36,
+        "expectancy": -0.3889,
+        "max_drawdown": 8.0
+      }
+    }
+  },
+  {
+    "asset": "GBP/USD",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 59,
+      "wins": 27,
+      "losses": 28,
+      "draws": 4,
+      "win_rate": 49.09,
+      "profit_factor": 0.96,
+      "expectancy": -0.0169,
+      "max_drawdown": 10.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T11:05:00+00:00",
+          "trades": 11,
+          "wins": 6,
+          "losses": 4,
+          "draws": 1,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.1818,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T11:33:00+00:00",
+          "trades": 11,
+          "wins": 6,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 54.55,
+          "profit_factor": 1.2,
+          "expectancy": 0.0909,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T11:55:00+00:00",
+          "trades": 11,
+          "wins": 2,
+          "losses": 7,
+          "draws": 2,
+          "win_rate": 22.22,
+          "profit_factor": 0.29,
+          "expectancy": -0.4545,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T12:31:00+00:00",
+          "trades": 11,
+          "wins": 6,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 54.55,
+          "profit_factor": 1.2,
+          "expectancy": 0.0909,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T12:57:00+00:00",
+          "trades": 15,
+          "wins": 7,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 3.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 18,
+        "wins": 9,
+        "losses": 8,
+        "draws": 1,
+        "win_rate": 52.94,
+        "profit_factor": 1.12,
+        "expectancy": 0.0556,
+        "max_drawdown": 4.0
+      }
+    }
+  },
+  {
+    "asset": "GBP/USD",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 61,
+      "wins": 27,
+      "losses": 29,
+      "draws": 5,
+      "win_rate": 48.21,
+      "profit_factor": 0.93,
+      "expectancy": -0.0328,
+      "max_drawdown": 6.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:15:00+00:00",
+          "trades": 12,
+          "wins": 5,
+          "losses": 6,
+          "draws": 1,
+          "win_rate": 45.45,
+          "profit_factor": 0.83,
+          "expectancy": -0.0833,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T03:45:00+00:00",
+          "trades": 12,
+          "wins": 5,
+          "losses": 6,
+          "draws": 1,
+          "win_rate": 45.45,
+          "profit_factor": 0.83,
+          "expectancy": -0.0833,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T06:05:00+00:00",
+          "trades": 12,
+          "wins": 5,
+          "losses": 5,
+          "draws": 2,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T08:05:00+00:00",
+          "trades": 12,
+          "wins": 7,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 58.33,
+          "profit_factor": 1.4,
+          "expectancy": 0.1667,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T10:25:00+00:00",
+          "trades": 13,
+          "wins": 5,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 41.67,
+          "profit_factor": 0.71,
+          "expectancy": -0.1538,
+          "max_drawdown": 5.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 19,
+        "wins": 9,
+        "losses": 9,
+        "draws": 1,
+        "win_rate": 50.0,
+        "profit_factor": 1.0,
+        "expectancy": 0.0,
+        "max_drawdown": 6.0
+      }
+    }
+  },
+  {
+    "asset": "GBP/USD",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 900,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 60,
+      "wins": 29,
+      "losses": 30,
+      "draws": 1,
+      "win_rate": 49.15,
+      "profit_factor": 0.97,
+      "expectancy": -0.0167,
+      "max_drawdown": 9.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:15:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 36.36,
+          "profit_factor": 0.57,
+          "expectancy": -0.25,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T03:45:00+00:00",
+          "trades": 12,
+          "wins": 7,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 58.33,
+          "profit_factor": 1.4,
+          "expectancy": 0.1667,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T06:05:00+00:00",
+          "trades": 12,
+          "wins": 7,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 58.33,
+          "profit_factor": 1.4,
+          "expectancy": 0.1667,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T08:05:00+00:00",
+          "trades": 12,
+          "wins": 5,
+          "losses": 7,
+          "draws": 0,
+          "win_rate": 41.67,
+          "profit_factor": 0.71,
+          "expectancy": -0.1667,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T10:25:00+00:00",
+          "trades": 12,
+          "wins": 6,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 4.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 18,
+        "wins": 8,
+        "losses": 10,
+        "draws": 0,
+        "win_rate": 44.44,
+        "profit_factor": 0.8,
+        "expectancy": -0.1111,
+        "max_drawdown": 6.0
+      }
+    }
+  },
+  {
+    "asset": "USD/JPY",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 60,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 65,
+      "wins": 35,
+      "losses": 26,
+      "draws": 4,
+      "win_rate": 57.38,
+      "profit_factor": 1.35,
+      "expectancy": 0.1385,
+      "max_drawdown": 4.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T11:04:00+00:00",
+          "trades": 13,
+          "wins": 8,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 61.54,
+          "profit_factor": 1.6,
+          "expectancy": 0.2308,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T11:30:00+00:00",
+          "trades": 13,
+          "wins": 8,
+          "losses": 4,
+          "draws": 1,
+          "win_rate": 66.67,
+          "profit_factor": 2.0,
+          "expectancy": 0.3077,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T11:56:00+00:00",
+          "trades": 13,
+          "wins": 8,
+          "losses": 4,
+          "draws": 1,
+          "win_rate": 66.67,
+          "profit_factor": 2.0,
+          "expectancy": 0.3077,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T12:22:00+00:00",
+          "trades": 13,
+          "wins": 6,
+          "losses": 6,
+          "draws": 1,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T12:58:00+00:00",
+          "trades": 13,
+          "wins": 5,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 41.67,
+          "profit_factor": 0.71,
+          "expectancy": -0.1538,
+          "max_drawdown": 3.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 20,
+        "wins": 8,
+        "losses": 10,
+        "draws": 2,
+        "win_rate": 44.44,
+        "profit_factor": 0.8,
+        "expectancy": -0.1,
+        "max_drawdown": 4.0
+      }
+    }
+  },
+  {
+    "asset": "USD/JPY",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 63,
+      "wins": 36,
+      "losses": 25,
+      "draws": 2,
+      "win_rate": 59.02,
+      "profit_factor": 1.44,
+      "expectancy": 0.1746,
+      "max_drawdown": 6.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T11:04:00+00:00",
+          "trades": 12,
+          "wins": 9,
+          "losses": 3,
+          "draws": 0,
+          "win_rate": 75.0,
+          "profit_factor": 3.0,
+          "expectancy": 0.5,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T11:28:00+00:00",
+          "trades": 12,
+          "wins": 8,
+          "losses": 3,
+          "draws": 1,
+          "win_rate": 72.73,
+          "profit_factor": 2.67,
+          "expectancy": 0.4167,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T11:52:00+00:00",
+          "trades": 12,
+          "wins": 7,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 58.33,
+          "profit_factor": 1.4,
+          "expectancy": 0.1667,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T12:16:00+00:00",
+          "trades": 12,
+          "wins": 5,
+          "losses": 7,
+          "draws": 0,
+          "win_rate": 41.67,
+          "profit_factor": 0.71,
+          "expectancy": -0.1667,
+          "max_drawdown": 6.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T12:46:00+00:00",
+          "trades": 15,
+          "wins": 7,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 4.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 19,
+        "wins": 9,
+        "losses": 9,
+        "draws": 1,
+        "win_rate": 50.0,
+        "profit_factor": 1.0,
+        "expectancy": 0.0,
+        "max_drawdown": 4.0
+      }
+    }
+  },
+  {
+    "asset": "USD/JPY",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 57,
+      "wins": 32,
+      "losses": 24,
+      "draws": 1,
+      "win_rate": 57.14,
+      "profit_factor": 1.33,
+      "expectancy": 0.1404,
+      "max_drawdown": 3.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:25:00+00:00",
+          "trades": 11,
+          "wins": 6,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 54.55,
+          "profit_factor": 1.2,
+          "expectancy": 0.0909,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T04:35:00+00:00",
+          "trades": 11,
+          "wins": 6,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 54.55,
+          "profit_factor": 1.2,
+          "expectancy": 0.0909,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T06:55:00+00:00",
+          "trades": 11,
+          "wins": 7,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 63.64,
+          "profit_factor": 1.75,
+          "expectancy": 0.2727,
+          "max_drawdown": 1.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T09:25:00+00:00",
+          "trades": 11,
+          "wins": 7,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 63.64,
+          "profit_factor": 1.75,
+          "expectancy": 0.2727,
+          "max_drawdown": 1.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T11:15:00+00:00",
+          "trades": 13,
+          "wins": 6,
+          "losses": 6,
+          "draws": 1,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 3.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 18,
+        "wins": 9,
+        "losses": 8,
+        "draws": 1,
+        "win_rate": 52.94,
+        "profit_factor": 1.12,
+        "expectancy": 0.0556,
+        "max_drawdown": 3.0
+      }
+    }
+  },
+  {
+    "asset": "USD/JPY",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 900,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 57,
+      "wins": 31,
+      "losses": 26,
+      "draws": 0,
+      "win_rate": 54.39,
+      "profit_factor": 1.19,
+      "expectancy": 0.0877,
+      "max_drawdown": 6.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:25:00+00:00",
+          "trades": 11,
+          "wins": 5,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 45.45,
+          "profit_factor": 0.83,
+          "expectancy": -0.0909,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T04:35:00+00:00",
+          "trades": 11,
+          "wins": 5,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 45.45,
+          "profit_factor": 0.83,
+          "expectancy": -0.0909,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T06:55:00+00:00",
+          "trades": 11,
+          "wins": 4,
+          "losses": 7,
+          "draws": 0,
+          "win_rate": 36.36,
+          "profit_factor": 0.57,
+          "expectancy": -0.2727,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T09:25:00+00:00",
+          "trades": 11,
+          "wins": 7,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 63.64,
+          "profit_factor": 1.75,
+          "expectancy": 0.2727,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T11:15:00+00:00",
+          "trades": 13,
+          "wins": 10,
+          "losses": 3,
+          "draws": 0,
+          "win_rate": 76.92,
+          "profit_factor": 3.33,
+          "expectancy": 0.5385,
+          "max_drawdown": 3.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 18,
+        "wins": 13,
+        "losses": 5,
+        "draws": 0,
+        "win_rate": 72.22,
+        "profit_factor": 2.6,
+        "expectancy": 0.4444,
+        "max_drawdown": 3.0
+      }
+    }
+  },
+  {
+    "asset": "AUD/USD",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 60,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 64,
+      "wins": 19,
+      "losses": 28,
+      "draws": 17,
+      "win_rate": 40.43,
+      "profit_factor": 0.68,
+      "expectancy": -0.1406,
+      "max_drawdown": 10.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T08:35:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 36.36,
+          "profit_factor": 0.57,
+          "expectancy": -0.25,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T09:27:00+00:00",
+          "trades": 12,
+          "wins": 5,
+          "losses": 3,
+          "draws": 4,
+          "win_rate": 62.5,
+          "profit_factor": 1.67,
+          "expectancy": 0.1667,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T10:15:00+00:00",
+          "trades": 12,
+          "wins": 2,
+          "losses": 5,
+          "draws": 5,
+          "win_rate": 28.57,
+          "profit_factor": 0.4,
+          "expectancy": -0.25,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T11:19:00+00:00",
+          "trades": 12,
+          "wins": 3,
+          "losses": 6,
+          "draws": 3,
+          "win_rate": 33.33,
+          "profit_factor": 0.5,
+          "expectancy": -0.25,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T12:27:00+00:00",
+          "trades": 16,
+          "wins": 5,
+          "losses": 7,
+          "draws": 4,
+          "win_rate": 41.67,
+          "profit_factor": 0.71,
+          "expectancy": -0.125,
+          "max_drawdown": 3.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 20,
+        "wins": 6,
+        "losses": 8,
+        "draws": 6,
+        "win_rate": 42.86,
+        "profit_factor": 0.75,
+        "expectancy": -0.1,
+        "max_drawdown": 3.0
+      }
+    }
+  },
+  {
+    "asset": "AUD/USD",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 63,
+      "wins": 24,
+      "losses": 32,
+      "draws": 7,
+      "win_rate": 42.86,
+      "profit_factor": 0.75,
+      "expectancy": -0.127,
+      "max_drawdown": 9.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T08:35:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 36.36,
+          "profit_factor": 0.57,
+          "expectancy": -0.25,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T09:27:00+00:00",
+          "trades": 12,
+          "wins": 7,
+          "losses": 4,
+          "draws": 1,
+          "win_rate": 63.64,
+          "profit_factor": 1.75,
+          "expectancy": 0.25,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T10:15:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 8,
+          "draws": 0,
+          "win_rate": 33.33,
+          "profit_factor": 0.5,
+          "expectancy": -0.3333,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T11:19:00+00:00",
+          "trades": 12,
+          "wins": 3,
+          "losses": 6,
+          "draws": 3,
+          "win_rate": 33.33,
+          "profit_factor": 0.5,
+          "expectancy": -0.25,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T12:27:00+00:00",
+          "trades": 15,
+          "wins": 6,
+          "losses": 7,
+          "draws": 2,
+          "win_rate": 46.15,
+          "profit_factor": 0.86,
+          "expectancy": -0.0667,
+          "max_drawdown": 3.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 19,
+        "wins": 7,
+        "losses": 9,
+        "draws": 3,
+        "win_rate": 43.75,
+        "profit_factor": 0.78,
+        "expectancy": -0.1053,
+        "max_drawdown": 3.0
+      }
+    }
+  },
+  {
+    "asset": "AUD/USD",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 57,
+      "wins": 22,
+      "losses": 25,
+      "draws": 10,
+      "win_rate": 46.81,
+      "profit_factor": 0.88,
+      "expectancy": -0.0526,
+      "max_drawdown": 7.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:10:00+00:00",
+          "trades": 11,
+          "wins": 5,
+          "losses": 4,
+          "draws": 2,
+          "win_rate": 55.56,
+          "profit_factor": 1.25,
+          "expectancy": 0.0909,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T03:50:00+00:00",
+          "trades": 11,
+          "wins": 2,
+          "losses": 6,
+          "draws": 3,
+          "win_rate": 25.0,
+          "profit_factor": 0.33,
+          "expectancy": -0.3636,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T05:50:00+00:00",
+          "trades": 11,
+          "wins": 5,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 45.45,
+          "profit_factor": 0.83,
+          "expectancy": -0.0909,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T08:40:00+00:00",
+          "trades": 11,
+          "wins": 4,
+          "losses": 4,
+          "draws": 3,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T10:30:00+00:00",
+          "trades": 13,
+          "wins": 6,
+          "losses": 5,
+          "draws": 2,
+          "win_rate": 54.55,
+          "profit_factor": 1.2,
+          "expectancy": 0.0769,
+          "max_drawdown": 2.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 18,
+        "wins": 8,
+        "losses": 6,
+        "draws": 4,
+        "win_rate": 57.14,
+        "profit_factor": 1.33,
+        "expectancy": 0.1111,
+        "max_drawdown": 2.0
+      }
+    }
+  },
+  {
+    "asset": "AUD/USD",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 900,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 56,
+      "wins": 22,
+      "losses": 27,
+      "draws": 7,
+      "win_rate": 44.9,
+      "profit_factor": 0.81,
+      "expectancy": -0.0893,
+      "max_drawdown": 12.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:10:00+00:00",
+          "trades": 11,
+          "wins": 5,
+          "losses": 5,
+          "draws": 1,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T03:50:00+00:00",
+          "trades": 11,
+          "wins": 3,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 30.0,
+          "profit_factor": 0.43,
+          "expectancy": -0.3636,
+          "max_drawdown": 6.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T05:50:00+00:00",
+          "trades": 11,
+          "wins": 3,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 30.0,
+          "profit_factor": 0.43,
+          "expectancy": -0.3636,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T08:40:00+00:00",
+          "trades": 11,
+          "wins": 6,
+          "losses": 4,
+          "draws": 1,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.1818,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T10:30:00+00:00",
+          "trades": 12,
+          "wins": 5,
+          "losses": 4,
+          "draws": 3,
+          "win_rate": 55.56,
+          "profit_factor": 1.25,
+          "expectancy": 0.0833,
+          "max_drawdown": 2.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 17,
+        "wins": 8,
+        "losses": 5,
+        "draws": 4,
+        "win_rate": 61.54,
+        "profit_factor": 1.6,
+        "expectancy": 0.1765,
+        "max_drawdown": 2.0
+      }
+    }
+  },
+  {
+    "asset": "USD/CAD",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 60,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 60,
+      "wins": 26,
+      "losses": 31,
+      "draws": 3,
+      "win_rate": 45.61,
+      "profit_factor": 0.84,
+      "expectancy": -0.0833,
+      "max_drawdown": 13.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T11:04:00+00:00",
+          "trades": 12,
+          "wins": 3,
+          "losses": 9,
+          "draws": 0,
+          "win_rate": 25.0,
+          "profit_factor": 0.33,
+          "expectancy": -0.5,
+          "max_drawdown": 6.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T11:44:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 8,
+          "draws": 0,
+          "win_rate": 33.33,
+          "profit_factor": 0.5,
+          "expectancy": -0.3333,
+          "max_drawdown": 7.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T12:14:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 6,
+          "draws": 2,
+          "win_rate": 40.0,
+          "profit_factor": 0.67,
+          "expectancy": -0.1667,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T12:42:00+00:00",
+          "trades": 12,
+          "wins": 7,
+          "losses": 4,
+          "draws": 1,
+          "win_rate": 63.64,
+          "profit_factor": 1.75,
+          "expectancy": 0.25,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T13:06:00+00:00",
+          "trades": 12,
+          "wins": 8,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 66.67,
+          "profit_factor": 2.0,
+          "expectancy": 0.3333,
+          "max_drawdown": 2.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 18,
+        "wins": 12,
+        "losses": 6,
+        "draws": 0,
+        "win_rate": 66.67,
+        "profit_factor": 2.0,
+        "expectancy": 0.3333,
+        "max_drawdown": 2.0
+      }
+    }
+  },
+  {
+    "asset": "USD/CAD",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 58,
+      "wins": 20,
+      "losses": 38,
+      "draws": 0,
+      "win_rate": 34.48,
+      "profit_factor": 0.53,
+      "expectancy": -0.3103,
+      "max_drawdown": 20.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T11:04:00+00:00",
+          "trades": 11,
+          "wins": 1,
+          "losses": 10,
+          "draws": 0,
+          "win_rate": 9.09,
+          "profit_factor": 0.1,
+          "expectancy": -0.8182,
+          "max_drawdown": 9.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T11:40:00+00:00",
+          "trades": 11,
+          "wins": 3,
+          "losses": 8,
+          "draws": 0,
+          "win_rate": 27.27,
+          "profit_factor": 0.38,
+          "expectancy": -0.4545,
+          "max_drawdown": 7.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T12:10:00+00:00",
+          "trades": 11,
+          "wins": 6,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 54.55,
+          "profit_factor": 1.2,
+          "expectancy": 0.0909,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T12:36:00+00:00",
+          "trades": 11,
+          "wins": 3,
+          "losses": 8,
+          "draws": 0,
+          "win_rate": 27.27,
+          "profit_factor": 0.38,
+          "expectancy": -0.4545,
+          "max_drawdown": 7.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T12:58:00+00:00",
+          "trades": 14,
+          "wins": 7,
+          "losses": 7,
+          "draws": 0,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 4.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 18,
+        "wins": 9,
+        "losses": 9,
+        "draws": 0,
+        "win_rate": 50.0,
+        "profit_factor": 1.0,
+        "expectancy": 0.0,
+        "max_drawdown": 4.0
+      }
+    }
+  },
+  {
+    "asset": "USD/CAD",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 54,
+      "wins": 31,
+      "losses": 22,
+      "draws": 1,
+      "win_rate": 58.49,
+      "profit_factor": 1.41,
+      "expectancy": 0.1667,
+      "max_drawdown": 8.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:35:00+00:00",
+          "trades": 10,
+          "wins": 8,
+          "losses": 2,
+          "draws": 0,
+          "win_rate": 80.0,
+          "profit_factor": 4.0,
+          "expectancy": 0.6,
+          "max_drawdown": 1.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T03:55:00+00:00",
+          "trades": 10,
+          "wins": 7,
+          "losses": 3,
+          "draws": 0,
+          "win_rate": 70.0,
+          "profit_factor": 2.33,
+          "expectancy": 0.4,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T06:05:00+00:00",
+          "trades": 10,
+          "wins": 6,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.2,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T08:45:00+00:00",
+          "trades": 10,
+          "wins": 4,
+          "losses": 5,
+          "draws": 1,
+          "win_rate": 44.44,
+          "profit_factor": 0.8,
+          "expectancy": -0.1,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T10:25:00+00:00",
+          "trades": 14,
+          "wins": 6,
+          "losses": 8,
+          "draws": 0,
+          "win_rate": 42.86,
+          "profit_factor": 0.75,
+          "expectancy": -0.1429,
+          "max_drawdown": 5.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 17,
+        "wins": 6,
+        "losses": 11,
+        "draws": 0,
+        "win_rate": 35.29,
+        "profit_factor": 0.55,
+        "expectancy": -0.2941,
+        "max_drawdown": 8.0
+      }
+    }
+  },
+  {
+    "asset": "USD/CAD",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 900,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 53,
+      "wins": 24,
+      "losses": 28,
+      "draws": 1,
+      "win_rate": 46.15,
+      "profit_factor": 0.86,
+      "expectancy": -0.0755,
+      "max_drawdown": 13.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:35:00+00:00",
+          "trades": 10,
+          "wins": 6,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.2,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T03:55:00+00:00",
+          "trades": 10,
+          "wins": 5,
+          "losses": 4,
+          "draws": 1,
+          "win_rate": 55.56,
+          "profit_factor": 1.25,
+          "expectancy": 0.1,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T06:05:00+00:00",
+          "trades": 10,
+          "wins": 5,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T08:45:00+00:00",
+          "trades": 10,
+          "wins": 4,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 40.0,
+          "profit_factor": 0.67,
+          "expectancy": -0.2,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T10:25:00+00:00",
+          "trades": 13,
+          "wins": 4,
+          "losses": 9,
+          "draws": 0,
+          "win_rate": 30.77,
+          "profit_factor": 0.44,
+          "expectancy": -0.3846,
+          "max_drawdown": 9.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 16,
+        "wins": 5,
+        "losses": 11,
+        "draws": 0,
+        "win_rate": 31.25,
+        "profit_factor": 0.45,
+        "expectancy": -0.375,
+        "max_drawdown": 10.0
+      }
+    }
+  },
+  {
+    "asset": "USD/CHF",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 60,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 65,
+      "wins": 35,
+      "losses": 27,
+      "draws": 3,
+      "win_rate": 56.45,
+      "profit_factor": 1.3,
+      "expectancy": 0.1231,
+      "max_drawdown": 7.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T11:06:00+00:00",
+          "trades": 13,
+          "wins": 10,
+          "losses": 2,
+          "draws": 1,
+          "win_rate": 83.33,
+          "profit_factor": 5.0,
+          "expectancy": 0.6154,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T11:36:00+00:00",
+          "trades": 13,
+          "wins": 4,
+          "losses": 7,
+          "draws": 2,
+          "win_rate": 36.36,
+          "profit_factor": 0.57,
+          "expectancy": -0.2308,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T12:02:00+00:00",
+          "trades": 13,
+          "wins": 6,
+          "losses": 7,
+          "draws": 0,
+          "win_rate": 46.15,
+          "profit_factor": 0.86,
+          "expectancy": -0.0769,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T12:34:00+00:00",
+          "trades": 13,
+          "wins": 8,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 61.54,
+          "profit_factor": 1.6,
+          "expectancy": 0.2308,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T13:06:00+00:00",
+          "trades": 13,
+          "wins": 7,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 53.85,
+          "profit_factor": 1.17,
+          "expectancy": 0.0769,
+          "max_drawdown": 2.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 20,
+        "wins": 13,
+        "losses": 7,
+        "draws": 0,
+        "win_rate": 65.0,
+        "profit_factor": 1.86,
+        "expectancy": 0.3,
+        "max_drawdown": 2.0
+      }
+    }
+  },
+  {
+    "asset": "USD/CHF",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 63,
+      "wins": 27,
+      "losses": 32,
+      "draws": 4,
+      "win_rate": 45.76,
+      "profit_factor": 0.84,
+      "expectancy": -0.0794,
+      "max_drawdown": 13.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T11:06:00+00:00",
+          "trades": 12,
+          "wins": 6,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T11:34:00+00:00",
+          "trades": 12,
+          "wins": 6,
+          "losses": 5,
+          "draws": 1,
+          "win_rate": 54.55,
+          "profit_factor": 1.2,
+          "expectancy": 0.0833,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T11:58:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 8,
+          "draws": 0,
+          "win_rate": 33.33,
+          "profit_factor": 0.5,
+          "expectancy": -0.3333,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T12:28:00+00:00",
+          "trades": 12,
+          "wins": 3,
+          "losses": 8,
+          "draws": 1,
+          "win_rate": 27.27,
+          "profit_factor": 0.38,
+          "expectancy": -0.4167,
+          "max_drawdown": 7.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T12:58:00+00:00",
+          "trades": 15,
+          "wins": 8,
+          "losses": 5,
+          "draws": 2,
+          "win_rate": 61.54,
+          "profit_factor": 1.6,
+          "expectancy": 0.2,
+          "max_drawdown": 2.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 19,
+        "wins": 10,
+        "losses": 7,
+        "draws": 2,
+        "win_rate": 58.82,
+        "profit_factor": 1.43,
+        "expectancy": 0.1579,
+        "max_drawdown": 2.0
+      }
+    }
+  },
+  {
+    "asset": "USD/CHF",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 54,
+      "wins": 28,
+      "losses": 25,
+      "draws": 1,
+      "win_rate": 52.83,
+      "profit_factor": 1.12,
+      "expectancy": 0.0556,
+      "max_drawdown": 5.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:45:00+00:00",
+          "trades": 10,
+          "wins": 4,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 40.0,
+          "profit_factor": 0.67,
+          "expectancy": -0.2,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T04:35:00+00:00",
+          "trades": 10,
+          "wins": 4,
+          "losses": 5,
+          "draws": 1,
+          "win_rate": 44.44,
+          "profit_factor": 0.8,
+          "expectancy": -0.1,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T06:45:00+00:00",
+          "trades": 10,
+          "wins": 6,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.2,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T08:25:00+00:00",
+          "trades": 10,
+          "wins": 7,
+          "losses": 3,
+          "draws": 0,
+          "win_rate": 70.0,
+          "profit_factor": 2.33,
+          "expectancy": 0.4,
+          "max_drawdown": 1.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T10:25:00+00:00",
+          "trades": 14,
+          "wins": 7,
+          "losses": 7,
+          "draws": 0,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 4.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 17,
+        "wins": 9,
+        "losses": 8,
+        "draws": 0,
+        "win_rate": 52.94,
+        "profit_factor": 1.12,
+        "expectancy": 0.0588,
+        "max_drawdown": 4.0
+      }
+    }
+  },
+  {
+    "asset": "USD/CHF",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 900,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 53,
+      "wins": 27,
+      "losses": 26,
+      "draws": 0,
+      "win_rate": 50.94,
+      "profit_factor": 1.04,
+      "expectancy": 0.0189,
+      "max_drawdown": 6.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:45:00+00:00",
+          "trades": 10,
+          "wins": 4,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 40.0,
+          "profit_factor": 0.67,
+          "expectancy": -0.2,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T04:35:00+00:00",
+          "trades": 10,
+          "wins": 6,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.2,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T06:45:00+00:00",
+          "trades": 10,
+          "wins": 6,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.2,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T08:25:00+00:00",
+          "trades": 10,
+          "wins": 6,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.2,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T10:25:00+00:00",
+          "trades": 13,
+          "wins": 5,
+          "losses": 8,
+          "draws": 0,
+          "win_rate": 38.46,
+          "profit_factor": 0.62,
+          "expectancy": -0.2308,
+          "max_drawdown": 6.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 16,
+        "wins": 7,
+        "losses": 9,
+        "draws": 0,
+        "win_rate": 43.75,
+        "profit_factor": 0.78,
+        "expectancy": -0.125,
+        "max_drawdown": 6.0
+      }
+    }
+  },
+  {
+    "asset": "NZD/USD",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 60,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 66,
+      "wins": 25,
+      "losses": 28,
+      "draws": 13,
+      "win_rate": 47.17,
+      "profit_factor": 0.89,
+      "expectancy": -0.0455,
+      "max_drawdown": 8.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T08:35:00+00:00",
+          "trades": 13,
+          "wins": 4,
+          "losses": 7,
+          "draws": 2,
+          "win_rate": 36.36,
+          "profit_factor": 0.57,
+          "expectancy": -0.2308,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T09:31:00+00:00",
+          "trades": 13,
+          "wins": 5,
+          "losses": 6,
+          "draws": 2,
+          "win_rate": 45.45,
+          "profit_factor": 0.83,
+          "expectancy": -0.0769,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T10:31:00+00:00",
+          "trades": 13,
+          "wins": 3,
+          "losses": 5,
+          "draws": 5,
+          "win_rate": 37.5,
+          "profit_factor": 0.6,
+          "expectancy": -0.1538,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T11:35:00+00:00",
+          "trades": 13,
+          "wins": 7,
+          "losses": 3,
+          "draws": 3,
+          "win_rate": 70.0,
+          "profit_factor": 2.33,
+          "expectancy": 0.3077,
+          "max_drawdown": 1.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T12:27:00+00:00",
+          "trades": 14,
+          "wins": 6,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 46.15,
+          "profit_factor": 0.86,
+          "expectancy": -0.0714,
+          "max_drawdown": 3.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 20,
+        "wins": 10,
+        "losses": 8,
+        "draws": 2,
+        "win_rate": 55.56,
+        "profit_factor": 1.25,
+        "expectancy": 0.1,
+        "max_drawdown": 3.0
+      }
+    }
+  },
+  {
+    "asset": "NZD/USD",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 65,
+      "wins": 26,
+      "losses": 31,
+      "draws": 8,
+      "win_rate": 45.61,
+      "profit_factor": 0.84,
+      "expectancy": -0.0769,
+      "max_drawdown": 8.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T08:35:00+00:00",
+          "trades": 13,
+          "wins": 5,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 41.67,
+          "profit_factor": 0.71,
+          "expectancy": -0.1538,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T09:31:00+00:00",
+          "trades": 13,
+          "wins": 5,
+          "losses": 6,
+          "draws": 2,
+          "win_rate": 45.45,
+          "profit_factor": 0.83,
+          "expectancy": -0.0769,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T10:31:00+00:00",
+          "trades": 13,
+          "wins": 4,
+          "losses": 6,
+          "draws": 3,
+          "win_rate": 40.0,
+          "profit_factor": 0.67,
+          "expectancy": -0.1538,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T11:35:00+00:00",
+          "trades": 13,
+          "wins": 8,
+          "losses": 4,
+          "draws": 1,
+          "win_rate": 66.67,
+          "profit_factor": 2.0,
+          "expectancy": 0.3077,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T12:27:00+00:00",
+          "trades": 13,
+          "wins": 4,
+          "losses": 8,
+          "draws": 1,
+          "win_rate": 33.33,
+          "profit_factor": 0.5,
+          "expectancy": -0.3077,
+          "max_drawdown": 5.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 20,
+        "wins": 8,
+        "losses": 10,
+        "draws": 2,
+        "win_rate": 44.44,
+        "profit_factor": 0.8,
+        "expectancy": -0.1,
+        "max_drawdown": 5.0
+      }
+    }
+  },
+  {
+    "asset": "NZD/USD",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 61,
+      "wins": 23,
+      "losses": 34,
+      "draws": 4,
+      "win_rate": 40.35,
+      "profit_factor": 0.68,
+      "expectancy": -0.1803,
+      "max_drawdown": 13.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:10:00+00:00",
+          "trades": 12,
+          "wins": 2,
+          "losses": 10,
+          "draws": 0,
+          "win_rate": 16.67,
+          "profit_factor": 0.2,
+          "expectancy": -0.6667,
+          "max_drawdown": 8.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T03:30:00+00:00",
+          "trades": 12,
+          "wins": 6,
+          "losses": 4,
+          "draws": 2,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.1667,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T05:50:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 8,
+          "draws": 0,
+          "win_rate": 33.33,
+          "profit_factor": 0.5,
+          "expectancy": -0.3333,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T08:20:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 6,
+          "draws": 2,
+          "win_rate": 40.0,
+          "profit_factor": 0.67,
+          "expectancy": -0.1667,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T10:40:00+00:00",
+          "trades": 13,
+          "wins": 7,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 53.85,
+          "profit_factor": 1.17,
+          "expectancy": 0.0769,
+          "max_drawdown": 1.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 19,
+        "wins": 8,
+        "losses": 10,
+        "draws": 1,
+        "win_rate": 44.44,
+        "profit_factor": 0.8,
+        "expectancy": -0.1053,
+        "max_drawdown": 4.0
+      }
+    }
+  },
+  {
+    "asset": "NZD/USD",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 900,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 60,
+      "wins": 23,
+      "losses": 35,
+      "draws": 2,
+      "win_rate": 39.66,
+      "profit_factor": 0.66,
+      "expectancy": -0.2,
+      "max_drawdown": 14.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:10:00+00:00",
+          "trades": 12,
+          "wins": 2,
+          "losses": 10,
+          "draws": 0,
+          "win_rate": 16.67,
+          "profit_factor": 0.2,
+          "expectancy": -0.6667,
+          "max_drawdown": 8.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T03:30:00+00:00",
+          "trades": 12,
+          "wins": 6,
+          "losses": 5,
+          "draws": 1,
+          "win_rate": 54.55,
+          "profit_factor": 1.2,
+          "expectancy": 0.0833,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T05:50:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 36.36,
+          "profit_factor": 0.57,
+          "expectancy": -0.25,
+          "max_drawdown": 6.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T08:20:00+00:00",
+          "trades": 12,
+          "wins": 6,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T10:40:00+00:00",
+          "trades": 12,
+          "wins": 5,
+          "losses": 7,
+          "draws": 0,
+          "win_rate": 41.67,
+          "profit_factor": 0.71,
+          "expectancy": -0.1667,
+          "max_drawdown": 4.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 18,
+        "wins": 7,
+        "losses": 11,
+        "draws": 0,
+        "win_rate": 38.89,
+        "profit_factor": 0.64,
+        "expectancy": -0.2222,
+        "max_drawdown": 7.0
+      }
+    }
+  },
+  {
+    "asset": "EUR/JPY",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 60,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 64,
+      "wins": 29,
+      "losses": 31,
+      "draws": 4,
+      "win_rate": 48.33,
+      "profit_factor": 0.94,
+      "expectancy": -0.0312,
+      "max_drawdown": 10.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T11:04:00+00:00",
+          "trades": 12,
+          "wins": 6,
+          "losses": 4,
+          "draws": 2,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.1667,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T11:34:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 36.36,
+          "profit_factor": 0.57,
+          "expectancy": -0.25,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T12:08:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 8,
+          "draws": 0,
+          "win_rate": 33.33,
+          "profit_factor": 0.5,
+          "expectancy": -0.3333,
+          "max_drawdown": 6.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T12:36:00+00:00",
+          "trades": 12,
+          "wins": 6,
+          "losses": 5,
+          "draws": 1,
+          "win_rate": 54.55,
+          "profit_factor": 1.2,
+          "expectancy": 0.0833,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T13:00:00+00:00",
+          "trades": 16,
+          "wins": 9,
+          "losses": 7,
+          "draws": 0,
+          "win_rate": 56.25,
+          "profit_factor": 1.29,
+          "expectancy": 0.125,
+          "max_drawdown": 2.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 20,
+        "wins": 12,
+        "losses": 8,
+        "draws": 0,
+        "win_rate": 60.0,
+        "profit_factor": 1.5,
+        "expectancy": 0.2,
+        "max_drawdown": 3.0
+      }
+    }
+  },
+  {
+    "asset": "EUR/JPY",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 62,
+      "wins": 29,
+      "losses": 31,
+      "draws": 2,
+      "win_rate": 48.33,
+      "profit_factor": 0.94,
+      "expectancy": -0.0323,
+      "max_drawdown": 12.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T11:04:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 8,
+          "draws": 0,
+          "win_rate": 33.33,
+          "profit_factor": 0.5,
+          "expectancy": -0.3333,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T11:34:00+00:00",
+          "trades": 12,
+          "wins": 6,
+          "losses": 5,
+          "draws": 1,
+          "win_rate": 54.55,
+          "profit_factor": 1.2,
+          "expectancy": 0.0833,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T12:08:00+00:00",
+          "trades": 12,
+          "wins": 4,
+          "losses": 8,
+          "draws": 0,
+          "win_rate": 33.33,
+          "profit_factor": 0.5,
+          "expectancy": -0.3333,
+          "max_drawdown": 8.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T12:36:00+00:00",
+          "trades": 12,
+          "wins": 5,
+          "losses": 6,
+          "draws": 1,
+          "win_rate": 45.45,
+          "profit_factor": 0.83,
+          "expectancy": -0.0833,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T13:00:00+00:00",
+          "trades": 14,
+          "wins": 10,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 71.43,
+          "profit_factor": 2.5,
+          "expectancy": 0.4286,
+          "max_drawdown": 3.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 19,
+        "wins": 13,
+        "losses": 6,
+        "draws": 0,
+        "win_rate": 68.42,
+        "profit_factor": 2.17,
+        "expectancy": 0.3684,
+        "max_drawdown": 5.0
+      }
+    }
+  },
+  {
+    "asset": "EUR/JPY",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 55,
+      "wins": 26,
+      "losses": 25,
+      "draws": 4,
+      "win_rate": 50.98,
+      "profit_factor": 1.04,
+      "expectancy": 0.0182,
+      "max_drawdown": 9.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:15:00+00:00",
+          "trades": 11,
+          "wins": 3,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 30.0,
+          "profit_factor": 0.43,
+          "expectancy": -0.3636,
+          "max_drawdown": 6.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T03:05:00+00:00",
+          "trades": 11,
+          "wins": 3,
+          "losses": 7,
+          "draws": 1,
+          "win_rate": 30.0,
+          "profit_factor": 0.43,
+          "expectancy": -0.3636,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T05:35:00+00:00",
+          "trades": 11,
+          "wins": 8,
+          "losses": 3,
+          "draws": 0,
+          "win_rate": 72.73,
+          "profit_factor": 2.67,
+          "expectancy": 0.4545,
+          "max_drawdown": 1.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T07:25:00+00:00",
+          "trades": 11,
+          "wins": 7,
+          "losses": 3,
+          "draws": 1,
+          "win_rate": 70.0,
+          "profit_factor": 2.33,
+          "expectancy": 0.3636,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T09:15:00+00:00",
+          "trades": 11,
+          "wins": 5,
+          "losses": 5,
+          "draws": 1,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 4.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 17,
+        "wins": 8,
+        "losses": 8,
+        "draws": 1,
+        "win_rate": 50.0,
+        "profit_factor": 1.0,
+        "expectancy": 0.0,
+        "max_drawdown": 5.0
+      }
+    }
+  },
+  {
+    "asset": "EUR/JPY",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 900,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 54,
+      "wins": 27,
+      "losses": 27,
+      "draws": 0,
+      "win_rate": 50.0,
+      "profit_factor": 1.0,
+      "expectancy": 0.0,
+      "max_drawdown": 10.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:15:00+00:00",
+          "trades": 10,
+          "wins": 5,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T02:55:00+00:00",
+          "trades": 10,
+          "wins": 5,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T05:15:00+00:00",
+          "trades": 10,
+          "wins": 6,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.2,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T06:55:00+00:00",
+          "trades": 10,
+          "wins": 8,
+          "losses": 2,
+          "draws": 0,
+          "win_rate": 80.0,
+          "profit_factor": 4.0,
+          "expectancy": 0.6,
+          "max_drawdown": 1.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T08:35:00+00:00",
+          "trades": 14,
+          "wins": 3,
+          "losses": 11,
+          "draws": 0,
+          "win_rate": 21.43,
+          "profit_factor": 0.27,
+          "expectancy": -0.5714,
+          "max_drawdown": 10.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 17,
+        "wins": 6,
+        "losses": 11,
+        "draws": 0,
+        "win_rate": 35.29,
+        "profit_factor": 0.55,
+        "expectancy": -0.2941,
+        "max_drawdown": 10.0
+      }
+    }
+  },
+  {
+    "asset": "GBP/JPY",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 60,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 54,
+      "wins": 28,
+      "losses": 22,
+      "draws": 4,
+      "win_rate": 56.0,
+      "profit_factor": 1.27,
+      "expectancy": 0.1111,
+      "max_drawdown": 7.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T11:04:00+00:00",
+          "trades": 10,
+          "wins": 7,
+          "losses": 2,
+          "draws": 1,
+          "win_rate": 77.78,
+          "profit_factor": 3.5,
+          "expectancy": 0.5,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T11:24:00+00:00",
+          "trades": 10,
+          "wins": 5,
+          "losses": 4,
+          "draws": 1,
+          "win_rate": 55.56,
+          "profit_factor": 1.25,
+          "expectancy": 0.1,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T11:52:00+00:00",
+          "trades": 10,
+          "wins": 5,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T12:18:00+00:00",
+          "trades": 10,
+          "wins": 3,
+          "losses": 7,
+          "draws": 0,
+          "win_rate": 30.0,
+          "profit_factor": 0.43,
+          "expectancy": -0.4,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T12:50:00+00:00",
+          "trades": 14,
+          "wins": 8,
+          "losses": 4,
+          "draws": 2,
+          "win_rate": 66.67,
+          "profit_factor": 2.0,
+          "expectancy": 0.2857,
+          "max_drawdown": 2.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 17,
+        "wins": 9,
+        "losses": 6,
+        "draws": 2,
+        "win_rate": 60.0,
+        "profit_factor": 1.5,
+        "expectancy": 0.1765,
+        "max_drawdown": 2.0
+      }
+    }
+  },
+  {
+    "asset": "GBP/JPY",
+    "market": "forex",
+    "timeframe": "1min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 54,
+      "wins": 28,
+      "losses": 26,
+      "draws": 0,
+      "win_rate": 51.85,
+      "profit_factor": 1.08,
+      "expectancy": 0.037,
+      "max_drawdown": 6.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T11:04:00+00:00",
+          "trades": 10,
+          "wins": 6,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.2,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T11:24:00+00:00",
+          "trades": 10,
+          "wins": 5,
+          "losses": 5,
+          "draws": 0,
+          "win_rate": 50.0,
+          "profit_factor": 1.0,
+          "expectancy": 0.0,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T11:52:00+00:00",
+          "trades": 10,
+          "wins": 6,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 60.0,
+          "profit_factor": 1.5,
+          "expectancy": 0.2,
+          "max_drawdown": 2.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T12:18:00+00:00",
+          "trades": 10,
+          "wins": 3,
+          "losses": 7,
+          "draws": 0,
+          "win_rate": 30.0,
+          "profit_factor": 0.43,
+          "expectancy": -0.4,
+          "max_drawdown": 6.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T12:50:00+00:00",
+          "trades": 14,
+          "wins": 8,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 57.14,
+          "profit_factor": 1.33,
+          "expectancy": 0.1429,
+          "max_drawdown": 3.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 17,
+        "wins": 10,
+        "losses": 7,
+        "draws": 0,
+        "win_rate": 58.82,
+        "profit_factor": 1.43,
+        "expectancy": 0.1765,
+        "max_drawdown": 3.0
+      }
+    }
+  },
+  {
+    "asset": "GBP/JPY",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 300,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 58,
+      "wins": 28,
+      "losses": 28,
+      "draws": 2,
+      "win_rate": 50.0,
+      "profit_factor": 1.0,
+      "expectancy": 0.0,
+      "max_drawdown": 7.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:25:00+00:00",
+          "trades": 11,
+          "wins": 5,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 45.45,
+          "profit_factor": 0.83,
+          "expectancy": -0.0909,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T03:15:00+00:00",
+          "trades": 11,
+          "wins": 3,
+          "losses": 8,
+          "draws": 0,
+          "win_rate": 27.27,
+          "profit_factor": 0.38,
+          "expectancy": -0.4545,
+          "max_drawdown": 6.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T05:25:00+00:00",
+          "trades": 11,
+          "wins": 8,
+          "losses": 3,
+          "draws": 0,
+          "win_rate": 72.73,
+          "profit_factor": 2.67,
+          "expectancy": 0.4545,
+          "max_drawdown": 1.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T07:35:00+00:00",
+          "trades": 11,
+          "wins": 4,
+          "losses": 6,
+          "draws": 1,
+          "win_rate": 40.0,
+          "profit_factor": 0.67,
+          "expectancy": -0.1818,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T10:05:00+00:00",
+          "trades": 14,
+          "wins": 8,
+          "losses": 5,
+          "draws": 1,
+          "win_rate": 61.54,
+          "profit_factor": 1.6,
+          "expectancy": 0.2143,
+          "max_drawdown": 2.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 18,
+        "wins": 9,
+        "losses": 7,
+        "draws": 2,
+        "win_rate": 56.25,
+        "profit_factor": 1.29,
+        "expectancy": 0.1111,
+        "max_drawdown": 2.0
+      }
+    }
+  },
+  {
+    "asset": "GBP/JPY",
+    "market": "forex",
+    "timeframe": "5min",
+    "expiry_seconds": 900,
+    "source": "yahoo",
+    "bars": 300,
+    "metrics": {
+      "trades": 57,
+      "wins": 23,
+      "losses": 34,
+      "draws": 0,
+      "win_rate": 40.35,
+      "profit_factor": 0.68,
+      "expectancy": -0.193,
+      "max_drawdown": 13.0
+    },
+    "walk_forward": {
+      "folds": [
+        {
+          "fold": 1,
+          "start": "2026-11-10T01:25:00+00:00",
+          "trades": 11,
+          "wins": 5,
+          "losses": 6,
+          "draws": 0,
+          "win_rate": 45.45,
+          "profit_factor": 0.83,
+          "expectancy": -0.0909,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 2,
+          "start": "2026-11-10T03:15:00+00:00",
+          "trades": 11,
+          "wins": 4,
+          "losses": 7,
+          "draws": 0,
+          "win_rate": 36.36,
+          "profit_factor": 0.57,
+          "expectancy": -0.2727,
+          "max_drawdown": 4.0
+        },
+        {
+          "fold": 3,
+          "start": "2026-11-10T05:25:00+00:00",
+          "trades": 11,
+          "wins": 7,
+          "losses": 4,
+          "draws": 0,
+          "win_rate": 63.64,
+          "profit_factor": 1.75,
+          "expectancy": 0.2727,
+          "max_drawdown": 3.0
+        },
+        {
+          "fold": 4,
+          "start": "2026-11-10T07:35:00+00:00",
+          "trades": 11,
+          "wins": 3,
+          "losses": 8,
+          "draws": 0,
+          "win_rate": 27.27,
+          "profit_factor": 0.38,
+          "expectancy": -0.4545,
+          "max_drawdown": 5.0
+        },
+        {
+          "fold": 5,
+          "start": "2026-11-10T10:05:00+00:00",
+          "trades": 13,
+          "wins": 4,
+          "losses": 9,
+          "draws": 0,
+          "win_rate": 30.77,
+          "profit_factor": 0.44,
+          "expectancy": -0.3846,
+          "max_drawdown": 7.0
+        }
+      ],
+      "out_of_sample": {
+        "trades": 18,
+        "wins": 5,
+        "losses": 13,
+        "draws": 0,
+        "win_rate": 27.78,
+        "profit_factor": 0.38,
+        "expectancy": -0.4444,
+        "max_drawdown": 9.0
+      }
+    }
+  }
+]

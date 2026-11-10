@@ -510,6 +510,53 @@ async def cb_smarty_signal(callback: CallbackQuery) -> None:
     await _edit(callback, fmt.smarty_result_text(result, record), menus.smarty_menu(asset))
 
 
+@router.callback_query(F.data == "auto")
+async def cb_auto(callback: CallbackQuery) -> None:
+    ctx = get_context()
+    await callback.answer()
+    scanner = ctx.scanner
+    if scanner is None:
+        await _edit(callback, "الماسح غير مهيأ.", menus.back_to_main())
+        return
+    await _edit(callback, _scanner_text(ctx), menus.scanner_menu(scanner.running, scanner.market_selection()))
+
+
+@router.callback_query(F.data == "markets")
+async def cb_markets(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await _edit(
+        callback,
+        "<b>🧠 الأسواق</b>\n━━━━━━━━━━━━━━━━━━\n"
+        "اختر السوق لعرض الأصول المتاحة فعلياً من مصدر البيانات:",
+        menus.markets_menu(),
+    )
+
+
+async def _show_trend(callback: CallbackQuery) -> None:
+    ctx = get_context()
+    asset = get_asset("EUR_USD_FOREX")
+    if asset is None:
+        await _edit(callback, "ASSET غير متاح.", menus.trend_menu())
+        return
+    await _edit(callback, "⏳ قراءة الترند والاستراتيجيات...", None)
+    try:
+        market_data, result = await ctx.generator.fetch_and_analyse(asset, "1min")
+    except DataUnavailable as exc:
+        await _edit(
+            callback,
+            fmt.unavailable_text("📈 الترند والاستراتيجيات", exc.message, exc.detail),
+            menus.trend_menu(),
+        )
+        return
+    await _edit(callback, fmt.trend_summary_text(result, market_data.source), menus.trend_menu())
+
+
+@router.callback_query(F.data.in_({"trend", "trend:refresh"}))
+async def cb_trend(callback: CallbackQuery) -> None:
+    await callback.answer("⏳ تحديث...")
+    await _show_trend(callback)
+
+
 @router.callback_query(F.data == "live")
 async def cb_live(callback: CallbackQuery) -> None:
     ctx = get_context()
@@ -548,23 +595,6 @@ async def cb_status(callback: CallbackQuery) -> None:
     ctx = get_context()
     await callback.answer()
     await _send_status(callback.message)
-
-
-@router.callback_query(F.data == "img:help")
-async def cb_image_help(callback: CallbackQuery) -> None:
-    await callback.answer()
-    await _edit(
-        callback,
-        "<b>🖼 AI IMAGE ANALYSIS</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "أرسل صورة شارت (PNG / JPG / JPEG / WEBP) وسيقوم ROZLF AI بتحليلها.\n\n"
-        "سيتم فحص: الجودة، الأصل، الفريم، الاتجاه، الدعم والمقاومة، BOS/CHoCH/FVG.\n\n"
-        "ملاحظات مهمة:\n"
-        "• لا يستخرج البوت سعراً حياً من صورة قديمة.\n"
-        "• الصورة الغامضة ستُرفض مع طلب صورة أوضح.\n"
-        "• تحليل الصور يعمل عبر Mistral Vision عند إعداد المفتاح.",
-        menus.image_help_back(),
-    )
 
 
 @router.callback_query(F.data == "settings")

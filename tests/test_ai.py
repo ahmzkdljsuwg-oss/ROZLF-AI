@@ -15,12 +15,12 @@ async def test_unconfigured_client_is_honest():
 
 
 async def test_configured_client_reports_model():
-    client = MistralClient(api_key="test-key", model="mistral-small-latest", vision_model="pixtral-12b-2409")
+    client = MistralClient(api_key="test-key", model="mistral-small-latest")
     assert client.configured is True
     health = client.health()
     assert health["configured"] is True
     assert health["model"] == "mistral-small-latest"
-    assert health["vision_model"] == "pixtral-12b-2409"
+    assert "vision_model" not in health
     await client.close()
 
 

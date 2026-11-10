@@ -19,7 +19,8 @@
 | `tests/test_technical.py` | حدود المؤشرات، اتجاه صاعد/هابط، NO TRADE، مفاهيم SMC، سقف الثقة 92 |
 | `tests/test_providers.py` | مصدر FOREX، رفض OTC بدون مصدر، رفض البيانات القديمة، fallback مزود، غياب quote |
 | `tests/test_signals.py` | إنشاء إشارة وحفظها، NO TRADE لا يُحفظ، حد أدنى للثقة، احترام المدد، WIN/LOSS/DRAW/UNVERIFIED، استبعاد المفتوحة من الدقة، منع تكرار الماسح، رفض OTC |
-| `tests/test_vision.py` | صورة شارت صالحة، صورة صغيرة، صيغة BMP، صورة فارغة/منخفضة التباين، حجم زائد |
+| `tests/test_strategies.py` | استقلال عائلات الأدلة، تعارض/توافق الفريمات، إلغاء الإشارة، حصر الجلسات على Forex |
+| `tests/test_backtest.py` | منع تسريب المستقبل، احتساب WIN/LOSS/DRAW، الصفقات والانتهاء |
 | `tests/test_ai.py` | Mistral غير مهيأ لا يدّعي النجاح، health model، تحويل فشل الشبكة |
 | `tests/test_bot_ui.py` | أزرار اللوحة كلها callbacks حقيقية، قوائم الأسواق، نص الإشارة، تنسيق السعر، المدد، الإحصائيات الفارغة |
 | `tests/test_handlers.py` | mkt callback (حالة علوية/سفلية، سوق مجهول)، img:help، ast callback |
@@ -58,9 +59,9 @@ DATA UNAVAILABLE: no verified source
 1. **أصوات هبوطية موجبة**: كانت عوامل DOWN تُسجّل نقاطاً موجبة فيُختلط الاتجاه (سوق هابط أعطى UP). صُحّحت الإشارات في `engines/technical/analyzer.py`.
 2. **`market_label`** أعاد `FOREXX`. صُحّح.
 3. **`format_price(None)`** كان يعيد `—`؛ أصبح `N/A`.
-4. **صورة بيضاء تماماً** كانت تمر من فحص الجودة؛ أضيف فحص تباين (stddev < 4 → رفض).
+4. **ميزة تحليل الصور** أُزيلت بالكامل في تحديث الاستراتيجيات؛ لم يبق منها كود أو زر.
 5. **`PreparedImage`** أسماء حقول غير مطابقة؛ عُدّلت الاختبارات لتطابق `data/quality_score`.
-6. **`MistralClient`** كان يفرض تمرير model/vision_model؛ أصبحت لهما قيم افتراضية.
+6. **`MistralClient`** يعمل الآن للنصوص فقط مع نموذج افتراضي.
 7. **Twelve Data** كان يرفض العمل بدون مفتاح رغم وجود demo؛ أصبح يستخدم `apikey=demo` تلقائياً (تغطية EUR/USD و USD/JPY فقط).
 8. **greenlet** كانت ناقصة لتشغيل SQLAlchemy async على SQLite؛ أضيفت إلى `requirements.txt`.
 

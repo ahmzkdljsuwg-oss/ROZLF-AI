@@ -1,8 +1,7 @@
-"""Mistral text + vision client. It explains supplied data; it never invents prices."""
+"""Mistral text client. It explains supplied data; it never invents prices."""
 from __future__ import annotations
 
 import asyncio
-import base64
 import logging
 from typing import Any
 
@@ -21,18 +20,6 @@ SYSTEM_PROMPT = (
     "You do not execute trades and never promise profits."
 )
 
-VISION_PROMPT = (
-    "You are ROZLF AI chart-vision. Analyse the attached trading chart image. "
-    "Report: (1) whether the image is a readable candlestick chart and its quality; "
-    "(2) visible asset and timeframe if legible, else 'unclear'; "
-    "(3) trend direction from structure; "
-    "(4) visible support/resistance areas; "
-    "(5) any BOS, CHoCH, FVG, order block or liquidity sweep you can justify; "
-    "(6) a cautious bias (UP/DOWN/NO TRADE) with reasoning. "
-    "Do not extract or claim live/current prices from the screenshot. "
-    "If the chart is unclear, ask for a clearer screenshot. Max 180 words."
-)
-
 
 class MistralUnavailable(Exception):
     pass
@@ -43,13 +30,11 @@ class MistralClient:
         self,
         api_key: str | None,
         model: str = "mistral-small-latest",
-        vision_model: str = "pixtral-12b-2409",
         client: httpx.AsyncClient | None = None,
         timeout: float = 45.0,
     ) -> None:
         self.api_key = api_key or None
         self.model = model
-        self.vision_model = vision_model
         self._client = client
         self._owns_client = client is None
         self._timeout = timeout
@@ -68,7 +53,6 @@ class MistralClient:
         return {
             "configured": self.configured,
             "model": self.model,
-            "vision_model": self.vision_model,
             "last_error": self.last_error,
         }
 
@@ -136,24 +120,3 @@ class MistralClient:
         )
         return await self.chat(prompt)
 
-    async def analyse_image(self, image_bytes: bytes, mime_type: str = "image/png") -> str:
-        encoded = base64.b64encode(image_bytes).decode("ascii")
-        return await self._post(
-            {
-                "model": self.vision_model,
-                "temperature": 0.1,
-                "max_tokens": 450,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": VISION_PROMPT},
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:{mime_type};base64,{encoded}"},
-                            },
-                        ],
-                    }
-                ],
-            }
-        )

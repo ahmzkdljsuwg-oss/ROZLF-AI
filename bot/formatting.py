@@ -55,19 +55,11 @@ def welcome_text(settings: Settings) -> str:
         "مرحباً بك في نظام <b>ROZLF AI</b>.\n"
         "تحليل فني + Smart Money Concepts + إشارات موثّقة.\n\n"
         "<b>الأقسام الرئيسية:</b>\n"
-        "💱 FOREX MARKET\n"
-        "🧠 SMARTY MARKET\n"
-        "🤖 AI INDEX\n"
-        "⚽ FOOTBALL INDEX\n"
-        "💎 LUXURY INDEX\n"
-        "🌐 OTC MARKET\n"
-        "🥇 GOLD ANALYSIS\n"
-        "🛰 AUTO SCANNER\n"
-        "🖼 AI IMAGE ANALYSIS\n"
-        "📡 LIVE SIGNALS\n"
-        "🗂 SIGNAL HISTORY\n"
-        "📊 PERFORMANCE STATISTICS\n"
-        "⚙️ SETTINGS\n\n"
+        "📊 تحليل تلقائي\n"
+        "🧠 الأسواق\n"
+        "📈 الترند والاستراتيجيات\n"
+        "📜 سجل الإشارات\n"
+        "⚙️ الإعدادات\n\n"
         f"AI STATUS: <b>{ai_status}</b>\n"
         f"MIN CONFIDENCE: <b>{settings.min_confidence:.0f}%</b>\n\n"
         f"<i>{DISCLAIMER}</i>"
@@ -121,8 +113,11 @@ def analysis_text(result: AnalysisResult) -> str:
         "━━━━━━━━━━━━━━━━━━",
         f"PRICE: <b>{format_price(result.price, result.market)}</b>",
         f"DECISION: <b>{result.direction}</b>",
-        f"CONFIDENCE: <b>{result.confidence:.0f}%</b> (UP {result.score_up:.0f} / DOWN {result.score_down:.0f})",
-        f"TREND: {indicators.get('trend')} | MOMENTUM: {indicators.get('momentum')}",
+        f"EVIDENCE SCORE: <b>{result.confidence:.0f}%</b> (UP {result.score_up:.0f} / DOWN {result.score_down:.0f})",
+        f"TREND: {result.trend_summary} | MOMENTUM: {result.momentum_strength}",
+        f"TIMEFRAMES: {result.mtf.get('short')} / {result.mtf.get('medium')} / {result.mtf.get('long')}",
+        f"DATA QUALITY: {result.data_confidence.get('level', '—')} ({result.data_confidence.get('score', 0)}%)",
+        f"SESSION: {result.session}",
         f"VOLATILITY: {indicators.get('volatility')} (ATR {indicators.get('atr_pct')}%)",
         "",
         "<b>INDICATORS</b>",
@@ -147,13 +142,59 @@ def analysis_text(result: AnalysisResult) -> str:
         )
     if result.reasons:
         lines.append("")
-        lines.append("<b>REASONS</b>")
+        lines.append("<b>CONFIRMED STRATEGIES / REASONS</b>")
         lines.extend(f"• {reason}" for reason in result.reasons)
+    if result.opposing_strategies:
+        lines.append("")
+        lines.append("<b>OPPOSING STRATEGIES</b>")
+        lines.extend(f"• {item['name']} — {item['reason']}" for item in result.opposing_strategies[:3])
+    if result.cancellation_reason:
+        lines.append("")
+        lines.append(f"<b>CANCELLED:</b> {result.cancellation_reason}")
+    if result.invalidation:
+        lines.append("")
+        lines.append("<b>INVALIDATION</b>")
+        lines.extend(f"• {item}" for item in result.invalidation)
     if result.warnings:
         lines.append("")
         lines.append("<b>WARNINGS</b>")
         lines.extend(f"• {warning}" for warning in result.warnings)
     lines.append("")
+    lines.append(f"<i>{DISCLAIMER}</i>")
+    return "\n".join(lines)
+
+
+def trend_summary_text(result: AnalysisResult, source: str) -> str:
+    mtf = result.mtf or {}
+    labels = {"short": "قصير", "medium": "متوسط", "long": "طويل"}
+    lines = [
+        "<b>📈 الترند والاستراتيجيات</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        f"ASSET: <b>{result.asset_display}</b> ({market_label(result.market)})",
+        f"TIMEFRAME: {result.timeframe} | PRICE: {format_price(result.price, result.market)}",
+        f"OVERALL TREND: <b>{result.trend_summary}</b>",
+    ]
+    for key, label in labels.items():
+        lines.append(f"{label}: {mtf.get(key, '—')}")
+    lines.append(f"MOMENTUM: {result.momentum_strength} | SESSION: {result.session}")
+    lines.append(f"DATA QUALITY: {result.data_confidence.get('level', '—')} ({result.data_confidence.get('score', 0)}%)")
+    lines.append("")
+    if result.confirmed_strategies:
+        lines.append("<b>استراتيجيات متوافقة</b>")
+        for item in result.confirmed_strategies[:6]:
+            lines.append(f"✅ {item['name']} — {item['reason']}")
+    else:
+        lines.append("لا توجد استراتيجيات متوافقة حالياً.")
+    if result.opposing_strategies:
+        lines.append("")
+        lines.append("<b>استراتيجيات معارضة</b>")
+        for item in result.opposing_strategies[:3]:
+            lines.append(f"⚠️ {item['name']} — {item['reason']}")
+    if result.cancellation_reason:
+        lines.append("")
+        lines.append(f"<b>سبب إلغاء الإشارة:</b> {result.cancellation_reason}")
+    lines.append("")
+    lines.append(f"SOURCE: {source}")
     lines.append(f"<i>{DISCLAIMER}</i>")
     return "\n".join(lines)
 
@@ -241,8 +282,6 @@ def status_text(settings: Settings, statuses: list[dict], health: dict, ai_healt
     lines.append(f"MISTRAL AI: {ai_state}")
     if ai_health.get("model"):
         lines.append(f"TEXT MODEL: {ai_health['model']}")
-    if ai_health.get("vision_model"):
-        lines.append(f"VISION MODEL: {ai_health['vision_model']}")
     if ai_health.get("last_error"):
         lines.append(f"LAST AI ERROR: {ai_health['last_error']}")
     lines.append("")
@@ -331,9 +370,11 @@ def smarty_result_text(result: AnalysisResult, record: SignalRecord | None) -> s
         f"ASSET: <b>{result.asset_display}</b>",
         f"MARKET: {market_label(result.market)}",
         f"DIRECTION: <b>{result.direction}</b>",
-        f"CONFIDENCE: <b>{result.confidence:.0f}%</b> "
+        f"EVIDENCE SCORE: <b>{result.confidence:.0f}%</b> "
         f"<i>(UP {result.score_up:.0f} · DOWN {result.score_down:.0f})</i>",
         f"ENTRY: {format_price(result.price, result.market)}",
+        f"TREND: {result.trend_summary} | MOMENTUM: {result.momentum_strength}",
+        f"DATA QUALITY: {result.data_confidence.get('level', '—')} ({result.data_confidence.get('score', 0)}%)",
         f"SOURCE: {result.source}",
     ]
     last_candle = ind.get("last_candle_at")

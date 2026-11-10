@@ -23,14 +23,27 @@ INDEX_MARKETS: tuple[Market, ...] = (Market.AI, Market.FOOTBALL, Market.LUXURY)
 
 def main_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(_button("💱 FOREX MARKET", "mkt:FOREX"), _button("🧠 SMARTY MARKET", "mkt:SMARTY"))
+    builder.row(_button("📊 تحليل تلقائي", "auto"))
+    builder.row(_button("🧠 الأسواق", "markets"))
+    builder.row(_button("📈 الترند والاستراتيجيات", "trend"))
+    builder.row(_button("📜 سجل الإشارات", "hist"))
+    builder.row(_button("⚙️ الإعدادات", "settings"))
+    return builder.as_markup()
+
+
+def markets_menu() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(_button("💱 FOREX", "mkt:FOREX"), _button("🧠 SMARTY", "mkt:SMARTY"))
     builder.row(_button("🤖 AI INDEX", "mkt:AI"), _button("⚽ FOOTBALL INDEX", "mkt:FOOTBALL"))
-    builder.row(_button("💎 LUXURY INDEX", "mkt:LUXURY"), _button("🌐 OTC MARKET", "mkt:OTC"))
-    builder.row(_button("🥇 GOLD ANALYSIS", "mkt:GOLD"))
-    builder.row(_button("🛰 AUTO SCANNER", "scan:menu"), _button("🖼 AI IMAGE ANALYSIS", "img:help"))
-    builder.row(_button("📡 LIVE SIGNALS", "live"), _button("🗂 SIGNAL HISTORY", "hist"))
-    builder.row(_button("📊 PERFORMANCE STATISTICS", "stats"), _button("⚙️ SETTINGS", "settings"))
-    builder.row(_button("🩺 SYSTEM STATUS", "status"))
+    builder.row(_button("💎 LUXURY INDEX", "mkt:LUXURY"))
+    builder.row(_button("🏠 الرئيسية", "menu:main"))
+    return builder.as_markup()
+
+
+def trend_menu() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(_button("📈 تحديث ملخص الترند", "trend:refresh"))
+    builder.row(_button("🏠 الرئيسية", "menu:main"))
     return builder.as_markup()
 
 
@@ -161,11 +174,9 @@ def scanner_menu(running: bool, markets: list[str]) -> InlineKeyboardMarkup:
     )
     builder.row(
         _button("💱 FOREX " + ("✅" if "FOREX" in markets else "⬜"), "scan:mk:FOREX"),
-        _button("🥇 GOLD " + ("✅" if "GOLD" in markets else "⬜"), "scan:mk:GOLD"),
-        _button("🌐 OTC " + ("✅" if "OTC" in markets else "⬜"), "scan:mk:OTC"),
+        _button("🧠 SMARTY " + ("✅" if "SMARTY" in markets else "⬜"), "scan:mk:SMARTY"),
     )
     builder.row(
-        _button("🧠 SMARTY " + ("✅" if "SMARTY" in markets else "⬜"), "scan:mk:SMARTY"),
         _button("🤖 AI " + ("✅" if "AI" in markets else "⬜"), "scan:mk:AI"),
         _button("⚽ FOOTBALL " + ("✅" if "FOOTBALL" in markets else "⬜"), "scan:mk:FOOTBALL"),
     )
@@ -200,10 +211,4 @@ def settings_menu(min_confidence: float, scanner_enabled: bool) -> InlineKeyboar
 def back_only(target: str = "menu:main", label: str = "🏠 MAIN MENU") -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(_button(label, target))
-    return builder.as_markup()
-
-
-def image_help_back() -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.row(_button("🖼 AI IMAGE ANALYSIS", "img:help"), _button("🏠 MAIN", "menu:main"))
     return builder.as_markup()

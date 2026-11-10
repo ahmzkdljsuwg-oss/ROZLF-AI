@@ -6,6 +6,7 @@ from datetime import datetime
 
 from engines.technical.indicators import compute_indicators, frame_from_candles
 from engines.technical.smc import analyze_smc
+from engines.strategies.engine import evaluate_strategies
 from providers.base import DataUnavailable, MarketData, utc_now
 from providers.catalog import Market
 
@@ -28,6 +29,16 @@ class AnalysisResult:
     indicators: dict = field(default_factory=dict)
     smc: dict = field(default_factory=dict)
     suggested_expiry_seconds: int = 60
+    trend_summary: str = "RANGE"
+    mtf: dict = field(default_factory=dict)
+    evidence_score: float = 0.0
+    momentum_strength: str = "WEAK"
+    data_confidence: dict = field(default_factory=dict)
+    confirmed_strategies: list[dict] = field(default_factory=list)
+    opposing_strategies: list[dict] = field(default_factory=list)
+    invalidation: list[str] = field(default_factory=list)
+    cancellation_reason: str | None = None
+    session: str = "NONE"
 
     def as_dict(self) -> dict:
         data = asdict(self)
@@ -49,124 +60,22 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
     frame = frame_from_candles(market_data.candles)
     ind = compute_indicators(frame)
     smc = analyze_smc(frame, ind["atr"])
+    report = evaluate_strategies(frame, ind, smc, market_data.asset.market, market_data.timeframe.seconds, now)
     price = ind["price"]
     atr = ind["atr"] or price * 1e-5
 
-    # Evidence is grouped into independent families so five correlated trend
-    # readouts cannot outvote one another. Each family contributes its strongest
-    # member only; families are then compared for concordance.
-    up: list[tuple[str, float, str]] = []
-    down: list[tuple[str, float, str]] = []
     warnings: list[str] = []
-
-    def vote(reason_up: str, reason_down: str, score: float, family: str) -> None:
-        if score > 0 and reason_up:
-            up.append((reason_up, score, family))
-        elif score < 0 and reason_down:
-            down.append((reason_down, abs(score), family))
-
-    # Trend structure
-    if ind["trend"] == "UP":
-        vote("Bullish EMA stack", "", 10 + 10 * ind["trend_strength"], "trend")
-    elif ind["trend"] == "DOWN":
-        vote("", "Bearish EMA stack", -(10 + 10 * ind["trend_strength"]), "trend")
-    else:
+    if ind["trend"] == "RANGE":
         warnings.append("EMA stack is compressed (range conditions)")
-
-    # EMA 200 regime
-    if ind["ema200"]:
-        vote("Price above EMA 200", "Price below EMA 200", 6 if price > ind["ema200"] else -6, "trend")
-
-    # RSI momentum
     rsi = ind["rsi"]
     if rsi >= 70:
         warnings.append(f"RSI overbought ({rsi:.1f})")
-        vote("", "RSI stretched from overbought", -4, "momentum")
-    elif rsi >= 58:
-        vote("RSI momentum above 58", "", 8 + (rsi - 58) * 0.3, "momentum")
     elif rsi <= 30:
         warnings.append(f"RSI oversold ({rsi:.1f})")
-        vote("RSI recovering from oversold", "", 4, "momentum")
-    elif rsi <= 42:
-        vote("", "RSI momentum below 42", -(8 + (42 - rsi) * 0.3), "momentum")
-    else:
-        warnings.append("RSI in neutral band")
-
-    # MACD
-    if ind["macd_hist"] > 0:
-        strength = 8 if ind["macd_hist"] >= ind["macd_hist_prev"] else 4
-        vote("MACD histogram positive", "", strength, "macd")
-    elif ind["macd_hist"] < 0:
-        strength = 8 if ind["macd_hist"] <= ind["macd_hist_prev"] else 4
-        vote("", "MACD histogram negative", -strength, "macd")
-
-    # Stochastic momentum
-    if ind["stoch_cross"] == "BULLISH":
-        vote("Stochastic bullish cross", "", 3, "momentum")
-    elif ind["stoch_cross"] == "BEARISH":
-        vote("", "Stochastic bearish cross", -3, "momentum")
-
-    # Bollinger position
     if price > ind["bb_upper"]:
         warnings.append("Price above upper Bollinger band")
     elif price < ind["bb_lower"]:
         warnings.append("Price below lower Bollinger band")
-
-    # Market structure (recent events win)
-    last_event = smc.get("last_event")
-    if last_event:
-        bars_since = len(frame) - 1 - last_event["index"]
-        if bars_since <= 12:
-            if last_event["direction"] == "bullish":
-                label = "Bullish BOS" if last_event["event"] == "BOS" else "Bullish CHoCH"
-                vote(label, "", 13, "structure")
-            else:
-                label = "Bearish BOS" if last_event["event"] == "BOS" else "Bearish CHoCH"
-                vote("", label, 13, "structure")
-        else:
-            vote(
-                "Bullish market structure intact" if smc["trend"] == "BULLISH" else "",
-                "Bearish market structure intact" if smc["trend"] == "BEARISH" else "",
-                4 if smc["trend"] != "NEUTRAL" else -4,
-                "structure",
-            )
-
-    # Premium / discount location
-    equilibrium = smc["premium_discount"]
-    if equilibrium["zone"] == "DISCOUNT":
-        vote("Price in discount zone", "", 5, "structure")
-    elif equilibrium["zone"] == "PREMIUM":
-        vote("", "Price in premium zone", -5, "structure")
-
-    # Active fair value gaps close to price
-    for gap in smc["fair_value_gaps"][-2:]:
-        if gap["direction"] == "bullish" and gap["top"] <= price + atr * 0.8:
-            vote("Unfilled bullish FVG nearby", "", 4, "structure")
-        if gap["direction"] == "bearish" and gap["bottom"] >= price - atr * 0.8:
-            vote("", "Unfilled bearish FVG nearby", -4, "structure")
-
-    # Liquidity sweeps in the last few candles
-    for sweep in smc["liquidity_sweeps"][-2:]:
-        if len(frame) - 1 - sweep["index"] <= 6:
-            if sweep["direction"] == "bullish":
-                vote("Liquidity sweep below equal lows", "", 7, "structure")
-            else:
-                vote("", "Liquidity sweep above equal highs", -7, "structure")
-
-    # Proximity to support / resistance
-    if ind["support"] and price - ind["support"][0] <= atr * 0.6:
-        vote("Reaction at support", "", 5, "location")
-    if ind["resistance"] and ind["resistance"][0] - price <= atr * 0.6:
-        vote("", "Rejection from resistance", -5, "location")
-
-    # Candlestick confirmation
-    for pattern in ind["patterns"]:
-        if pattern["direction"] == "bullish":
-            vote(f"{pattern['name']} pattern", "", 4, "confirmation")
-        elif pattern["direction"] == "bearish":
-            vote("", f"{pattern['name']} pattern", -4, "confirmation")
-
-    # Volatility and spread warnings
     if ind["volatility"] == "HIGH":
         warnings.append("High volatility: expiry risk increases")
     if market_data.quote is not None:
@@ -174,41 +83,58 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
         if spread_pct > 0.02:
             warnings.append(f"Wide spread ({spread_pct:.3f}%)")
 
+    # Strategy evidence is pooled by family so correlated readouts inside one
+    # family cannot stack. Only the strongest member of each family counts.
     families_up: dict[str, float] = {}
-    for _, points, family in up:
-        families_up[family] = max(families_up.get(family, 0.0), points)
     families_down: dict[str, float] = {}
-    for _, points, family in down:
-        families_down[family] = max(families_down.get(family, 0.0), points)
+    for signal in report.signals:
+        target = families_up if signal.direction == "UP" else families_down
+        target[signal.family] = max(target.get(signal.family, 0.0), signal.score)
 
     score_up = sum(families_up.values())
     score_down = sum(families_down.values())
     total = score_up + score_down
     families_present = len(set(families_up) | set(families_down))
+    supporting_families = 0
+    cancellation_reason: str | None = None
     if total <= 0:
         direction = "NO TRADE"
         confidence = 0.0
+        cancellation_reason = "No strategy produced a valid entry condition"
     else:
         best = max(score_up, score_down)
         separation = best / total
         direction = "UP" if score_up >= score_down else "DOWN"
-        supporting = len(families_up if direction == "UP" else families_down)
-        breadth = supporting / max(1, families_present)
-        # Concordance across independent families, not the sum of correlated
-        # readouts, is what earns confidence. Hard-capped below certainty.
+        supporting_families = len(families_up if direction == "UP" else families_down)
+        breadth = supporting_families / max(1, families_present)
         confidence = _clamp(50 + separation * 26 + breadth * 20, 0, 92)
+        mtf_penalty = 8 if report.mtf.get("direction") == "MIXED" else 0
+        confidence = _clamp(confidence - mtf_penalty, 0, 92)
         if separation < 0.56:
             direction = "NO TRADE"
-            warnings.append("Signals conflict: no clear edge")
+            cancellation_reason = "Signals conflict: no clear edge"
         elif confidence < 58:
             direction = "NO TRADE"
-            warnings.append("Confidence below trading threshold")
+            cancellation_reason = "Confidence below trading threshold"
         elif min(score_up, score_down) > 18 and separation < 0.6:
             direction = "NO TRADE"
-            warnings.append("Strong opposing evidence")
+            cancellation_reason = "Strong opposing evidence"
+        elif supporting_families < 2:
+            direction = "NO TRADE"
+            cancellation_reason = "Insufficient independent confirmation"
+        elif report.mtf.get("aligned") and report.mtf.get("direction") != direction:
+            direction = "NO TRADE"
+            cancellation_reason = "Higher timeframes disagree with the setup"
+        elif report.mtf.get("direction") == "MIXED" and confidence < 68:
+            direction = "NO TRADE"
+            cancellation_reason = "Timeframes conflict: waiting for alignment"
 
-    chosen = up if direction == "UP" else down
-    reasons = [reason for reason, _, _ in sorted(chosen, key=lambda item: -item[1])][:6]
+    if cancellation_reason:
+        warnings.append(cancellation_reason)
+    confirmed = report.confirmed(direction) if direction in ("UP", "DOWN") else []
+    opposed = report.opposed(direction) if direction in ("UP", "DOWN") else []
+    reasons = [signal.reason for signal in confirmed][:6]
+    invalidation = [signal.invalidation for signal in confirmed[:3]]
 
     if market_data.asset.market in (Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY):
         # Expiry follows measured volatility, not the candle frame: quiet
@@ -223,6 +149,25 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
         sellers = 100 - buyers
     else:
         buyers = sellers = 50
+
+    bars = len(frame)
+    quality_points = 100 if bars >= 200 else 85 if bars >= 120 else 70 if bars >= 60 else 55
+    if market_data.quote is not None and market_data.quote.spread_pct > 0.02:
+        quality_points -= 10
+    quality_label = "HIGH" if quality_points >= 85 else "MEDIUM" if quality_points >= 65 else "LOW"
+    data_confidence = {"level": quality_label, "score": max(0, quality_points), "bars": bars}
+
+    adx_value = float(report.context.get("adx", 0.0))
+    if adx_value >= 30 and (ind["trend"] in ("UP", "DOWN")):
+        momentum_strength = "STRONG"
+    elif adx_value >= 20:
+        momentum_strength = "MODERATE"
+    else:
+        momentum_strength = "WEAK"
+
+    trend_summary = report.mtf.get("direction", "MIXED")
+    if trend_summary == "MIXED":
+        trend_summary = ind["trend"]
 
     return AnalysisResult(
         asset_key=market_data.asset.key,
@@ -270,4 +215,14 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
             "equal_lows": smc["equal_lows"],
         },
         suggested_expiry_seconds=expiry_seconds,
+        trend_summary=trend_summary,
+        mtf=report.mtf,
+        evidence_score=round(max(score_up, score_down), 1),
+        momentum_strength=momentum_strength,
+        data_confidence=data_confidence,
+        confirmed_strategies=[signal.as_dict() for signal in confirmed[:6]],
+        opposing_strategies=[signal.as_dict() for signal in opposed[:4]],
+        invalidation=invalidation,
+        cancellation_reason=cancellation_reason,
+        session=report.session,
     )
