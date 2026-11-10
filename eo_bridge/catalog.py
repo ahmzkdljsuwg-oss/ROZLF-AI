@@ -12,10 +12,16 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-MARKETS = {"otc", "smarty", "gold", "forex"}
+MARKETS = {"otc", "smarty", "gold", "forex", "ai", "football", "luxury"}
 GOLD_SYMBOLS = {"XAUUSD", "XPTUSD", "XAGUSD", "GOLD"}
 SMARTY_IDS = {240}
 SMARTY_SYMBOLS = {"SMRTY", "SMARTY"}
+INDEX_IDS = {"ai": {285}, "football": {278}, "luxury": {286}}
+INDEX_NAME_HINTS = {
+    "ai": ("AI INDEX", "AIINDEX", "ARTIFICIAL"),
+    "football": ("FOOTBALL", "FOOTBALL INDEX"),
+    "luxury": ("LUXURY", "LUXURY INDEX"),
+}
 
 TIMEFRAME_SECONDS = {
     "1min": 60,
@@ -68,6 +74,12 @@ def classify(raw: dict[str, Any]) -> str:
     symbol = normalise_symbol(str(raw.get("symbol") or raw.get("name") or ""))
     if asset_id in SMARTY_IDS or symbol in SMARTY_SYMBOLS:
         return "smarty"
+    for market, ids in INDEX_IDS.items():
+        if asset_id in ids:
+            return market
+    for market, hints in INDEX_NAME_HINTS.items():
+        if any(hint in symbol for hint in hints):
+            return market
     if raw.get("is_otc"):
         return "otc"
     if symbol in GOLD_SYMBOLS:

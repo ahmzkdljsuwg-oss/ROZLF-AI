@@ -39,7 +39,7 @@ class BridgeApp:
     # ------------------------------------------------------------------ middleware
     @web.middleware
     async def _auth(self, request: web.Request, handler):
-        if request.path in {"/", "/health", "/verify/smarty"}:
+        if request.path in {"/", "/health", "/verify/smarty", "/verify/asset"}:
             return await handler(request)
         supplied = request.headers.get("X-API-Key") or request.query.get("api_key") or ""
         expected = self.settings.api_key or ""
@@ -53,7 +53,8 @@ class BridgeApp:
             {
                 "service": SERVICE,
                 "description": "Read-only ExpertOption market data bridge for ROZLF AI",
-                "endpoints": ["/health", "/assets", "/discover", "/smarty", "/quote", "/candles"],
+                "endpoints": ["/health", "/assets", "/discover", "/smarty", "/quote", "/candles",
+                          "/verify/smarty", "/verify/asset"],
                 "docs": "https://github.com/ahmzkdljsuwg-oss/ROZLF-AI/tree/main/eo_bridge",
             }
         )
@@ -282,6 +283,58 @@ class BridgeApp:
             }
         )
 
+    async def verify_asset(self, request: web.Request) -> web.Response:
+        """Unauthenticated liveness probe for one ExpertOption asset id."""
+        if not self.settings.eo_token:
+            return _error("EO_TOKEN_MISSING", "Bridge has no ExpertOption session token", status=503)
+        try:
+            wanted = int(request.query.get("id") or 0)
+        except ValueError:
+            return _error("BAD_ID", "id must be a number", status=400)
+        try:
+            instruments = await self.client.ensure_assets()
+        except BridgeError as exc:
+            return _error(exc.code, exc.message, status=503)
+        target = next((item for item in instruments if item.id == wanted), None)
+        if target is None:
+            near = [
+                item.as_dict() for item in instruments
+                if "INDEX" in item.symbol or "INDEX" in item.name.upper()
+            ]
+            return _json(
+                {
+                    "error": "ASSET_UNAVAILABLE",
+                    "message": f"Asset id {wanted} is not offered on this ExpertOption account",
+                    "discovered_assets": len(instruments),
+                    "index_candidates": near[:40],
+                },
+                status=404,
+            )
+        tested: dict[str, Any] = {}
+        for tf in (5, 15, 30, 60, 180, 300, 900):
+            try:
+                probe = await self.client.get_candles(target, tf, limit=120)
+            except BridgeError as exc:
+                tested[str(tf)] = {"error": exc.code, "detail": str(exc.message)[:160]}
+                continue
+            tested[str(tf)] = {
+                "candles": len(probe),
+                "last_close": probe[-1].close,
+                "last_candle": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime(probe[-1].time)),
+            }
+        return _json(
+            {
+                "service": SERVICE,
+                "source": "ExpertOption",
+                "asset": target.as_dict(),
+                "raw_asset": self.client.raw_asset(target.id),
+                "timeframes_tested": tested,
+                "connected": bool(self.client.connected),
+                "last_message_age_seconds": self.client.status().get("last_message_age_seconds"),
+                "last_error": self.client.status().get("last_error"),
+            }
+        )
+
     async def smarty(self, request: web.Request) -> web.Response:
         if not self.settings.eo_token:
             return _error("EO_TOKEN_MISSING", "Bridge has no ExpertOption session token", status=503)
@@ -383,6 +436,7 @@ class BridgeApp:
         app.router.add_get("/discover", self.discover)
         app.router.add_get("/smarty", self.smarty)
         app.router.add_get("/verify/smarty", self.verify_smarty)
+        app.router.add_get("/verify/asset", self.verify_asset)
         app.router.add_get("/quote", self.quote)
         app.router.add_get("/candles", self.candles)
 
