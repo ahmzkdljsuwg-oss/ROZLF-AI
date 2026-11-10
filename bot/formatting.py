@@ -268,18 +268,68 @@ def smarty_card_text(asset: Asset, source_state: str, detail: str | None = None)
     return "\n".join(lines)
 
 
+def smarty_assets_text(assets: list[Asset]) -> str:
+    lines = [
+        "<b>🧠 SMARTY MARKET</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        "أصول SMARTY المكتشفة من حساب ExpertOption:",
+        "",
+    ]
+    for asset in assets:
+        ident = f" · ID {asset.bridge_id}" if asset.bridge_id else ""
+        lines.append(f"• {asset.display}{ident}")
+    lines.append("")
+    lines.append("اختر الأصل بضغطة واحدة، ثم اختر مدة الصفقة.")
+    return "\n".join(lines)
+
+
+def _smc_lines(result: AnalysisResult) -> list[str]:
+    smc = result.smc or {}
+    if not smc:
+        return []
+    lines = ["", "<b>STRUCTURE / SMC</b>"]
+    lines.append(f"MARKET STRUCTURE: {smc.get('trend', '—')}")
+    event = smc.get("last_event") or {}
+    if event:
+        lines.append(f"LAST EVENT: {event.get('event', '—')} ({event.get('direction', '—')})")
+    zone = (smc.get("premium_discount") or {}).get("zone")
+    if zone:
+        lines.append(f"ZONE: {zone}")
+    gaps = smc.get("fair_value_gaps") or []
+    if gaps:
+        last_gap = gaps[-1]
+        lines.append(f"FVG: {len(gaps)} active · nearest {last_gap['direction']}")
+    blocks = smc.get("order_blocks") or []
+    if blocks:
+        lines.append(f"ORDER BLOCKS: {len(blocks)}")
+    sweeps = smc.get("sweeps") or []
+    if sweeps:
+        last_sweep = sweeps[-1]
+        lines.append(f"LIQUIDITY SWEEPS: {len(sweeps)} · last {last_sweep['direction']}")
+    if smc.get("equal_highs"):
+        lines.append(f"EQUAL HIGHS: {len(smc['equal_highs'])}")
+    if smc.get("equal_lows"):
+        lines.append(f"EQUAL LOWS: {len(smc['equal_lows'])}")
+    return lines
+
+
 def smarty_result_text(result: AnalysisResult, record: SignalRecord | None) -> str:
+    ind = result.indicators or {}
     lines = [
         "<b>ROZLF AI — SMARTY ANALYSIS</b>",
         "━━━━━━━━━━━━━━━━━━",
         f"ASSET: <b>{result.asset_display}</b>",
-        f"MARKET: SMARTY",
+        "MARKET: SMARTY",
         f"DIRECTION: <b>{result.direction}</b>",
-        f"CONFIDENCE: <b>{result.confidence:.0f}%</b>",
+        f"CONFIDENCE: <b>{result.confidence:.0f}%</b> "
+        f"<i>(UP {result.score_up:.0f} · DOWN {result.score_down:.0f})</i>",
         f"ENTRY: {format_price(result.price, result.market)}",
         f"SOURCE: {result.source}",
     ]
-    ind = result.indicators or {}
+    last_candle = ind.get("last_candle_at")
+    if last_candle:
+        lines.append(f"LAST CANDLE: {last_candle.replace('T', ' ')[:19]} UTC")
+    lines.append(f"ANALYSED AT: {local_time(result.generated_at)}")
     if ind:
         lines.append("")
         lines.append("<b>INDICATORS</b>")
@@ -289,16 +339,35 @@ def smarty_result_text(result: AnalysisResult, record: SignalRecord | None) -> s
             lines.append(f"RSI: {rsi:.1f}")
         if isinstance(macd, (int, float)):
             lines.append(f"MACD HIST: {macd:+.6f}")
+        emas = [
+            f"EMA{period} {format_price(ind[key], result.market)}"
+            for period, key in (("9", "ema9"), ("21", "ema21"), ("50", "ema50"), ("200", "ema200"))
+            if ind.get(key)
+        ]
+        if emas:
+            lines.append(" · ".join(emas))
+        k, d = ind.get("stoch_k"), ind.get("stoch_d")
+        if k is not None and d is not None:
+            lines.append(f"STOCHASTIC: K {k:.1f} / D {d:.1f}")
         lines.append(
             f"TREND: {ind.get('trend', '—')} · MOMENTUM: {ind.get('momentum', '—')}"
             f" · VOLATILITY: {ind.get('volatility', '—')}"
         )
+        buyers, sellers = ind.get("buyers"), ind.get("sellers")
+        if buyers is not None and sellers is not None:
+            lines.append(f"BUYERS: {buyers}% · SELLERS: {sellers}%")
+        atr = ind.get("atr")
+        atr_pct = ind.get("atr_pct")
+        if atr:
+            suffix = f" ({atr_pct:.3f}%)" if isinstance(atr_pct, (int, float)) else ""
+            lines.append(f"ATR: {format_price(atr, result.market)}{suffix}")
         support = ind.get("support") or []
         resistance = ind.get("resistance") or []
         if support:
             lines.append(f"SUPPORT: {format_price(support[0], result.market)}")
         if resistance:
             lines.append(f"RESISTANCE: {format_price(resistance[0], result.market)}")
+    lines.extend(_smc_lines(result))
     if record is not None:
         lines.append("")
         lines.append(f"ENTRY TIME: {local_time(record.created_at)}")

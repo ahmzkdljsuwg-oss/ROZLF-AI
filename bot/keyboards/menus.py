@@ -41,19 +41,34 @@ def market_menu(market: Market, assets: list[Asset] | None = None) -> InlineKeyb
     return builder.as_markup()
 
 
-SMARTY_TRADE_DURATIONS: tuple[int, ...] = (60, 120, 180, 300)
+# ExpertOption-native expirations that the bridge can verify with quotes:
+# 30s, 1m, 2m, 3m and 5m. 5s/15s are not offered by the bridge data feed, so
+# they are deliberately not shown.
+SMARTY_TRADE_DURATIONS: tuple[int, ...] = (30, 60, 120, 180, 300)
 
 
-def smarty_menu(asset: Asset) -> InlineKeyboardMarkup:
+def smarty_assets_menu(assets: list[Asset]) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    for seconds in SMARTY_TRADE_DURATIONS:
+    for asset in assets:
+        builder.button(text=f"🎯 {asset.display}", callback_data=f"sa:{asset.key}")
+    builder.adjust(1)
+    builder.row(
+        _button("🔄 REFRESH", "mkt:SMARTY"),
+        _button("🏠 MAIN", "menu:main"),
+    )
+    return builder.as_markup()
+
+
+def smarty_menu(asset: Asset, durations: tuple[int, ...] | None = None) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for seconds in durations or SMARTY_TRADE_DURATIONS:
         builder.button(
             text=f"⚡ {DURATION_LABELS[seconds]}",
             callback_data=f"sm:{asset.key}:{seconds}",
         )
     builder.adjust(2)
     builder.row(
-        _button("🔄 LIVE CHECK", f"ast:{asset.key}"),
+        _button("🔙 ASSETS", "mkt:SMARTY"),
         _button("🏠 MAIN", "menu:main"),
     )
     return builder.as_markup()

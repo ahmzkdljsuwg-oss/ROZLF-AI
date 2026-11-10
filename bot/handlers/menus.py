@@ -182,10 +182,32 @@ async def _show_smarty(callback: CallbackQuery) -> None:
             menus.unavailable_menu(Market.SMARTY),
         )
         return
-    asset = assets[0]
+    if len(assets) == 1:
+        await _show_smarty_asset(callback, assets[0])
+        return
+    text = fmt.smarty_assets_text(assets)
+    await _edit(callback, text, menus.smarty_assets_menu(assets))
+
+
+async def _show_smarty_asset(callback: CallbackQuery, asset: Asset) -> None:
+    ctx = get_context()
     source = ctx.registry.source_summary(asset)
     detail = f"ID {asset.bridge_id}" if asset.bridge_id else None
     await _edit(callback, fmt.smarty_card_text(asset, source, detail), menus.smarty_menu(asset))
+
+
+@router.callback_query(F.data.startswith("sa:"))
+async def cb_smarty_asset(callback: CallbackQuery) -> None:
+    ctx = get_context()
+    key = callback.data.split(":", 1)[1]
+    asset = get_asset(key)
+    if asset is None and ctx.inventory is not None:
+        asset = await ctx.inventory.resolve(key)
+    if asset is None or asset.market is not Market.SMARTY:
+        await callback.answer("ASSET غير معروف", show_alert=True)
+        return
+    await callback.answer()
+    await _show_smarty_asset(callback, asset)
 
 
 @router.callback_query(F.data.startswith("ast:"))
@@ -200,7 +222,7 @@ async def cb_asset(callback: CallbackQuery) -> None:
         await _edit(callback, "ASSET غير معروف.", menus.back_to_main())
         return
     if asset.market is Market.SMARTY:
-        await _show_smarty(callback)
+        await _show_smarty_asset(callback, asset)
         return
     text = (
         f"<b>{asset.display}</b>\n"

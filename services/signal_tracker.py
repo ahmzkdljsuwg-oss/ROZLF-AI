@@ -67,7 +67,10 @@ class SignalTracker:
             return None
 
         # A quote older than the expiry cannot prove the closing price.
-        max_age = max(60.0, signal.expiry_seconds * 0.5)
+        if signal.expiry_seconds <= 60:
+            max_age = max(15.0, signal.expiry_seconds * 0.75)
+        else:
+            max_age = max(60.0, signal.expiry_seconds * 0.5)
         if quote.age_seconds(now) > max_age:
             if now - signal.expires_at >= timedelta(seconds=self.grace_seconds):
                 return STATUS_UNVERIFIED, None, quote.source

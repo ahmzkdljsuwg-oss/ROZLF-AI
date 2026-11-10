@@ -196,7 +196,19 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
     chosen = up if direction == "UP" else down
     reasons = [reason for reason, _ in sorted(chosen, key=lambda item: -item[1])][:6]
 
-    expiry_seconds = max(30, market_data.timeframe.seconds)
+    if market_data.asset.market.value == "smarty":
+        # Expiry follows measured volatility, not the candle frame: quiet
+        # conditions need room to move, choppy ones need a shorter window.
+        expiry_seconds = {"LOW": 300, "NORMAL": 180, "HIGH": 60}.get(ind["volatility"], 180)
+    else:
+        expiry_seconds = max(30, market_data.timeframe.seconds)
+
+    total_score = score_up + score_down
+    if total_score > 0:
+        buyers = round(100 * score_up / total_score)
+        sellers = 100 - buyers
+    else:
+        buyers = sellers = 50
 
     return AnalysisResult(
         asset_key=market_data.asset.key,
@@ -226,6 +238,12 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
             "patterns": ind["patterns"],
             "support": ind["support"],
             "resistance": ind["resistance"],
+            "ema200": ind["ema200"],
+            "stoch_k": ind.get("stoch_k"),
+            "stoch_d": ind.get("stoch_d"),
+            "buyers": buyers,
+            "sellers": sellers,
+            "last_candle_at": market_data.candles[-1].time.isoformat(),
         },
         smc={
             "trend": smc["trend"],

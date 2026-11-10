@@ -111,3 +111,55 @@ async def test_asset_callback_needs_context(monkeypatch):
     text, keyboard = callback.message.edits[0]
     assert "EUR/USD" in text and "NONE" in text
     assert keyboard is not None
+
+
+def _smarty_assets():
+    from providers.catalog import Market, dynamic_asset
+
+    return [
+        dynamic_asset("SMRTY", Market.SMARTY, precision=2, bridge_id=240, name="SMRTY"),
+        dynamic_asset("SMRTY2", Market.SMARTY, precision=2, bridge_id=241, name="SMRTY 2"),
+    ]
+
+
+async def test_smarty_market_lists_assets_and_single_tap_selects(monkeypatch):
+    assets = _smarty_assets()
+    _fake_context(monkeypatch, inventory=FakeInventory(assets=assets))
+
+    callback = FakeCallback("mkt:SMARTY")
+    await handlers.cb_market(callback)
+    text, keyboard = callback.message.edits[0]
+    assert "SMARTY" in text
+    data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
+    assert any(item.startswith("sa:") for item in data)
+
+    chosen = assets[1]
+    callback = FakeCallback(f"sa:{chosen.key}")
+    await handlers.cb_smarty_asset(callback)
+    text, keyboard = callback.message.edits[0]
+    assert chosen.key.replace("SMARTY_", "") in text.replace(" ", "") or "SMRTY" in text
+    data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
+    assert f"sm:{chosen.key}:60" in data
+
+
+async def test_smarty_single_asset_opens_durations_immediately(monkeypatch):
+    asset = _smarty_assets()[0]
+    _fake_context(monkeypatch, inventory=FakeInventory(assets=[asset]))
+    callback = FakeCallback("mkt:SMARTY")
+    await handlers.cb_market(callback)
+    _, keyboard = callback.message.edits[0]
+    data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
+    assert f"sm:{asset.key}:60" in data
+    assert all(not item.startswith("sa:") for item in data)
+
+
+async def test_smarty_asset_callback_shows_durations_once(monkeypatch):
+    asset = _smarty_assets()[0]
+    _fake_context(monkeypatch, inventory=FakeInventory(assets=[asset]))
+    callback = FakeCallback(f"ast:{asset.key}")
+    await handlers.cb_asset(callback)
+    text, keyboard = callback.message.edits[0]
+    assert "SMARTY" in text.upper()
+    data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
+    assert f"sm:{asset.key}:30" in data
+    assert "SMARTY_241" not in text

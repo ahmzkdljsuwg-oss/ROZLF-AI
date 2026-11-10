@@ -88,3 +88,14 @@ def test_market_labels():
     assert fmt.market_label("forex") == "FOREX"
     assert fmt.market_label("otc") == "OTC"
     assert fmt.market_label("smarty") == "SMARTY"
+
+
+def test_smarty_durations_are_expertoption_native_only():
+    from providers.catalog import dynamic_asset
+
+    asset = dynamic_asset("SMRTY", Market.SMARTY, precision=2, bridge_id=240, name="SMRTY")
+    markup = menus.smarty_menu(asset)
+    data = [button.callback_data for row in markup.inline_keyboard for button in row]
+    assert f"sm:{asset.key}:30" in data
+    assert f"sm:{asset.key}:300" in data
+    assert all(":5" not in item and ":15" not in item for item in data)
