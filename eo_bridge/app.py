@@ -230,6 +230,7 @@ class BridgeApp:
                     "raw_asset": self.client.raw_asset(instrument.id),
                     "timeframes_tested": tested,
                     "timeframes_payload": self.client.status().get("timeframes_payload"),
+                    "candle_debug": self.client.status().get("candle_debug"),
                 },
                 status=503,
             )

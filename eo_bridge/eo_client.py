@@ -82,6 +82,7 @@ class ExpertOptionClient:
         self._seen_actions: dict[str, int] = {}
         self._raw_by_id: dict[int, dict[str, Any]] = {}
         self._timeframes_payload: Any = None
+        self._candle_debug: list[Any] = []
         self._msg_shapes: list[Any] = []
         self._last_message_at = 0.0
         self._last_error: str | None = None
@@ -108,6 +109,7 @@ class ExpertOptionClient:
             "seen_actions": dict(self._seen_actions),
             "msg_shapes": list(self._msg_shapes),
             "timeframes_payload": self._timeframes_payload,
+            "candle_debug": list(self._candle_debug),
             "last_message_age_seconds": (
                 round(time.time() - self._last_message_at, 1) if self._last_message_at else None
             ),
@@ -337,7 +339,12 @@ class ExpertOptionClient:
                 self._dispatch(dict(sub))
             return
         if action in {"candles", "assetHistoryCandles"}:
-            self._ingest_candles(data.get("message") or {})
+            message = data.get("message") or {}
+            if str(message.get("assetId") or message.get("assetid") or message.get("asset")) == "240" \
+                    and len(self._candle_debug) < 3:
+                self._candle_debug.append({"action": action, "keys": sorted(message),
+                                           "sample": json.dumps(message)[:500]})
+            self._ingest_candles(message)
         if action == "assets":
             raw_assets = (data.get("message") or {}).get("assets") or []
             if raw_assets:
