@@ -13,6 +13,7 @@ class Market(str, Enum):
     AI = "ai"
     FOOTBALL = "football"
     LUXURY = "luxury"
+    CRICKET = "cricket"
 
     @property
     def label(self) -> str:
@@ -24,11 +25,12 @@ class Market(str, Enum):
             Market.AI: "AI INDEX",
             Market.FOOTBALL: "FOOTBALL INDEX",
             Market.LUXURY: "LUXURY INDEX",
+            Market.CRICKET: "CRICKET INDEX",
         }[self]
 
     @property
     def is_expertoption(self) -> bool:
-        return self in (Market.OTC, Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY)
+        return self in (Market.OTC, Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY, Market.CRICKET)
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,7 +208,8 @@ def register_dynamic(assets: list[Asset]) -> None:
         _DYNAMIC[asset.key] = asset
 
 MARKET_ORDER: tuple[Market, ...] = (
-    Market.FOREX, Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY, Market.OTC, Market.GOLD
+    Market.FOREX, Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY,
+    Market.CRICKET, Market.OTC, Market.GOLD,
 )
 
 

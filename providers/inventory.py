@@ -45,7 +45,7 @@ class MarketInventory:
 
     @property
     def dynamic_markets(self) -> tuple[Market, ...]:
-        return (Market.OTC, Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY)
+        return (Market.OTC, Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY, Market.CRICKET)
 
     def cached(self, market: Market) -> Discovery | None:
         entry = self._cache.get(market)
@@ -72,8 +72,11 @@ class MarketInventory:
                 auth_codes = {"TOKEN_INVALID", "AUTH_FAILED", "SESSION_INVALID", "EO_TOKEN_MISSING"}
                 if market is not Market.SMARTY or exc.code in auth_codes:
                     raise
-                rows = await self._smarty_rows()
-            assets = self._to_assets(rows, market)
+                try:
+                    rows = await self._smarty_rows()
+                except Exception:  # noqa: BLE001 - report the original failure, not the fallback
+                    raise exc from None
+            assets = self._to_assets(rows, market, active_only=market is Market.CRICKET)
         except DataUnavailable as exc:
             discovery = Discovery(
                 market=market, ok=False, assets=[], error=exc.message, code=exc.code, at=utc_now()
@@ -87,8 +90,17 @@ class MarketInventory:
         else:
             discovery = Discovery(market=market, ok=bool(assets), assets=assets, at=utc_now())
             if not assets:
-                discovery.code = "EMPTY"
-                discovery.error = f"ExpertOption account exposes no {market.label} instruments"
+                if market is Market.CRICKET and rows:
+                    markets = ", ".join(
+                        f"id {row.get('id')} ({row.get('name') or row.get('symbol')}) "
+                        f"active={row.get('is_active', True)}"
+                        for row in rows[:5]
+                    )
+                    discovery.code = "CRICKET_UNAVAILABLE"
+                    discovery.error = f"CRICKET UNAVAILABLE — no active Cricket instrument: {markets}"
+                else:
+                    discovery.code = "EMPTY"
+                    discovery.error = f"ExpertOption account exposes no {market.label} instruments"
             register_dynamic(assets)
         self._cache[market] = (now + self._ttl, discovery)
         return discovery
@@ -129,10 +141,12 @@ class MarketInventory:
         return None
 
     @staticmethod
-    def _to_assets(rows: list[dict], market: Market) -> list[Asset]:
+    def _to_assets(rows: list[dict], market: Market, active_only: bool = False) -> list[Asset]:
         assets: list[Asset] = []
         seen: set[str] = set()
         for row in rows:
+            if active_only and not bool(row.get("is_active", True)):
+                continue
             symbol = str(row.get("symbol") or "").strip().upper()
             if not symbol or symbol in seen:
                 continue

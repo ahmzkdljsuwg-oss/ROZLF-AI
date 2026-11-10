@@ -124,7 +124,7 @@ async def test_smarty_menu_unavailable_without_bridge(monkeypatch):
     callback = FakeCallback("mkt:SMARTY")
     await handlers.cb_market(callback)
     text = callback.message.edits[-1][0]
-    assert "SMARTY_UNAVAILABLE" in text
+    assert "SMARTY UNAVAILABLE" in text or "SMARTY_UNAVAILABLE" in text
     assert "EUR/USD" not in text
 
 

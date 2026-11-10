@@ -33,17 +33,18 @@ def _record(direction="UP", status="ACTIVE") -> SignalRecord:
 def test_main_menu_has_real_callbacks():
     markup = menus.main_menu()
     data = [button.callback_data for row in markup.inline_keyboard for button in row]
-    assert data == ["auto", "markets", "trend", "hist", "settings"]
+    assert data == ["analyze", "markets", "hist", "settings"]
     market_data = [b.callback_data for row in menus.markets_menu().inline_keyboard for b in row]
     assert market_data == [
-        "mkt:FOREX",
-        "mkt:SMARTY",
-        "mkt:AI",
         "mkt:FOOTBALL",
+        "mkt:SMARTY",
         "mkt:LUXURY",
+        "mkt:AI",
+        "mkt:CRICKET",
+        "mkt:FOREX",
+        "mkt:OTC",
         "menu:main",
     ]
-    assert "mkt:OTC" not in market_data and "mkt:GOLD" not in market_data
     for item in data:
         assert item
 
@@ -51,7 +52,7 @@ def test_main_menu_has_real_callbacks():
 def test_market_menu_lists_all_assets():
     markup = menus.market_menu(Market.FOREX)
     data = [button.callback_data for row in markup.inline_keyboard for button in row]
-    assert any(item.startswith("ast:") for item in data)
+    assert any(item.startswith("pick:") for item in data)
     assert "menu:main" in data
 
 
@@ -89,7 +90,9 @@ def test_analysis_text_says_data_unavailable_when_needed():
 def test_welcome_text_shows_sections(settings):
     text = fmt.welcome_text(settings)
     assert "ROZLF AI" in text
-    assert "الأسواق" in text and "الترند والاستراتيجيات" in text
+    for item in ("ANALYZE", "SELECT MARKET", "SIGNAL HISTORY", "SETTINGS"):
+        assert item in text
+    assert "TREND" not in text
 
 
 def test_market_labels():

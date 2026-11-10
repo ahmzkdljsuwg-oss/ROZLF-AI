@@ -1,6 +1,7 @@
 """Telegram commands and inline-keyboard handlers (update in place, no spam)."""
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from aiogram import F, Router
@@ -11,7 +12,8 @@ from aiogram.types import CallbackQuery, Message
 from bot import formatting as fmt
 from bot.context import get_context
 from bot.keyboards import menus
-from engines.signals.generator import DURATION_LABELS
+from engines.signals.duration import auto_frames, choose_auto_duration
+from engines.signals.generator import DURATION_LABELS, supported_durations
 from providers.base import DataUnavailable
 from providers.catalog import SMARTY_ASSET, TIMEFRAMES, Asset, Market, assets_for, get_asset, timeframe
 
@@ -19,6 +21,12 @@ logger = logging.getLogger(__name__)
 router = Router(name="menus")
 
 MARKETS = {market.value: market for market in Market}
+INDEX_MARKETS = menus.INDEX_MARKETS
+_ANALYSIS_LOCKS: dict[int, asyncio.Lock] = {}
+
+
+def _analysis_lock(user_id: int) -> asyncio.Lock:
+    return _ANALYSIS_LOCKS.setdefault(user_id, asyncio.Lock())
 
 
 async def _edit(callback: CallbackQuery, text: str, keyboard=None) -> None:
@@ -49,8 +57,11 @@ async def cmd_start(message: Message) -> None:
 @router.message(Command("markets"))
 async def cmd_markets(message: Message) -> None:
     await message.answer(
-        "<b>🧠 الأسواق</b>\n━━━━━━━━━━━━━━━━━━\n"
-        "خمسة أسواق: FOREX · SMARTY · AI INDEX · FOOTBALL INDEX · LUXURY INDEX\n"
+        "<b>🌐 SELECT MARKET</b>\n━━━━━━━━━━━━━━━━━━\n"
+        "<b>INDEX MARKETS</b>\n"
+        "⚽ FOOTBALL INDEX · 🧠 SMARTY · 💎 LUXURY INDEX · 🤖 AI INDEX · 🏏 CRICKET INDEX\n\n"
+        "<b>OTHER MARKETS</b>\n"
+        "💱 FOREX · 🎯 OTC\n\n"
         "اختر السوق لعرض الأصول المتاحة فعلياً من مصدر البيانات:",
         reply_markup=menus.markets_menu(),
         disable_web_page_preview=True,
@@ -126,56 +137,27 @@ async def cb_main(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("mkt:"))
 async def cb_market(callback: CallbackQuery) -> None:
     market = MARKETS.get(callback.data.split(":", 1)[1].lower())
-    await callback.answer()
     if market is None:
-        await _edit(callback, "MARKET غير معروف.", menus.back_to_main())
+        await callback.answer("MARKET غير معروف", show_alert=True)
         return
+    await callback.answer(f"⏳ فحص {market.label}...")
+    await _show_market(callback, market)
+
+
+async def _show_market(callback: CallbackQuery, market: Market) -> None:
     ctx = get_context()
-    if market is Market.SMARTY:
-        await callback.answer("⏳ فحص SMARTY...")
-        await _show_smarty(callback)
-        return
-    if market in INDEX_MARKETS:
-        await callback.answer(f"⏳ فحص {market.label}...")
-        await _show_index_market(callback, market)
-        return
-    if market.is_expertoption:
-        await callback.answer("⏳ قراءة أصول حساب ExpertOption...")
-        inventory = ctx.inventory
-        if inventory is None:
+    if market in (Market.FOREX, Market.GOLD):
+        assets = assets_for(market)
+        if not assets:
             await _edit(
                 callback,
-                fmt.unavailable_text(f"{market.label} MARKET", "MARKET_UNAVAILABLE",
-                                     "Market inventory is not initialised"),
+                fmt.unavailable_text(market.label, "MARKET_UNAVAILABLE", "no verified provider assets"),
                 menus.unavailable_menu(market),
             )
             return
-        try:
-            assets = await inventory.assets(market, force=True)
-        except DataUnavailable as exc:
-            await _edit(
-                callback,
-                fmt.unavailable_text(f"{market.label} MARKET", exc.message, exc.detail),
-                menus.unavailable_menu(market),
-            )
-            return
-        text = fmt.markets_text(market.value, assets, [tf.label for tf in TIMEFRAMES.values()])
-        text += (
-            "\n\n<i>هذه الأصول مكتشفة مباشرة من حساب ExpertOption الخاص بك. "
-            "اختر الأصل ثم الفريم لبدء التحليل.</i>"
-        )
-        await _edit(callback, text, menus.market_menu(market, assets))
+        await _show_assets(callback, market, assets)
         return
-    assets = assets_for(market)
-    text = fmt.markets_text(market.value, assets, [tf.label for tf in TIMEFRAMES.values()])
-    await _edit(callback, text, menus.market_menu(market, assets))
 
-
-INDEX_MARKETS = (Market.AI, Market.FOOTBALL, Market.LUXURY)
-
-
-async def _show_index_market(callback: CallbackQuery, market: Market) -> None:
-    ctx = get_context()
     inventory = ctx.inventory
     if inventory is None:
         await _edit(
@@ -187,34 +169,213 @@ async def _show_index_market(callback: CallbackQuery, market: Market) -> None:
     try:
         assets = await inventory.assets(market, force=True)
     except DataUnavailable as exc:
+        title = f"{market.label} UNAVAILABLE"
+        code = exc.code or "MARKET_UNAVAILABLE"
         await _edit(
             callback,
-            fmt.unavailable_text(market.label, exc.code or "MARKET_UNAVAILABLE", exc.detail or exc.message),
+            fmt.unavailable_text(title, f"{code} — {exc.message}", exc.detail),
             menus.unavailable_menu(market),
         )
         return
     if not assets:
         await _edit(
             callback,
-            fmt.unavailable_text(market.label, "MARKET_UNAVAILABLE", "no instrument returned by ExpertOption"),
+            fmt.unavailable_text(
+                f"{market.label} UNAVAILABLE",
+                f"{market.value.upper()}_UNAVAILABLE — no active instrument returned by ExpertOption",
+            ),
             menus.unavailable_menu(market),
         )
         return
+    await _show_assets(callback, market, assets)
+
+
+async def _show_assets(callback: CallbackQuery, market: Market, assets: list[Asset]) -> None:
     if len(assets) == 1:
-        await _show_index_asset(callback, assets[0])
+        await _show_duration_method(callback, assets[0])
         return
-    await _edit(
-        callback,
-        fmt.smarty_assets_text(assets, market),
-        menus.index_assets_menu(market, assets),
-    )
+    text = fmt.markets_text(market.value, assets, [tf.label for tf in TIMEFRAMES.values()])
+    text += "\n\n<i>اختر الأصل الحقيقي المتاح، ثم اختر طريقة تحديد مدة الصفقة.</i>"
+    await _edit(callback, text, menus.market_menu(market, assets))
 
 
-async def _show_index_asset(callback: CallbackQuery, asset: Asset) -> None:
+async def _show_duration_method(callback: CallbackQuery, asset: Asset) -> None:
     ctx = get_context()
     source = ctx.registry.source_summary(asset)
     detail = f"ID {asset.bridge_id}" if asset.bridge_id else None
-    await _edit(callback, fmt.smarty_card_text(asset, source, detail), menus.index_menu(asset))
+    text = fmt.smarty_card_text(asset, source, detail)
+    text += (
+        "\n\n<b>TRADE DURATION</b>\n"
+        "⚡ AUTO DURATION — يحلل السوق ويختار مدة مدعومة تلقائياً.\n"
+        "✋ MANUAL DURATION — اختر المدة بنفسك من المدد المدعومة."
+    )
+    await _edit(callback, text, menus.duration_method_menu(asset))
+
+
+@router.callback_query(F.data.startswith("pick:"))
+async def cb_pick_asset(callback: CallbackQuery) -> None:
+    asset, _ = await _resolve_asset(callback)
+    if asset is None:
+        return
+    await callback.answer()
+    await _show_duration_method(callback, asset)
+
+
+async def _resolve_asset(callback: CallbackQuery) -> tuple[Asset | None, str]:
+    ctx = get_context()
+    parts = callback.data.split(":")
+    if parts[0] == "dur":
+        key = parts[2] if len(parts) > 2 else ""
+    else:
+        key = parts[1] if len(parts) > 1 else ""
+    asset = get_asset(key)
+    if asset is None and ctx.inventory is not None:
+        asset = await ctx.inventory.resolve(key)
+    if asset is None:
+        await callback.answer("ASSET غير معروف", show_alert=True)
+        return None, key
+    return asset, key
+
+
+async def _show_index_asset(callback: CallbackQuery, asset: Asset) -> None:
+    await _show_duration_method(callback, asset)
+
+
+def analysis_frame_for_duration(asset: Asset, duration_seconds: int) -> str:
+    if asset.market.is_expertoption:
+        return smarty_timeframe(duration_seconds)
+    if duration_seconds <= 60:
+        return "1min"
+    if duration_seconds <= 300:
+        return "5min"
+    if duration_seconds <= 900:
+        return "15min"
+    return "1h"
+
+
+def _manual_durations(asset: Asset) -> list[int]:
+    base = "1min" if asset.market.is_expertoption else "5min"
+    return supported_durations(asset, timeframe(base))
+
+
+@router.callback_query(F.data.startswith("dur:"))
+async def cb_duration_mode(callback: CallbackQuery) -> None:
+    asset, _ = await _resolve_asset(callback)
+    if asset is None:
+        return
+    mode = callback.data.split(":", 2)[1]
+    if mode == "auto":
+        await callback.answer("⏳ AUTO DURATION...")
+        await _run_auto_duration(callback, asset)
+        return
+    if mode == "manual":
+        durations = _manual_durations(asset)
+        if not durations:
+            await callback.answer("هذا السوق لا يدعم اختيار مدة صفقة", show_alert=True)
+            return
+        await callback.answer()
+        await _edit(
+            callback,
+            f"<b>{asset.display}</b>\n"
+            f"MARKET: {asset.market.label}\n\n"
+            "<b>MANUAL DURATION</b>\n"
+            "اختر مدة الصفقة المدعومة فعلياً لهذا الأصل:",
+            menus.manual_duration_menu(asset, durations),
+        )
+        return
+    await callback.answer("طلب غير صالح", show_alert=True)
+
+
+async def _run_auto_duration(callback: CallbackQuery, asset: Asset) -> None:
+    lock = _analysis_lock(callback.from_user.id)
+    if lock.locked():
+        await callback.answer("التحليل قيد التنفيذ بالفعل", show_alert=True)
+        return
+    async with lock:
+        ctx = get_context()
+        await _edit(callback, f"⏳ AUTO DURATION — تحليل {asset.display}...", None)
+        best = None
+        best_frame = None
+        errors: list[str] = []
+        for frame_code in auto_frames(asset):
+            try:
+                _, result = await ctx.generator.fetch_and_analyse(asset, frame_code)
+            except DataUnavailable as exc:
+                errors.append(f"{frame_code}: {exc.message}")
+                continue
+            if best is None or result.confidence > best.confidence:
+                best, best_frame = result, frame_code
+        if best is None or best_frame is None:
+            await _edit(
+                callback,
+                fmt.unavailable_text(
+                    f"ROZLF AI — {asset.display}",
+                    "DATA UNAVAILABLE",
+                    "; ".join(errors[:3]) or "no timeframe returned valid candles",
+                ),
+                menus.duration_method_menu(asset),
+            )
+            return
+        duration, reason = choose_auto_duration(best, asset)
+        record = None
+        user_settings = await ctx.repo.get_user_settings(
+            callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence}
+        )
+        if duration is not None and best.direction in ("UP", "DOWN") and best.confidence >= user_settings["min_confidence"]:
+            try:
+                record = await ctx.generator.create_signal(callback.from_user.id, best, duration)
+            except ValueError as exc:
+                logger.info("AUTO duration rejected by generator: %s", exc)
+                duration = None
+        text = fmt.unified_result_text(best, duration, best_frame, record)
+        text += f"\n\n<b>AUTO DURATION:</b> {reason}"
+        await _edit(callback, text, menus.analysis_actions(asset, best_frame))
+
+
+@router.callback_query(F.data.startswith("md:"))
+async def cb_manual_duration(callback: CallbackQuery) -> None:
+    asset, _ = await _resolve_asset(callback)
+    if asset is None:
+        return
+    try:
+        duration = int(callback.data.split(":", 2)[2])
+    except (IndexError, ValueError):
+        await callback.answer("مدة غير صالحة", show_alert=True)
+        return
+    if duration not in _manual_durations(asset):
+        await callback.answer("هذه المدة غير مدعومة لهذا الأصل", show_alert=True)
+        return
+    lock = _analysis_lock(callback.from_user.id)
+    if lock.locked():
+        await callback.answer("التحليل قيد التنفيذ بالفعل", show_alert=True)
+        return
+    await callback.answer("⏳ جاري التحليل...")
+    async with lock:
+        ctx = get_context()
+        frame_code = analysis_frame_for_duration(asset, duration)
+        await _edit(callback, f"⏳ تحليل {asset.display} — {DURATION_LABELS.get(duration, duration)}...", None)
+        user_settings = await ctx.repo.get_user_settings(
+            callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence}
+        )
+        try:
+            result, record = await ctx.generator.generate(
+                callback.from_user.id,
+                asset,
+                frame_code,
+                duration_seconds=duration,
+                min_confidence=user_settings["min_confidence"],
+            )
+        except DataUnavailable as exc:
+            await _edit(
+                callback,
+                fmt.unavailable_text(f"ROZLF AI — {asset.display}", exc.code or "UNAVAILABLE", exc.detail or exc.message),
+                menus.duration_method_menu(asset),
+            )
+            return
+        text = fmt.unified_result_text(result, duration, frame_code, record)
+        if record is None:
+            text += "\n\n<i>NO TRADE — لم يتم تسجيل إشارة لأن الأدلة غير كافية أو الثقة أقل من الحد.</i>"
+        await _edit(callback, text, menus.analysis_actions(asset, frame_code))
 
 
 @router.callback_query(F.data.startswith("ia:"))
@@ -302,10 +463,7 @@ async def _show_smarty(callback: CallbackQuery) -> None:
 
 
 async def _show_smarty_asset(callback: CallbackQuery, asset: Asset) -> None:
-    ctx = get_context()
-    source = ctx.registry.source_summary(asset)
-    detail = f"ID {asset.bridge_id}" if asset.bridge_id else None
-    await _edit(callback, fmt.smarty_card_text(asset, source, detail), menus.smarty_menu(asset))
+    await _show_duration_method(callback, asset)
 
 
 @router.callback_query(F.data.startswith("sa:"))
@@ -532,15 +690,16 @@ async def cb_auto(callback: CallbackQuery) -> None:
     await _edit(callback, _scanner_text(ctx), menus.scanner_menu(scanner.running, scanner.market_selection()))
 
 
+@router.callback_query(F.data == "analyze")
+async def cb_analyze(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await _edit(callback, fmt.markets_selector_text(), menus.markets_menu())
+
+
 @router.callback_query(F.data == "markets")
 async def cb_markets(callback: CallbackQuery) -> None:
     await callback.answer()
-    await _edit(
-        callback,
-        "<b>🧠 الأسواق</b>\n━━━━━━━━━━━━━━━━━━\n"
-        "اختر السوق لعرض الأصول المتاحة فعلياً من مصدر البيانات:",
-        menus.markets_menu(),
-    )
+    await _edit(callback, fmt.markets_selector_text(), menus.markets_menu())
 
 
 async def _show_trend(callback: CallbackQuery) -> None:

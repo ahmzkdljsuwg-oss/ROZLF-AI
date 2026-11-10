@@ -12,15 +12,16 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-MARKETS = {"otc", "smarty", "gold", "forex", "ai", "football", "luxury"}
+MARKETS = {"otc", "smarty", "gold", "forex", "ai", "football", "luxury", "cricket"}
 GOLD_SYMBOLS = {"XAUUSD", "XPTUSD", "XAGUSD", "GOLD"}
 SMARTY_IDS = {240}
 SMARTY_SYMBOLS = {"SMRTY", "SMARTY"}
-INDEX_IDS = {"ai": {285}, "football": {278}, "luxury": {286}}
+INDEX_IDS = {"ai": {285}, "football": {278}, "luxury": {286}, "cricket": {276}}
 INDEX_NAME_HINTS = {
     "ai": ("AI INDEX", "AIINDEX", "ARTIFICIAL"),
     "football": ("FOOTBALL", "FOOTBALL INDEX"),
     "luxury": ("LUXURY", "LUXURY INDEX"),
+    "cricket": ("CRICKET", "CRICKET INDEX"),
 }
 
 TIMEFRAME_SECONDS = {

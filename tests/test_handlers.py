@@ -86,17 +86,26 @@ async def test_unknown_market_rejected(monkeypatch):
     _fake_context(monkeypatch)
     callback = FakeCallback("mkt:CRYPTO")
     await handlers.cb_market(callback)
-    text, _ = callback.message.edits[0]
-    assert "غير معروف" in text
+    assert any("غير معروف" in text for text in callback.answered)
+    assert callback.message.edits == []
 
 
 async def test_markets_hub_callback():
     callback = FakeCallback("markets")
     await handlers.cb_markets(callback)
     text, keyboard = callback.message.edits[0]
-    assert "الأسواق" in text
+    assert "SELECT MARKET" in text
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert data == ["mkt:FOREX", "mkt:SMARTY", "mkt:AI", "mkt:FOOTBALL", "mkt:LUXURY", "menu:main"]
+    assert data == [
+        "mkt:FOOTBALL",
+        "mkt:SMARTY",
+        "mkt:LUXURY",
+        "mkt:AI",
+        "mkt:CRICKET",
+        "mkt:FOREX",
+        "mkt:OTC",
+        "menu:main",
+    ]
 
 
 async def test_football_market_opens_asset_278_durations(monkeypatch):
@@ -111,8 +120,8 @@ async def test_football_market_opens_asset_278_durations(monkeypatch):
     text, keyboard = callback.message.edits[0]
     assert "FOOTBALL INDEX" in text and "278" in text
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert f"ix:{asset.key}:30" in data
-    assert f"ix:{asset.key}:60" in data
+    assert f"dur:auto:{asset.key}" in data
+    assert f"dur:manual:{asset.key}" in data
 
 
 async def test_football_duration_reaches_asset_278_analysis(monkeypatch):
@@ -188,15 +197,15 @@ async def test_smarty_market_lists_assets_and_single_tap_selects(monkeypatch):
     text, keyboard = callback.message.edits[0]
     assert "SMARTY" in text
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert any(item.startswith("sa:") for item in data)
+    assert any(item.startswith("pick:") for item in data)
 
     chosen = assets[1]
-    callback = FakeCallback(f"sa:{chosen.key}")
-    await handlers.cb_smarty_asset(callback)
+    callback = FakeCallback(f"pick:{chosen.key}")
+    await handlers.cb_pick_asset(callback)
     text, keyboard = callback.message.edits[0]
     assert chosen.key.replace("SMARTY_", "") in text.replace(" ", "") or "SMRTY" in text
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert f"sm:{chosen.key}:60" in data
+    assert f"dur:manual:{chosen.key}" in data
 
 
 async def test_smarty_single_asset_opens_durations_immediately(monkeypatch):
@@ -206,7 +215,8 @@ async def test_smarty_single_asset_opens_durations_immediately(monkeypatch):
     await handlers.cb_market(callback)
     _, keyboard = callback.message.edits[0]
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert f"sm:{asset.key}:60" in data
+    assert f"dur:manual:{asset.key}" in data
+    assert f"dur:auto:{asset.key}" in data
     assert all(not item.startswith("sa:") for item in data)
 
 
@@ -218,5 +228,5 @@ async def test_smarty_asset_callback_shows_durations_once(monkeypatch):
     text, keyboard = callback.message.edits[0]
     assert "SMARTY" in text.upper()
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert f"sm:{asset.key}:30" in data
+    assert f"dur:manual:{asset.key}" in data
     assert "SMARTY_241" not in text

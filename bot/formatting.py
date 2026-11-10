@@ -42,6 +42,7 @@ def market_label(market: str) -> str:
         Market.AI.value: "AI INDEX",
         Market.FOOTBALL.value: "FOOTBALL INDEX",
         Market.LUXURY.value: "LUXURY INDEX",
+        Market.CRICKET.value: "CRICKET INDEX",
     }
     return labels.get(market, market)
 
@@ -55,11 +56,10 @@ def welcome_text(settings: Settings) -> str:
         "مرحباً بك في نظام <b>ROZLF AI</b>.\n"
         "تحليل فني + Smart Money Concepts + إشارات موثّقة.\n\n"
         "<b>الأقسام الرئيسية:</b>\n"
-        "📊 تحليل تلقائي\n"
-        "🧠 الأسواق\n"
-        "📈 الترند والاستراتيجيات\n"
-        "📜 سجل الإشارات\n"
-        "⚙️ الإعدادات\n\n"
+        "📊 ANALYZE — تحليل مباشر\n"
+        "🌐 SELECT MARKET — الأسواق السبعة\n"
+        "📜 SIGNAL HISTORY — سجل الإشارات\n"
+        "⚙️ SETTINGS — الإعدادات\n\n"
         f"AI STATUS: <b>{ai_status}</b>\n"
         f"MIN CONFIDENCE: <b>{settings.min_confidence:.0f}%</b>\n\n"
         f"<i>{DISCLAIMER}</i>"
@@ -441,6 +441,71 @@ def smarty_result_text(result: AnalysisResult, record: SignalRecord | None) -> s
     lines.append("")
     lines.append(f"STATUS: <b>{'ACTIVE' if record is not None else 'NO TRADE'}</b>")
     lines.append(f"<i>{DISCLAIMER}</i>")
+    return "\n".join(lines)
+
+
+def markets_selector_text() -> str:
+    return (
+        "<b>🌐 SELECT MARKET</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "<b>INDEX MARKETS</b>\n"
+        "⚽ FOOTBALL INDEX · 🧠 SMARTY · 💎 LUXURY INDEX\n"
+        "🤖 AI INDEX · 🏏 CRICKET INDEX\n\n"
+        "<b>OTHER MARKETS</b>\n"
+        "💱 FOREX · 🎯 OTC\n\n"
+        "اختر السوق لعرض الأصول المتاحة فعلياً من مصدر البيانات، "
+        "ثم اختر الأصل وطريقة تحديد مدة الصفقة."
+    )
+
+
+def unified_result_text(
+    result: AnalysisResult,
+    duration_seconds: int | None,
+    analysis_frame: str,
+    record: SignalRecord | None = None,
+) -> str:
+    signal = {"UP": "BUY 🟢", "DOWN": "SELL 🔴"}.get(result.direction, "NO TRADE ⚪")
+    strategies = [item.get("name", "") for item in result.confirmed_strategies if item.get("name")]
+    strategy_line = " + ".join(strategies[:3]) if strategies else "PRICE ACTION ONLY"
+    reasons = result.reasons[:4] or ["No strategy produced a valid entry condition."]
+    invalidations = result.invalidation[:2]
+    if not invalidations:
+        invalidations = [result.cancellation_reason or "Invalid if price closes against the setup."]
+    quality = int(result.data_confidence.get("score") or 0)
+    data_status = "LIVE" if quality >= 65 else "LIMITED"
+    frame_label = TIMEFRAMES.get(analysis_frame, None)
+    frame_text = frame_label.label if frame_label else result.timeframe
+    lines = [
+        "<b>ROZLF AI SIGNAL</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        "",
+        f"MARKET: <b>{market_label(result.market)}</b>",
+        f"ASSET: <b>{result.asset_display}</b>",
+        f"TRADE DURATION: <b>{duration_label(duration_seconds) if duration_seconds else 'N/A'}</b>",
+        f"ANALYSIS TIMEFRAME: <b>{frame_text}</b>",
+        "",
+        f"ANALYSIS STRENGTH: <b>{result.confidence:.0f}%</b>",
+        "",
+        f"SIGNAL: <b>{signal}</b>",
+        "",
+        f"TREND: {result.trend_summary}",
+        f"MOMENTUM: {result.momentum_strength}",
+        "",
+        f"STRATEGIES:\n{strategy_line}",
+        "",
+        f"DATA STATUS: <b>{data_status}</b>",
+        "",
+        "<b>REASONS:</b>",
+    ]
+    lines.extend(f"• {reason}" for reason in reasons)
+    lines.extend(["", "<b>INVALIDATION:</b>"])
+    lines.extend(f"• {item}" for item in invalidations)
+    lines.append("")
+    if record is not None:
+        lines.append(f"SIGNAL ID: #{record.id}")
+    lines.append("DATA: REAL MARKET FEED — analysis only, no orders executed.")
+    lines.append("━━━━━━━━━━━━━━━━━━")
+    lines.append("<b>ROZLF AI</b>")
     return "\n".join(lines)
 
 

@@ -18,25 +18,28 @@ def back_to_main() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-INDEX_MARKETS: tuple[Market, ...] = (Market.AI, Market.FOOTBALL, Market.LUXURY)
+INDEX_MARKETS: tuple[Market, ...] = (
+    Market.FOOTBALL, Market.SMARTY, Market.LUXURY, Market.AI, Market.CRICKET,
+)
 
 
 def main_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(_button("📊 تحليل تلقائي", "auto"))
-    builder.row(_button("🧠 الأسواق", "markets"))
-    builder.row(_button("📈 الترند والاستراتيجيات", "trend"))
-    builder.row(_button("📜 سجل الإشارات", "hist"))
-    builder.row(_button("⚙️ الإعدادات", "settings"))
+    builder.row(_button("📊 ANALYZE", "analyze"))
+    builder.row(_button("🌐 SELECT MARKET", "markets"))
+    builder.row(_button("📜 SIGNAL HISTORY", "hist"))
+    builder.row(_button("⚙️ SETTINGS", "settings"))
     return builder.as_markup()
 
 
 MARKET_BUTTONS: tuple[tuple[str, str], ...] = (
-    ("💱 FOREX", "mkt:FOREX"),
-    ("🧠 SMARTY", "mkt:SMARTY"),
-    ("🤖 AI INDEX", "mkt:AI"),
     ("⚽ FOOTBALL INDEX", "mkt:FOOTBALL"),
+    ("🧠 SMARTY", "mkt:SMARTY"),
     ("💎 LUXURY INDEX", "mkt:LUXURY"),
+    ("🤖 AI INDEX", "mkt:AI"),
+    ("🏏 CRICKET INDEX", "mkt:CRICKET"),
+    ("💱 FOREX", "mkt:FOREX"),
+    ("🎯 OTC", "mkt:OTC"),
 )
 
 
@@ -44,7 +47,7 @@ def markets_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for text, data in MARKET_BUTTONS:
         builder.row(_button(text, data))
-    builder.row(_button("🏠 الرئيسية", "menu:main"))
+    builder.row(_button("🏠 MAIN MENU", "menu:main"))
     return builder.as_markup()
 
 
@@ -58,10 +61,37 @@ def trend_menu() -> InlineKeyboardMarkup:
 def market_menu(market: Market, assets: list[Asset] | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for asset in assets if assets is not None else assets_for(market):
-        builder.button(text=asset.display, callback_data=f"ast:{asset.key}")
-    builder.adjust(2)
+        builder.button(text=f"🎯 {asset.display}", callback_data=f"pick:{asset.key}")
+    builder.adjust(1)
     builder.row(
         _button("🔄 REFRESH", f"mkt:{market.value}"),
+        _button("🌐 MARKETS", "markets"),
+        _button("🏠 MAIN", "menu:main"),
+    )
+    return builder.as_markup()
+
+
+def duration_method_menu(asset: Asset) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(_button("⚡ AUTO DURATION", f"dur:auto:{asset.key}"))
+    builder.row(_button("✋ MANUAL DURATION", f"dur:manual:{asset.key}"))
+    builder.row(
+        _button("🔙 BACK", f"mkt:{asset.market.value}"),
+        _button("🏠 MAIN", "menu:main"),
+    )
+    return builder.as_markup()
+
+
+def manual_duration_menu(asset: Asset, durations: list[int]) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for seconds in durations:
+        builder.button(
+            text=f"⚡ {DURATION_LABELS.get(seconds, f'{seconds}s')}",
+            callback_data=f"md:{asset.key}:{seconds}",
+        )
+    builder.adjust(3)
+    builder.row(
+        _button("🔙 DURATION MODE", f"pick:{asset.key}"),
         _button("🏠 MAIN", "menu:main"),
     )
     return builder.as_markup()

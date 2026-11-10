@@ -18,7 +18,7 @@ from providers.catalog import Asset, Market, Timeframe
 class ExpertOptionBridgeProvider(BaseProvider):
     id = "eo_bridge"
     name = "ExpertOption Bridge"
-    markets = frozenset({Market.OTC, Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY})
+    markets = frozenset({Market.OTC, Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY, Market.CRICKET})
     can_serve_candles = True
 
     def __init__(self, base_url: str | None, api_key: str | None, client: httpx.AsyncClient | None = None) -> None:
