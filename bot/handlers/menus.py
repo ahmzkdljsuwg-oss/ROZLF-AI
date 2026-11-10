@@ -362,6 +362,16 @@ async def cb_signal(callback: CallbackQuery) -> None:
     )
 
 
+def smarty_timeframe(duration_seconds: int) -> str:
+    if duration_seconds <= 5:
+        return "5sec"
+    if duration_seconds <= 15:
+        return "15sec"
+    if duration_seconds <= 30:
+        return "30sec"
+    return "1min"
+
+
 @router.callback_query(F.data.startswith("sm:"))
 async def cb_smarty_signal(callback: CallbackQuery) -> None:
     ctx = get_context()
@@ -385,7 +395,7 @@ async def cb_smarty_signal(callback: CallbackQuery) -> None:
         result, record = await ctx.generator.generate(
             callback.from_user.id,
             asset,
-            "1min",
+            smarty_timeframe(duration),
             duration_seconds=duration,
             min_confidence=user_settings["min_confidence"],
         )

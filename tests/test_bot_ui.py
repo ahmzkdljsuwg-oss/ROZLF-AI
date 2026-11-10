@@ -96,6 +96,8 @@ def test_smarty_durations_are_expertoption_native_only():
     asset = dynamic_asset("SMRTY", Market.SMARTY, precision=2, bridge_id=240, name="SMRTY")
     markup = menus.smarty_menu(asset)
     data = [button.callback_data for row in markup.inline_keyboard for button in row]
-    assert f"sm:{asset.key}:30" in data
-    assert f"sm:{asset.key}:300" in data
-    assert all(":5" not in item and ":15" not in item for item in data)
+    for seconds in (5, 15, 30, 60, 300):
+        assert f"sm:{asset.key}:{seconds}" in data
+    # 180s returns ERROR_INCORRECT_DATA on ExpertOption; 120s is not offered.
+    assert f"sm:{asset.key}:180" not in data
+    assert f"sm:{asset.key}:120" not in data

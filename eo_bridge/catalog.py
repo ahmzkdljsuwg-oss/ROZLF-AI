@@ -24,6 +24,8 @@ TIMEFRAME_SECONDS = {
     "30min": 1800,
     "1h": 3600,
     # ExpertOption-native expiry frames
+    "5sec": 5,
+    "15sec": 15,
     "30sec": 30,
     "2min": 120,
     "3min": 180,

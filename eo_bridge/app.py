@@ -267,6 +267,11 @@ class BridgeApp:
                 "future_candles": sum(1 for ts in times if ts > now + 5),
                 "invalid_ohlc": len(invalid),
                 "last_close": candles[-1].close,
+                "candles_ohlc": [
+                    {"time": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime(c.time)),
+                     "open": c.open, "high": c.high, "low": c.low, "close": c.close}
+                    for c in candles[-120:]
+                ],
                 "recent": [
                     {"time": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime(c.time)), "close": c.close}
                     for c in candles[-3:]

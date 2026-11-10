@@ -44,7 +44,7 @@ def market_menu(market: Market, assets: list[Asset] | None = None) -> InlineKeyb
 # ExpertOption-native expirations that the bridge can verify with quotes:
 # 30s, 1m, 2m, 3m and 5m. 5s/15s are not offered by the bridge data feed, so
 # they are deliberately not shown.
-SMARTY_TRADE_DURATIONS: tuple[int, ...] = (30, 60, 120, 180, 300)
+SMARTY_TRADE_DURATIONS: tuple[int, ...] = (5, 15, 30, 60, 300)
 
 
 def smarty_assets_menu(assets: list[Asset]) -> InlineKeyboardMarkup:

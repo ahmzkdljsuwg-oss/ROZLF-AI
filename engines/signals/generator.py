@@ -12,6 +12,8 @@ from providers.registry import DataSourceRegistry
 
 DURATIONS = (30, 60, 120, 180, 300, 900, 1800, 3600)
 DURATION_LABELS = {
+    5: "5 SEC",
+    15: "15 SEC",
     30: "30 SEC",
     60: "1 MIN",
     120: "2 MIN",
@@ -26,8 +28,8 @@ DURATION_LABELS = {
 def supported_durations(asset: Asset, tf: Timeframe) -> list[int]:
     """Durations that the analysis resolution can realistically verify."""
     if asset.market is Market.SMARTY:
-        # ExpertOption-native expiry frames served by the bridge.
-        return [30, 60, 120, 180, 300]
+        # Frames confirmed live by the bridge on ExpertOption SMRTY (id 240).
+        return [5, 15, 30, 60, 300]
     if tf.seconds >= 3600:
         supported = [3600]
     elif tf.seconds >= 1800:
