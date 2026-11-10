@@ -13,6 +13,7 @@ import logging
 import random
 import time
 import uuid
+import zlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -244,10 +245,16 @@ class ExpertOptionClient:
         assert self._ws is not None
         async for message in self._ws:
             self._last_message_at = time.time()
-            if message.type is not aiohttp.WSMsgType.TEXT:
+            if message.type is aiohttp.WSMsgType.TEXT:
+                raw = message.data
+            elif message.type is aiohttp.WSMsgType.BINARY:
+                raw = self._decode_binary(message.data)
+                if raw is None:
+                    continue
+            else:
                 continue
             try:
-                data = json.loads(message.data)
+                data = json.loads(raw)
             except (ValueError, TypeError):
                 continue
             if isinstance(data, list):
@@ -262,6 +269,16 @@ class ExpertOptionClient:
                 self._dispatch(data)
         if self._ws is not None and self._ws.exception() is not None:
             raise BridgeError("SOCKET", str(self._ws.exception()))
+
+    @staticmethod
+    def _decode_binary(payload: bytes) -> str | None:
+        # Some ExpertOption gateways answer in binary frames (plain UTF-8 JSON
+        # or zlib-compressed JSON) instead of text frames.
+        with contextlib.suppress(UnicodeDecodeError):
+            return payload.decode("utf-8")
+        with contextlib.suppress(Exception):
+            return zlib.decompress(payload).decode("utf-8")
+        return None
 
     @staticmethod
     def _shape(value: Any, depth: int = 0) -> Any:
