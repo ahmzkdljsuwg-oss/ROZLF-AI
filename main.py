@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
 
 from aiogram import Bot, Dispatcher
@@ -38,18 +39,23 @@ def setup_logging() -> None:
     logging.getLogger("aiogram.event").setLevel(logging.WARNING)
 
 
-async def _health_server(ctx: AppContext, state: dict) -> web.AppRunner | None:
+async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner | None:
     if not settings.port:
         return None
 
     async def health(_request: web.Request) -> web.Response:
         payload = {
             "status": "ok",
+            "service": "ROZLF AI",
+            "role": settings.role,
             "polling": state.get("polling", False),
-            "scanner": bool(ctx.scanner and ctx.scanner.running),
-            "scanner_last_run": str(ctx.scanner.last_run) if ctx.scanner and ctx.scanner.last_run else None,
-            "sources": ctx.source_map(),
-            "ai": ctx.mistral.configured,
+            "scanner": bool(ctx.scanner and ctx.scanner.running) if ctx else False,
+            "scanner_last_run": str(ctx.scanner.last_run) if ctx and ctx.scanner and ctx.scanner.last_run else None,
+            "sources": ctx.source_map() if ctx else {},
+            "ai": ctx.mistral.configured if ctx else settings.mistral_enabled,
+            "bridge_configured": bool(settings.bridge_url and settings.eo_bridge_key),
+            "build": os.getenv("ROZLF_BUILD_SHA") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "unknown",
+            "error": state.get("error"),
         }
         return web.json_response(payload)
 
@@ -60,12 +66,27 @@ async def _health_server(ctx: AppContext, state: dict) -> web.AppRunner | None:
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", settings.port)
     await site.start()
-    logger.info("health server listening on :%s", settings.port)
+    logger.info("health server listening on :%s (role=%s)", settings.port, settings.role)
     return runner
 
 
 async def main() -> None:
     setup_logging()
+
+    if settings.web_only:
+        if not settings.port:
+            logger.error("web role requires PORT; exiting")
+            sys.exit(1)
+        state: dict = {"polling": False, "error": None}
+        runner = await _health_server(None, state)
+        logger.info("ROZLF AI started: web health role (no Telegram polling)")
+        try:
+            await asyncio.Event().wait()
+        finally:
+            if runner is not None:
+                await runner.cleanup()
+        return
+
     problems = settings.startup_problems()
     for problem in problems:
         logger.warning("startup: %s", problem)

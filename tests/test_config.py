@@ -63,3 +63,23 @@ def test_scan_interval_property():
     with patch.dict(os.environ, {"SCANNER_INTERVAL_SECONDS": "120"}, clear=True):
         settings = Settings.from_env()
     assert settings.scan_interval == 120
+
+
+def test_web_role_from_railway_service_name():
+    with patch.dict(os.environ, {"RAILWAY_SERVICE_NAME": "web"}, clear=True):
+        settings = Settings.from_env()
+    assert settings.role == "web"
+    assert settings.web_only is True
+
+
+def test_worker_role_is_not_web_only():
+    with patch.dict(os.environ, {"RAILWAY_SERVICE_NAME": "worker"}, clear=True):
+        settings = Settings.from_env()
+    assert settings.role == "worker"
+    assert settings.web_only is False
+
+
+def test_explicit_role_wins():
+    with patch.dict(os.environ, {"RAILWAY_SERVICE_NAME": "worker", "ROZLF_ROLE": "web"}, clear=True):
+        settings = Settings.from_env()
+    assert settings.role == "web"
