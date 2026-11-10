@@ -155,3 +155,34 @@ async def test_market_data_unavailable_is_honest(settings, repo, btc_otc):
     generator = SignalGenerator(registry, repo, settings)
     with pytest.raises(DataUnavailable):
         await generator.generate(42, btc_otc, "1min", min_confidence=0.0)
+
+
+async def test_short_expiry_uses_server_clock(settings, repo, eurusd):
+    from datetime import timedelta
+
+    from providers.base import utc_now
+
+    provider = FakeProvider(quote_price=1.1010)
+    registry = DataSourceRegistry([provider])
+    start = (utc_now() - timedelta(seconds=46)).replace(microsecond=0)
+    record = await repo.add_signal(
+        user_id=42,
+        asset_key=eurusd.key,
+        asset_display=eurusd.display,
+        market=eurusd.market.value,
+        timeframe="1min",
+        direction="UP",
+        confidence=70.0,
+        entry_price=1.1000,
+        source="Fake Feed",
+        reasons=["test fixture"],
+        warnings=[],
+        expiry_seconds=45,
+        created_at=start,
+    )
+    tracker = SignalTracker(repo, registry)
+
+    assert await tracker.verify_due(now=start + timedelta(seconds=44)) == 0
+    assert await tracker.verify_due(now=start + timedelta(seconds=46)) == 1
+    stats = await repo.statistics(42)
+    assert stats["wins"] == 1 and stats["verified"] == 1

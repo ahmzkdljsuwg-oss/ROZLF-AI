@@ -52,56 +52,59 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
     price = ind["price"]
     atr = ind["atr"] or price * 1e-5
 
-    up: list[tuple[str, float]] = []
-    down: list[tuple[str, float]] = []
+    # Evidence is grouped into independent families so five correlated trend
+    # readouts cannot outvote one another. Each family contributes its strongest
+    # member only; families are then compared for concordance.
+    up: list[tuple[str, float, str]] = []
+    down: list[tuple[str, float, str]] = []
     warnings: list[str] = []
 
-    def vote(reason_up: str, reason_down: str, score: float) -> None:
+    def vote(reason_up: str, reason_down: str, score: float, family: str) -> None:
         if score > 0 and reason_up:
-            up.append((reason_up, score))
+            up.append((reason_up, score, family))
         elif score < 0 and reason_down:
-            down.append((reason_down, abs(score)))
+            down.append((reason_down, abs(score), family))
 
     # Trend structure
     if ind["trend"] == "UP":
-        vote("Bullish EMA stack", "", 10 + 10 * ind["trend_strength"])
+        vote("Bullish EMA stack", "", 10 + 10 * ind["trend_strength"], "trend")
     elif ind["trend"] == "DOWN":
-        vote("", "Bearish EMA stack", -(10 + 10 * ind["trend_strength"]))
+        vote("", "Bearish EMA stack", -(10 + 10 * ind["trend_strength"]), "trend")
     else:
         warnings.append("EMA stack is compressed (range conditions)")
 
     # EMA 200 regime
     if ind["ema200"]:
-        vote("Price above EMA 200", "Price below EMA 200", 6 if price > ind["ema200"] else -6)
+        vote("Price above EMA 200", "Price below EMA 200", 6 if price > ind["ema200"] else -6, "trend")
 
     # RSI momentum
     rsi = ind["rsi"]
     if rsi >= 70:
         warnings.append(f"RSI overbought ({rsi:.1f})")
-        vote("", "RSI stretched from overbought", -4)
+        vote("", "RSI stretched from overbought", -4, "momentum")
     elif rsi >= 58:
-        vote("RSI momentum above 58", "", 8 + (rsi - 58) * 0.3)
+        vote("RSI momentum above 58", "", 8 + (rsi - 58) * 0.3, "momentum")
     elif rsi <= 30:
         warnings.append(f"RSI oversold ({rsi:.1f})")
-        vote("RSI recovering from oversold", "", 4)
+        vote("RSI recovering from oversold", "", 4, "momentum")
     elif rsi <= 42:
-        vote("", "RSI momentum below 42", -(8 + (42 - rsi) * 0.3))
+        vote("", "RSI momentum below 42", -(8 + (42 - rsi) * 0.3), "momentum")
     else:
         warnings.append("RSI in neutral band")
 
     # MACD
     if ind["macd_hist"] > 0:
         strength = 8 if ind["macd_hist"] >= ind["macd_hist_prev"] else 4
-        vote("MACD histogram positive", "", strength)
+        vote("MACD histogram positive", "", strength, "macd")
     elif ind["macd_hist"] < 0:
         strength = 8 if ind["macd_hist"] <= ind["macd_hist_prev"] else 4
-        vote("", "MACD histogram negative", -strength)
+        vote("", "MACD histogram negative", -strength, "macd")
 
     # Stochastic momentum
     if ind["stoch_cross"] == "BULLISH":
-        vote("Stochastic bullish cross", "", 3)
+        vote("Stochastic bullish cross", "", 3, "momentum")
     elif ind["stoch_cross"] == "BEARISH":
-        vote("", "Stochastic bearish cross", -3)
+        vote("", "Stochastic bearish cross", -3, "momentum")
 
     # Bollinger position
     if price > ind["bb_upper"]:
@@ -116,51 +119,52 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
         if bars_since <= 12:
             if last_event["direction"] == "bullish":
                 label = "Bullish BOS" if last_event["event"] == "BOS" else "Bullish CHoCH"
-                vote(label, "", 13)
+                vote(label, "", 13, "structure")
             else:
                 label = "Bearish BOS" if last_event["event"] == "BOS" else "Bearish CHoCH"
-                vote("", label, 13)
+                vote("", label, 13, "structure")
         else:
             vote(
                 "Bullish market structure intact" if smc["trend"] == "BULLISH" else "",
                 "Bearish market structure intact" if smc["trend"] == "BEARISH" else "",
                 4 if smc["trend"] != "NEUTRAL" else -4,
+                "structure",
             )
 
     # Premium / discount location
     equilibrium = smc["premium_discount"]
     if equilibrium["zone"] == "DISCOUNT":
-        vote("Price in discount zone", "", 5)
+        vote("Price in discount zone", "", 5, "structure")
     elif equilibrium["zone"] == "PREMIUM":
-        vote("", "Price in premium zone", -5)
+        vote("", "Price in premium zone", -5, "structure")
 
     # Active fair value gaps close to price
     for gap in smc["fair_value_gaps"][-2:]:
         if gap["direction"] == "bullish" and gap["top"] <= price + atr * 0.8:
-            vote("Unfilled bullish FVG nearby", "", 4)
+            vote("Unfilled bullish FVG nearby", "", 4, "structure")
         if gap["direction"] == "bearish" and gap["bottom"] >= price - atr * 0.8:
-            vote("", "Unfilled bearish FVG nearby", -4)
+            vote("", "Unfilled bearish FVG nearby", -4, "structure")
 
     # Liquidity sweeps in the last few candles
     for sweep in smc["liquidity_sweeps"][-2:]:
         if len(frame) - 1 - sweep["index"] <= 6:
             if sweep["direction"] == "bullish":
-                vote("Liquidity sweep below equal lows", "", 7)
+                vote("Liquidity sweep below equal lows", "", 7, "structure")
             else:
-                vote("", "Liquidity sweep above equal highs", -7)
+                vote("", "Liquidity sweep above equal highs", -7, "structure")
 
     # Proximity to support / resistance
     if ind["support"] and price - ind["support"][0] <= atr * 0.6:
-        vote("Reaction at support", "", 5)
+        vote("Reaction at support", "", 5, "location")
     if ind["resistance"] and ind["resistance"][0] - price <= atr * 0.6:
-        vote("", "Rejection from resistance", -5)
+        vote("", "Rejection from resistance", -5, "location")
 
     # Candlestick confirmation
     for pattern in ind["patterns"]:
         if pattern["direction"] == "bullish":
-            vote(f"{pattern['name']} pattern", "", 4)
+            vote(f"{pattern['name']} pattern", "", 4, "confirmation")
         elif pattern["direction"] == "bearish":
-            vote("", f"{pattern['name']} pattern", -4)
+            vote("", f"{pattern['name']} pattern", -4, "confirmation")
 
     # Volatility and spread warnings
     if ind["volatility"] == "HIGH":
@@ -170,9 +174,17 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
         if spread_pct > 0.02:
             warnings.append(f"Wide spread ({spread_pct:.3f}%)")
 
-    score_up = sum(points for _, points in up)
-    score_down = sum(points for _, points in down)
+    families_up: dict[str, float] = {}
+    for _, points, family in up:
+        families_up[family] = max(families_up.get(family, 0.0), points)
+    families_down: dict[str, float] = {}
+    for _, points, family in down:
+        families_down[family] = max(families_down.get(family, 0.0), points)
+
+    score_up = sum(families_up.values())
+    score_down = sum(families_down.values())
     total = score_up + score_down
+    families_present = len(set(families_up) | set(families_down))
     if total <= 0:
         direction = "NO TRADE"
         confidence = 0.0
@@ -180,10 +192,11 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
         best = max(score_up, score_down)
         separation = best / total
         direction = "UP" if score_up >= score_down else "DOWN"
-        # A neutral prior keeps one-sided evidence from claiming near-certainty.
-        prior = 18.0
-        balance = abs(score_up - score_down) / (total + 2 * prior)
-        confidence = _clamp(50 + balance * 90, 0, 92)
+        supporting = len(families_up if direction == "UP" else families_down)
+        breadth = supporting / max(1, families_present)
+        # Concordance across independent families, not the sum of correlated
+        # readouts, is what earns confidence. Hard-capped below certainty.
+        confidence = _clamp(50 + separation * 26 + breadth * 20, 0, 92)
         if separation < 0.56:
             direction = "NO TRADE"
             warnings.append("Signals conflict: no clear edge")
@@ -195,7 +208,7 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
             warnings.append("Strong opposing evidence")
 
     chosen = up if direction == "UP" else down
-    reasons = [reason for reason, _ in sorted(chosen, key=lambda item: -item[1])][:6]
+    reasons = [reason for reason, _, _ in sorted(chosen, key=lambda item: -item[1])][:6]
 
     if market_data.asset.market in (Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY):
         # Expiry follows measured volatility, not the candle frame: quiet

@@ -597,9 +597,12 @@ class ExpertOptionClient:
             needed = max(limit, 60)
             span = max(self.settings.candle_history_seconds, tf_seconds * needed)
             end = int(time.time())
-            for _ in range(3):
-                if len(bucket) >= needed:
-                    break
+            latest = max(bucket) if bucket else 0
+            # Only the most recently subscribed instrument keeps ticking; a
+            # stored bucket that stopped advancing must be backfilled from
+            # history instead of being served as if it were live.
+            attempts = 3 if len(bucket) < needed or end - latest > max(tf_seconds * 3, 30) else 0
+            for _ in range(attempts):
                 start = end - span
                 with contextlib.suppress(BridgeError):
                     await self.request(
