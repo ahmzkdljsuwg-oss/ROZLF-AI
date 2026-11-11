@@ -25,10 +25,12 @@ INDEX_MARKETS: tuple[Market, ...] = (
 
 def main_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(_button("📊 ANALYZE", "analyze"))
-    builder.row(_button("🌐 SELECT MARKET", "markets"))
-    builder.row(_button("📜 SIGNAL HISTORY", "hist"))
-    builder.row(_button("⚙️ SETTINGS", "settings"))
+    builder.row(_button("🚀 تداول الآن", "analyze"))
+    builder.row(_button("📡 الإشارات المباشرة", "live"))
+    builder.row(_button("📜 سجل الصفقات", "hist"))
+    builder.row(_button("📊 إحصائيات الأداء", "stats"))
+    builder.row(_button("⚙️ الإعدادات", "settings"))
+    builder.row(_button("🖥️ حالة النظام", "status"))
     return builder.as_markup()
 
 

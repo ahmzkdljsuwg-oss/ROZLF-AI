@@ -24,6 +24,11 @@ from .settings import BridgeSettings
 
 logger = logging.getLogger("eo_bridge.client")
 
+# ExpertOption rejects subscriptions once too many assets/timeframes are held
+# on one session. Keep a small LRU window and unsubscribe before growing it.
+MAX_SUBSCRIPTIONS = 8
+CANDLE_CACHE_SECONDS = 1.5
+
 HEADERS = {
     "Origin": "https://app.expertoption.com",
     "User-Agent": (
@@ -76,6 +81,11 @@ class ExpertOptionClient:
         self._pending: dict[str, asyncio.Future[dict[str, Any]]] = {}
         self._candles: dict[tuple[int, int], dict[int, Candle]] = {}
         self._subscriptions: set[tuple[int, int]] = set()
+        self._subscription_order: list[tuple[int, int]] = []
+        self._candle_cache: dict[tuple[int, int], tuple[float, list[Candle]]] = {}
+        self._fetch_locks: dict[tuple[int, int], asyncio.Lock] = {}
+        self._fetch_semaphore = asyncio.Semaphore(3)
+        self._market_stats: dict[str, dict[str, Any]] = {}
         self._assets: list[Instrument] = []
         self._assets_loaded_at = 0.0
         self._assets_debug: dict[str, Any] = {}
@@ -114,6 +124,10 @@ class ExpertOptionClient:
                 round(time.time() - self._last_message_at, 1) if self._last_message_at else None
             ),
             "last_error": self._last_error,
+            "subscriptions": [list(key) for key in self._subscription_order],
+            "market_status": {
+                market: dict(values) for market, values in self._market_stats.items()
+            },
         }
 
     async def start(self) -> None:
@@ -214,6 +228,7 @@ class ExpertOptionClient:
         self._ping_task = None
         self._receive_task = None
         self._subscriptions.clear()
+        self._subscription_order.clear()
         self._connected.clear()
 
     # ------------------------------------------------------------------ sending
@@ -581,56 +596,118 @@ class ExpertOptionClient:
         return self.assets
 
     # -------------------------------------------------------------------- candles
+    def _record_market(self, instrument: Instrument, **values: Any) -> None:
+        entry = self._market_stats.setdefault(instrument.market, {})
+        entry.update(values)
+        entry["updated_at"] = round(time.time(), 1)
+        entry["symbol"] = instrument.symbol
+
+    async def _unsubscribe(self, key: tuple[int, int]) -> None:
+        if key in self._subscriptions:
+            self._subscriptions.discard(key)
+            if key in self._subscription_order:
+                self._subscription_order.remove(key)
+        with contextlib.suppress(BridgeError, Exception):
+            await self.request(
+                "unsubscribeCandles",
+                {"assets": [{"id": key[0], "timeframes": [key[1]]}]},
+                timeout=4.0,
+            )
+
+    async def _subscribe(self, key: tuple[int, int]) -> None:
+        if key in self._subscriptions:
+            return
+        while len(self._subscription_order) >= MAX_SUBSCRIPTIONS:
+            await self._unsubscribe(self._subscription_order[0])
+        try:
+            await self.request(
+                "subscribeCandles",
+                {"assets": [{"id": key[0], "timeframes": [key[1]]}]},
+                timeout=8.0,
+            )
+        except BridgeError as exc:
+            if "TOO_MANY_ASSETS" not in exc.code.upper() and "TOO_MANY" not in str(exc.message).upper():
+                raise
+            for old in list(self._subscription_order):
+                if old != key:
+                    await self._unsubscribe(old)
+            await self.request(
+                "subscribeCandles",
+                {"assets": [{"id": key[0], "timeframes": [key[1]]}]},
+                timeout=8.0,
+            )
+        self._subscriptions.add(key)
+        self._subscription_order.append(key)
+
     async def get_candles(self, instrument: Instrument, tf_seconds: int, limit: int = 300) -> list[Candle]:
         if not self.connected:
             raise BridgeError("DISCONNECTED", "ExpertOption socket is not connected")
         key = (instrument.id, tf_seconds)
-        bucket = self._candles.setdefault(key, {})
-        async with self._request_lock:
-            if key not in self._subscriptions:
-                await self.request(
-                    "subscribeCandles",
-                    {"assets": [{"id": instrument.id, "timeframes": [tf_seconds]}]},
-                    timeout=8.0,
+        cached = self._candle_cache.get(key)
+        if cached is not None and time.monotonic() - cached[0] < CANDLE_CACHE_SECONDS:
+            return cached[1][-limit:]
+        lock = self._fetch_locks.setdefault(key, asyncio.Lock())
+        async with self._fetch_semaphore, lock:
+            cached = self._candle_cache.get(key)
+            if cached is not None and time.monotonic() - cached[0] < CANDLE_CACHE_SECONDS:
+                return cached[1][-limit:]
+            bucket = self._candles.setdefault(key, {})
+            last_error: BridgeError | None = None
+            async with self._request_lock:
+                await self._subscribe(key)
+                needed = max(limit, 60)
+                span = max(self.settings.candle_history_seconds, tf_seconds * needed)
+                end = int(time.time())
+                latest = max(bucket) if bucket else 0
+                # A bucket that stopped advancing must be backfilled from
+                # history instead of being served as if it were live.
+                attempts = 3 if len(bucket) < needed or end - latest > max(tf_seconds * 3, 30) else 0
+                for attempt in range(attempts):
+                    start = end - span
+                    try:
+                        await self.request(
+                            "assetHistoryCandles",
+                            {
+                                "assetid": instrument.id,
+                                "periods": [[start, end]],
+                                "timeframes": [tf_seconds],
+                            },
+                            timeout=8.0,
+                        )
+                    except BridgeError as exc:
+                        last_error = exc
+                        logger.warning(
+                            "history fetch failed for %s tf=%s attempt=%s: %s",
+                            instrument.symbol, tf_seconds, attempt + 1, exc.code,
+                        )
+                    await asyncio.sleep(0.4 * (2 ** attempt))
+                    if bucket:
+                        end = min(bucket) - 1
+                    span = max(span, tf_seconds * needed)
+            now = time.time()
+            horizon = now + max(tf_seconds, 60)
+            ordered = [bucket[ts] for ts in sorted(bucket)]
+            if any(candle.time > horizon for candle in ordered):
+                logger.warning(
+                    "dropping ExpertOption candles dated in the future for %s tf=%s",
+                    instrument.symbol,
+                    tf_seconds,
                 )
-                self._subscriptions.add(key)
-            needed = max(limit, 60)
-            span = max(self.settings.candle_history_seconds, tf_seconds * needed)
-            end = int(time.time())
-            latest = max(bucket) if bucket else 0
-            # Only the most recently subscribed instrument keeps ticking; a
-            # stored bucket that stopped advancing must be backfilled from
-            # history instead of being served as if it were live.
-            attempts = 3 if len(bucket) < needed or end - latest > max(tf_seconds * 3, 30) else 0
-            for _ in range(attempts):
-                start = end - span
-                with contextlib.suppress(BridgeError):
-                    await self.request(
-                        "assetHistoryCandles",
-                        {
-                            "assetid": instrument.id,
-                            "periods": [[start, end]],
-                            "timeframes": [tf_seconds],
-                        },
-                        timeout=8.0,
-                    )
-                await asyncio.sleep(0.4)
-                if bucket:
-                    end = min(bucket) - 1
-                span = max(span, tf_seconds * needed)
-        now = time.time()
-        horizon = now + max(tf_seconds, 60)
-        ordered = [bucket[ts] for ts in sorted(bucket)]
-        if any(candle.time > horizon for candle in ordered):
-            logger.warning(
-                "dropping ExpertOption candles dated in the future for %s tf=%s",
-                instrument.symbol,
-                tf_seconds,
-            )
-        candles = [candle for candle in ordered if candle.time <= horizon][-limit:]
-        if not candles:
-            raise BridgeError("NO_CANDLES", f"ExpertOption returned no candles for {instrument.symbol} tf={tf_seconds}")
-        return candles
+            candles = [candle for candle in ordered if candle.time <= horizon][-limit:]
+            if not candles:
+                self._record_market(instrument, ok=False, error=(last_error.code if last_error else "NO_CANDLES"),
+                                    timeframe=tf_seconds)
+                if last_error is not None:
+                    raise last_error
+                raise BridgeError(
+                    "NO_CANDLES",
+                    f"ExpertOption returned no candles for {instrument.symbol} tf={tf_seconds}",
+                )
+            newest = time.time() - candles[-1].time
+            self._record_market(instrument, ok=True, error=None, timeframe=tf_seconds,
+                                candles=len(candles), stale_seconds=round(max(0.0, newest), 1))
+            self._candle_cache[key] = (time.monotonic(), list(candles))
+            return candles
 
     async def get_quote(self, instrument: Instrument) -> tuple[Candle, int]:
         candles = await self.get_candles(instrument, 5, limit=2)

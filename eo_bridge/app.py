@@ -35,11 +35,12 @@ class BridgeApp:
     def __init__(self, settings: BridgeSettings, client: ExpertOptionClient | None = None) -> None:
         self.settings = settings
         self.client = client or ExpertOptionClient(settings)
+        self._verify_hits: dict[str, list[float]] = {}
 
     # ------------------------------------------------------------------ middleware
     @web.middleware
     async def _auth(self, request: web.Request, handler):
-        if request.path in {"/", "/health", "/verify/smarty", "/verify/asset"}:
+        if request.path in {"/", "/health", "/verify/smarty", "/verify/asset", "/verify/history"}:
             return await handler(request)
         supplied = request.headers.get("X-API-Key") or request.query.get("api_key") or ""
         expected = self.settings.api_key or ""
@@ -54,7 +55,7 @@ class BridgeApp:
                 "service": SERVICE,
                 "description": "Read-only ExpertOption market data bridge for ROZLF AI",
                 "endpoints": ["/health", "/assets", "/discover", "/smarty", "/quote", "/candles",
-                          "/verify/smarty", "/verify/asset"],
+                          "/verify/smarty", "/verify/asset", "/verify/history"],
                 "docs": "https://github.com/ahmzkdljsuwg-oss/ROZLF-AI/tree/main/eo_bridge",
             }
         )
@@ -342,6 +343,64 @@ class BridgeApp:
             }
         )
 
+    async def verify_history(self, request: web.Request) -> web.Response:
+        """Public read-only candle history for independent verification.
+
+        Rate limited per client IP; returns market data only, never credentials.
+        """
+        if not self.settings.eo_token:
+            return _error("EO_TOKEN_MISSING", "Bridge has no ExpertOption session token", status=503)
+        peer = request.remote or "unknown"
+        now = _time.monotonic()
+        hits = [stamp for stamp in self._verify_hits.get(peer, []) if now - stamp < 60]
+        if len(hits) >= 120:
+            self._verify_hits[peer] = hits
+            return _error("RATE_LIMITED", "Too many verification requests; retry in a minute", status=429)
+        hits.append(now)
+        self._verify_hits[peer] = hits
+        try:
+            wanted = int(request.query.get("id") or 0)
+        except ValueError:
+            return _error("BAD_ID", "id must be a number", status=400)
+        seconds = timeframe_seconds(request.query.get("timeframe") or "5sec")
+        if seconds is None:
+            return _error("BAD_TIMEFRAME", "Unsupported timeframe", status=400)
+        try:
+            limit = max(60, min(int(request.query.get("limit", 1500)), 1500))
+        except ValueError:
+            limit = 1500
+        try:
+            instruments = await self.client.ensure_assets()
+        except BridgeError as exc:
+            return _error(exc.code, exc.message, status=503)
+        target = next((item for item in instruments if item.id == wanted), None)
+        if target is None:
+            return _error("ASSET_UNAVAILABLE", f"Asset id {wanted} is not offered", status=404)
+        try:
+            candles = await self.client.get_candles(target, seconds, limit=limit)
+        except BridgeError as exc:
+            return _error(exc.code, exc.message, status=503)
+        return _json(
+            {
+                "service": SERVICE,
+                "source": "ExpertOption",
+                "asset_id": target.id,
+                "symbol": target.symbol,
+                "market": target.market,
+                "active": target.is_active,
+                "timeframe": f"{seconds}s",
+                "count": len(candles),
+                "connected": bool(self.client.connected),
+                "last_error": self.client.status().get("last_error"),
+                "candles": [
+                    {"time": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime(c.time)),
+                     "timestamp": c.time, "open": c.open, "high": c.high,
+                     "low": c.low, "close": c.close}
+                    for c in candles
+                ],
+            }
+        )
+
     async def smarty(self, request: web.Request) -> web.Response:
         if not self.settings.eo_token:
             return _error("EO_TOKEN_MISSING", "Bridge has no ExpertOption session token", status=503)
@@ -444,6 +503,7 @@ class BridgeApp:
         app.router.add_get("/smarty", self.smarty)
         app.router.add_get("/verify/smarty", self.verify_smarty)
         app.router.add_get("/verify/asset", self.verify_asset)
+        app.router.add_get("/verify/history", self.verify_history)
         app.router.add_get("/quote", self.quote)
         app.router.add_get("/candles", self.candles)
 

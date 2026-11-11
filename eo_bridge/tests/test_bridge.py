@@ -90,6 +90,8 @@ async def mock_socket(request: web.Request) -> web.WebSocketResponse:
             await reply("assets", ns, {"assets": ASSETS})
         elif action == "subscribeCandles":
             await reply("subscribeCandles", ns, {"assets": data.get("message", {}).get("assets", [])})
+        elif action == "unsubscribeCandles":
+            await reply("unsubscribeCandles", ns, {"assets": []})
         elif action == "assetHistoryCandles":
             body = data.get("message", {})
             asset_id = int(body.get("assetid") or 0)
@@ -169,6 +171,16 @@ async def test_candles_are_sorted_ohlc(bridge_client: TestClient) -> None:
     for row in body["candles"]:
         assert row["high"] >= max(row["open"], row["close"])
         assert row["low"] <= min(row["open"], row["close"])
+
+
+async def test_verify_history_returns_real_envelope(bridge_client: TestClient) -> None:
+    response = await bridge_client.get("/verify/history?id=240&timeframe=5sec&limit=60")
+    assert response.status == 200
+    payload = await response.json()
+    assert payload["asset_id"] == 240
+    assert payload["source"] == "ExpertOption"
+    assert len(payload["candles"]) >= 40
+    assert {"time", "open", "high", "low", "close"} <= set(payload["candles"][0])
 
 
 async def test_discover_lists_live_otc_assets(bridge_client: TestClient) -> None:

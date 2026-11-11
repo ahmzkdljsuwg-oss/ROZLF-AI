@@ -34,6 +34,11 @@ class BacktestTrade:
     entry_price: float
     exit_price: float
     result: str
+    settled_at: datetime | None = None
+    expiry_seconds: int = 0
+    setup_reasons: tuple[str, ...] = ()
+    strategy_labels: tuple[str, ...] = ()
+    result_reason: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,11 +122,21 @@ def metrics_dict(metrics: BacktestMetrics) -> dict:
     }
 
 
-def _settlement_index(candles: list[Candle], start: int, expiry_time: datetime) -> int | None:
+def _settlement_index(
+    candles: list[Candle], start: int, expiry_time: datetime, bar_seconds: int
+) -> int | None:
+    """Return the last candle whose close is at or before the expiry.
+
+    Using the first candle that *opens* at/after expiry would settle one whole
+    bar late and leak post-expiry price action into the result.
+    """
+    chosen: int | None = None
     for index in range(start, len(candles)):
-        if candles[index].time >= expiry_time:
-            return index
-    return None
+        close_time = candles[index].time + timedelta(seconds=bar_seconds)
+        if close_time > expiry_time:
+            break
+        chosen = index
+    return chosen
 
 
 def run_backtest(config: BacktestConfig, candles: list[Candle], source: str) -> BacktestResult:
@@ -148,27 +163,44 @@ def run_backtest(config: BacktestConfig, candles: list[Candle], source: str) -> 
             continue
         entry_index = index + config.latency_bars
         entry = candles[entry_index]
+        # Enter at the next bar open: that is the first price available after
+        # the decision candle closed. Using its close would add one extra bar
+        # of delay that a real trader never has.
+        entry_price = entry.open
         expiry_time = entry.time + timedelta(seconds=config.expiry_seconds)
-        settle_index = _settlement_index(candles, entry_index + 1, expiry_time)
+        settle_index = _settlement_index(
+            candles, entry_index, expiry_time, config.timeframe.seconds
+        )
         if settle_index is None:
             break
+        settled_at = candles[settle_index].time + timedelta(seconds=config.timeframe.seconds)
         exit_price = candles[settle_index].close
-        if exit_price == entry.close:
+        if exit_price == entry_price:
             outcome = "DRAW"
-        elif (analysis.direction == "UP") == (exit_price > entry.close):
+        elif (analysis.direction == "UP") == (exit_price > entry_price):
             outcome = "WIN"
         else:
             outcome = "LOSS"
+        direction_word = "rose" if exit_price > entry_price else "fell" if exit_price < entry_price else "stayed flat"
+        reason = (
+            f"At a {config.expiry_seconds}s expiry the price {direction_word} "
+            f"from {entry_price:.5f} to {exit_price:.5f}"
+        )
         trades.append(
             BacktestTrade(
                 decision_index=index,
                 entry_time=entry.time,
-                expiry_time=candles[settle_index].time,
+                expiry_time=expiry_time,
                 direction=analysis.direction,
                 confidence=analysis.confidence,
-                entry_price=entry.close,
+                entry_price=entry_price,
                 exit_price=exit_price,
                 result=outcome,
+                settled_at=settled_at,
+                expiry_seconds=config.expiry_seconds,
+                setup_reasons=tuple(analysis.reasons[:3]),
+                strategy_labels=tuple(analysis.strategy_labels),
+                result_reason=reason,
             )
         )
     return BacktestResult(config, trades, compute_metrics(trades, decisions), source, len(candles))

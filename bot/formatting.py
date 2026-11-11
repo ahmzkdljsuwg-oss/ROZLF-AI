@@ -56,10 +56,12 @@ def welcome_text(settings: Settings) -> str:
         "مرحباً بك في نظام <b>ROZLF AI</b>.\n"
         "تحليل فني + Smart Money Concepts + إشارات موثّقة.\n\n"
         "<b>الأقسام الرئيسية:</b>\n"
-        "📊 ANALYZE — تحليل مباشر\n"
-        "🌐 SELECT MARKET — الأسواق السبعة\n"
-        "📜 SIGNAL HISTORY — سجل الإشارات\n"
-        "⚙️ SETTINGS — الإعدادات\n\n"
+        "🚀 تداول الآن — الأسواق السبعة والتحليل\n"
+        "📡 الإشارات المباشرة — أفضل الفرص الحالية\n"
+        "📜 سجل الصفقات — الإشارات ونتائجها\n"
+        "📊 إحصائيات الأداء — النتائج المتحققة فقط\n"
+        "⚙️ الإعدادات — حد الثقة والماسح\n"
+        "🖥️ حالة النظام — الاتصال بمصادر البيانات\n\n"
         f"AI STATUS: <b>{ai_status}</b>\n"
         f"MIN CONFIDENCE: <b>{settings.min_confidence:.0f}%</b>\n\n"
         f"<i>{DISCLAIMER}</i>"
@@ -492,7 +494,7 @@ def unified_result_text(
             labels.append(label)
     strategy_line = " + ".join(labels[:3]) if labels else "NO CONFIRMED STRATEGY"
     quality = int(result.data_confidence.get("score") or 0)
-    data_status = "LIVE" if quality >= 6 else "LIMITED"
+    data_status = "LIVE" if quality >= 9 else "LIMITED"
     trade_time = duration_label(duration_seconds) if duration_seconds else "N/A"
     trend = result.trend_summary.upper() if result.trend_summary else "NEUTRAL"
     lines = [

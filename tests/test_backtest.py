@@ -51,3 +51,17 @@ def test_metrics_exclude_draws_from_win_rate():
     assert metrics.profit_factor == 1.0
     assert metrics.expectancy == 0.0
     assert metrics.max_drawdown == 1.0
+
+
+def test_settlement_uses_last_close_at_or_before_expiry():
+    from engines.backtest.runner import _settlement_index
+
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    candles = [
+        Candle(start + timedelta(minutes=i), 100.0, 100.1, 99.9, 100.0 + i, 0.0)
+        for i in range(10)
+    ]
+    expiry = start + timedelta(minutes=5)
+    index = _settlement_index(candles, 0, expiry, 60)
+    assert index == 4
+    assert candles[index].time + timedelta(minutes=1) == expiry
