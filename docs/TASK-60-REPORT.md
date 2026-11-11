@@ -89,3 +89,12 @@ Deployed from `main` after commit. Expected services:
 If `polling` is false after deploy, the service still has an old
 `RAILWAY_SERVICE_NAME`-based build or a second instance holds the token; the
 startup log will show the Telegram conflict message.
+
+## Post-deploy verification (build 2cd78ae)
+
+- The web service returned HTTP 502 because `main.py` exited at startup (missing Telegram token) after the role fix made it a polling process.
+- `main.py` now starts the health server before Telegram/DB initialisation, keeps it alive in `degraded`/`no-telegram-token` state, and never takes the process down for a missing token or a transient API error.
+- Deployed `/health` is `status: ok`, `build: 2cd78ae`, `menu_version: M3`, and lists exactly 11 buttons: six markets, LIVE SIGNALS, SIGNAL HISTORY, PERFORMANCE STATISTICS, SETTINGS, SYSTEM STATUS. No OTC and no GOLD.
+- The same deploy also updated the EO Bridge service: `/health` reports `ROZLF-EO-BRIDGE`, `connected: true`, `assets: 150`, `build: 2cd78ae`.
+- **Blocking fact:** the deployed web service reports `telegram_configured: false`, `ai: false`, `bridge_configured: false`, `database_driver: sqlite`, so its Railway service has none of the project variables. Telegram polling therefore cannot start from this service. The variables must be present on the service that runs polling (`web` here); no secret value is needed in chat.
+- No real Telegram message was sent from this environment (no token available here), so delivery of the new menu in the user's Telegram client is not claimed as tested.
