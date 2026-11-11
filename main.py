@@ -19,7 +19,7 @@ from bot.context import AppContext, set_context
 from bot.handlers import menus
 from bot.keyboards import menus as keyboards
 from bot.middleware.auth import AccessMiddleware
-from config import settings
+from config import normalise_database_url, settings
 from database.repository import Repository
 from engines.signals.generator import SignalGenerator
 from providers.eobridge import ExpertOptionBridgeProvider
@@ -45,18 +45,22 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
         return None
 
     async def health(_request: web.Request) -> web.Response:
+        live = state.get("ctx") or ctx
         payload = {
-            "status": "ok",
+            "status": "ok" if not state.get("error") else "degraded",
             "service": "ROZLF AI",
             "role": settings.role,
             "polling": state.get("polling", False),
-            "scanner": bool(ctx.scanner and ctx.scanner.running) if ctx else False,
-            "scanner_last_run": str(ctx.scanner.last_run) if ctx and ctx.scanner and ctx.scanner.last_run else None,
-            "sources": ctx.source_map() if ctx else {},
-            "ai": ctx.mistral.configured if ctx else settings.mistral_enabled,
+            "stage": state.get("stage"),
+            "telegram_configured": bool(settings.telegram_bot_token),
+            "database_driver": normalise_database_url(settings.database_url).split(":", 1)[0],
+            "scanner": bool(live.scanner and live.scanner.running) if live else False,
+            "scanner_last_run": str(live.scanner.last_run) if live and live.scanner and live.scanner.last_run else None,
+            "sources": live.source_map() if live else {},
+            "ai": live.mistral.configured if live else settings.mistral_enabled,
             "bridge_configured": bool(settings.bridge_url and settings.eo_bridge_key),
             "build": os.getenv("ROZLF_BUILD_SHA") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "unknown",
-            "menu_version": "M2",
+            "menu_version": "M3",
             "menu": [
                 {"text": button.text, "callback": button.callback_data}
                 for row in keyboards.main_menu().inline_keyboard
@@ -79,13 +83,13 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
 
 async def main() -> None:
     setup_logging()
+    state: dict = {"polling": False, "stage": "starting", "error": None}
+    runner = await _health_server(None, state)
 
     if settings.web_only:
         if not settings.port:
             logger.error("web role requires PORT; exiting")
             sys.exit(1)
-        state: dict = {"polling": False, "error": None}
-        runner = await _health_server(None, state)
         logger.info("ROZLF AI started: web health role (no Telegram polling)")
         try:
             await asyncio.Event().wait()
@@ -101,6 +105,7 @@ async def main() -> None:
         logger.error("TELEGRAM_BOT_TOKEN is required; exiting")
         sys.exit(1)
 
+    state["stage"] = "database"
     bot = Bot(
         token=settings.telegram_bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
@@ -169,8 +174,7 @@ async def main() -> None:
                 logger.exception("verification loop error")
             await asyncio.sleep(settings.verification_interval_seconds)
 
-    state: dict = {"polling": False}
-    runner = await _health_server(ctx, state)
+    state["ctx"] = ctx
 
     async def on_startup() -> None:
         try:
@@ -182,17 +186,20 @@ async def main() -> None:
             for row in keyboards.main_menu().inline_keyboard
             for button in row
         )
-        logger.info("ROZLF MENU M2 READY: %s", menu_fingerprint)
-        await bot.set_my_commands(
-            [
-                BotCommand(command="start", description="فتح لوحة التحكم"),
-                BotCommand(command="markets", description="فتح قائمة الأسواق"),
-                BotCommand(command="status", description="حالة البيانات والذكاء الاصطناعي"),
-                BotCommand(command="scan", description="فتح الماسح التلقائي"),
-                BotCommand(command="stats", description="الإحصائيات"),
-                BotCommand(command="id", description="عرض CHAT ID"),
-            ]
-        )
+        logger.info("ROZLF MENU M3 READY: %s", menu_fingerprint)
+        try:
+            await bot.set_my_commands(
+                [
+                    BotCommand(command="start", description="فتح لوحة التحكم"),
+                    BotCommand(command="markets", description="فتح قائمة الأسواق"),
+                    BotCommand(command="status", description="حالة البيانات والذكاء الاصطناعي"),
+                    BotCommand(command="scan", description="فتح الماسح التلقائي"),
+                    BotCommand(command="stats", description="الإحصائيات"),
+                    BotCommand(command="id", description="عرض CHAT ID"),
+                ]
+            )
+        except Exception:
+            logger.exception("could not publish bot commands; continuing")
         if settings.scanner_enabled:
             await scanner.start()
         logger.info("ROZLF AI started: %s", settings.describe())
