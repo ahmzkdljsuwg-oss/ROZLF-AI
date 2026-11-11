@@ -73,8 +73,8 @@ def market_menu(market: Market, assets: list[Asset] | None = None) -> InlineKeyb
 
 def duration_method_menu(asset: Asset) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(_button("⚡ AUTO DURATION", f"dur:auto:{asset.key}"))
-    builder.row(_button("✋ MANUAL DURATION", f"dur:manual:{asset.key}"))
+    builder.row(_button("🤖 SMART DURATION · BOT SELECTS", f"dur:auto:{asset.key}"))
+    builder.row(_button("✋ MANUAL DURATION · I SELECT", f"dur:manual:{asset.key}"))
     builder.row(
         _button("🔙 BACK", f"mkt:{asset.market.value}"),
         _button("🏠 MAIN", "menu:main"),

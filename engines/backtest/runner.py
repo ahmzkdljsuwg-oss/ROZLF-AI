@@ -46,6 +46,8 @@ class BacktestMetrics:
     profit_factor: float | None
     expectancy: float
     max_drawdown: float
+    decisions: int = 0
+    no_trade: int = 0
 
 
 @dataclass(slots=True)
@@ -77,7 +79,7 @@ def _drawdown(pnls: list[float]) -> float:
     return worst
 
 
-def compute_metrics(trades: list[BacktestTrade]) -> BacktestMetrics:
+def compute_metrics(trades: list[BacktestTrade], decisions: int | None = None) -> BacktestMetrics:
     wins = sum(1 for trade in trades if trade.result == "WIN")
     losses = sum(1 for trade in trades if trade.result == "LOSS")
     draws = sum(1 for trade in trades if trade.result == "DRAW")
@@ -94,6 +96,8 @@ def compute_metrics(trades: list[BacktestTrade]) -> BacktestMetrics:
         profit_factor=(gross_win / gross_loss) if gross_loss else None,
         expectancy=(sum(pnls) / len(pnls)) if pnls else 0.0,
         max_drawdown=_drawdown(pnls),
+        decisions=decisions if decisions is not None else len(trades),
+        no_trade=max(0, (decisions if decisions is not None else len(trades)) - len(trades)),
     )
 
 
@@ -107,6 +111,9 @@ def metrics_dict(metrics: BacktestMetrics) -> dict:
         "profit_factor": round(metrics.profit_factor, 2) if metrics.profit_factor is not None else None,
         "expectancy": round(metrics.expectancy, 4),
         "max_drawdown": round(metrics.max_drawdown, 2),
+        "decisions": metrics.decisions,
+        "no_trade": metrics.no_trade,
+        "no_trade_rate": round(metrics.no_trade / metrics.decisions * 100, 2) if metrics.decisions else None,
     }
 
 
@@ -119,6 +126,7 @@ def _settlement_index(candles: list[Candle], start: int, expiry_time: datetime) 
 
 def run_backtest(config: BacktestConfig, candles: list[Candle], source: str) -> BacktestResult:
     trades: list[BacktestTrade] = []
+    decisions = 0
     first = max(config.warmup_bars, 20)
     for index in range(first, len(candles) - config.latency_bars - 1, config.step_bars):
         window = candles[: index + 1]
@@ -131,6 +139,7 @@ def run_backtest(config: BacktestConfig, candles: list[Candle], source: str) -> 
             quote=Quote(config.asset.symbol, decision.close, decision.close, decision.time, source),
             validation=ValidationReport(ok=True, bar_count=len(window), last_candle_time=decision.time),
         )
+        decisions += 1
         try:
             analysis = analyze_market_data(market_data, now=decision.time)
         except DataUnavailable:
@@ -162,7 +171,7 @@ def run_backtest(config: BacktestConfig, candles: list[Candle], source: str) -> 
                 result=outcome,
             )
         )
-    return BacktestResult(config, trades, compute_metrics(trades), source, len(candles))
+    return BacktestResult(config, trades, compute_metrics(trades, decisions), source, len(candles))
 
 
 def walk_forward(trades: list[BacktestTrade], folds: int = 5) -> dict:

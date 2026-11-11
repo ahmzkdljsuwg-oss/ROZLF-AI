@@ -9,11 +9,11 @@ from providers.catalog import Market, dynamic_asset, find_by_symbol, timeframe
 from providers.registry import DataSourceRegistry
 from services.signal_tracker import SignalTracker
 
-from tests.conftest import FakeProvider
+from tests.conftest import FakeProvider, make_candles
 
 
 async def test_signal_is_stored_and_listed(settings, repo, eurusd):
-    registry = DataSourceRegistry([FakeProvider(quote_price=1.1000)])
+    registry = DataSourceRegistry([FakeProvider(make_candles(noise=0.0001, seed=23), quote_price=1.1000)])
     generator = SignalGenerator(registry, repo, settings)
 
     result, record = await generator.generate(42, eurusd, "5min", duration_seconds=300, min_confidence=0.0)
@@ -130,7 +130,7 @@ async def test_unverifiable_marked_unverified(settings, repo, eurusd):
 
 
 async def test_open_signals_excluded_from_accuracy(settings, repo, eurusd):
-    registry = DataSourceRegistry([FakeProvider(quote_price=1.1000)])
+    registry = DataSourceRegistry([FakeProvider(make_candles(noise=0.0001, seed=23), quote_price=1.1000)])
     generator = SignalGenerator(registry, repo, settings)
     await generator.generate(42, eurusd, "5min", duration_seconds=300, min_confidence=0.0)
     stats = await repo.statistics(42)
@@ -141,7 +141,7 @@ async def test_open_signals_excluded_from_accuracy(settings, repo, eurusd):
 async def test_duplicate_scan_suppressed(settings, repo, eurusd):
     from services.scanner import AutoScanner
 
-    registry = DataSourceRegistry([FakeProvider(quote_price=1.1)])
+    registry = DataSourceRegistry([FakeProvider(make_candles(noise=0.0001, seed=23), quote_price=1.1)])
     generator = SignalGenerator(registry, repo, settings)
     scanner = AutoScanner(generator, repo, registry, settings)
     first = await scanner.scan_once(user_ids=[42], min_confidence=0.0)

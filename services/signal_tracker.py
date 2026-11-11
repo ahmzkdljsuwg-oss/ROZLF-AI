@@ -44,10 +44,12 @@ class SignalTracker:
             if outcome is None:
                 continue
             result, close_price, source = outcome
-            await self.repo.finish_signal(signal.id, result, close_price, now, source)
+            reason = self._result_reason(signal, result, close_price)
+            await self.repo.finish_signal(signal.id, result, close_price, now, source, reason)
             signal.status = result
             signal.close_price = close_price
             signal.verification_source = source
+            signal.result_reason = reason
             verified += 1
             if self.notifier is not None:
                 try:
@@ -55,6 +57,18 @@ class SignalTracker:
                 except Exception:
                     logger.exception("verification notifier failed for signal %s", signal.id)
         return verified
+
+    @staticmethod
+    def _result_reason(signal: SignalRecord, result: str, close_price: float | None) -> str:
+        setup = signal.reasons[0] if signal.reasons else "no recorded setup"
+        if result == STATUS_UNVERIFIED or close_price is None:
+            return f"No reliable expiry quote was available to settle the {signal.direction} setup ({setup})."
+        delta = close_price - signal.entry_price
+        direction = "with" if (delta > 0) == (signal.direction == "UP") else "against"
+        return (
+            f"Expiry price closed {delta:+.8f} {direction} the {signal.direction} entry; "
+            f"recorded setup: {setup}"
+        )
 
     async def _resolve(self, signal: SignalRecord, now: datetime) -> tuple[str, float | None, str | None] | None:
         asset = get_asset(signal.asset_key)

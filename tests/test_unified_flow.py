@@ -206,9 +206,9 @@ async def test_manual_duration_runs_analysis_with_chosen_duration(monkeypatch):
     await handlers.cb_manual_duration(callback)
     text = callback.message.edits[-1][0]
     assert generator.calls == [(asset.key, "1min", 60)]
-    assert "TRADE DURATION" in text and "1 MIN" in text
+    assert "TRADE TIME" in text and "1 MIN" in text
     assert "SIGNAL: <b>BUY" in text
-    assert "REAL MARKET FEED" in text
+    assert "DATA: <b>LIVE" in text
 
 
 async def test_auto_duration_chooses_supported_value_and_explains(monkeypatch):
@@ -218,9 +218,9 @@ async def test_auto_duration_chooses_supported_value_and_explains(monkeypatch):
     callback = FakeCallback(f"dur:auto:{asset.key}")
     await handlers.cb_duration_mode(callback)
     text = callback.message.edits[-1][0]
-    assert "AUTO DURATION" in text
+    assert "SMART DURATION" in text
     assert "volatility NORMAL" in text
-    assert "TRADE DURATION" in text
+    assert "TRADE TIME" in text
     assert generator.calls
 
 

@@ -1,12 +1,14 @@
 """Deterministic scoring: indicators + SMC produce UP / DOWN / NO TRADE."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
 
+from engines.technical.evidence import evaluate_evidence
 from engines.technical.indicators import compute_indicators, frame_from_candles
 from engines.technical.smc import analyze_smc
 from engines.strategies.engine import evaluate_strategies
+from engines.validation import closed_candles
 from providers.base import DataUnavailable, MarketData, utc_now
 from providers.catalog import Market
 
@@ -39,6 +41,11 @@ class AnalysisResult:
     invalidation: list[str] = field(default_factory=list)
     cancellation_reason: str | None = None
     session: str = "NONE"
+    confidence_components: dict = field(default_factory=dict)
+    blockers: list[str] = field(default_factory=list)
+    data_quality_score: float = 0.0
+    win_probability: float | None = None
+    strategy_labels: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         data = asdict(self)
@@ -57,7 +64,21 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
         raise DataUnavailable("STALE_DATA", "Refusing to analyse stale candles")
 
     now = now or utc_now()
-    frame = frame_from_candles(market_data.candles)
+    usable = closed_candles(market_data.candles, market_data.timeframe, now)
+    if not usable:
+        raise DataUnavailable("NO_CLOSED_CANDLES", "No closed candles are available yet")
+    min_bars = 60
+    if len(usable) < min_bars:
+        raise DataUnavailable(
+            "INSUFFICIENT_BARS",
+            f"Only {len(usable)} closed candles; {min_bars} are required",
+        )
+    analysis_data = replace(
+        market_data,
+        candles=usable,
+        validation=replace(market_data.validation, bar_count=len(usable)),
+    )
+    frame = frame_from_candles(usable)
     ind = compute_indicators(frame)
     smc = analyze_smc(frame, ind["atr"])
     report = evaluate_strategies(frame, ind, smc, market_data.asset.market, market_data.timeframe.seconds, now)
@@ -83,57 +104,24 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
         if spread_pct > 0.02:
             warnings.append(f"Wide spread ({spread_pct:.3f}%)")
 
-    # Strategy evidence is pooled by family so correlated readouts inside one
-    # family cannot stack. Only the strongest member of each family counts.
-    families_up: dict[str, float] = {}
-    families_down: dict[str, float] = {}
-    for signal in report.signals:
-        target = families_up if signal.direction == "UP" else families_down
-        target[signal.family] = max(target.get(signal.family, 0.0), signal.score)
-
-    score_up = sum(families_up.values())
-    score_down = sum(families_down.values())
-    total = score_up + score_down
-    families_present = len(set(families_up) | set(families_down))
-    supporting_families = 0
-    cancellation_reason: str | None = None
-    if total <= 0:
-        direction = "NO TRADE"
-        confidence = 0.0
-        cancellation_reason = "No strategy produced a valid entry condition"
-    else:
-        best = max(score_up, score_down)
-        separation = best / total
-        direction = "UP" if score_up >= score_down else "DOWN"
-        supporting_families = len(families_up if direction == "UP" else families_down)
-        breadth = supporting_families / max(1, families_present)
-        confidence = _clamp(50 + separation * 26 + breadth * 20, 0, 92)
-        mtf_penalty = 8 if report.mtf.get("direction") == "MIXED" else 0
-        confidence = _clamp(confidence - mtf_penalty, 0, 92)
-        if separation < 0.56:
-            direction = "NO TRADE"
-            cancellation_reason = "Signals conflict: no clear edge"
-        elif confidence < 58:
-            direction = "NO TRADE"
-            cancellation_reason = "Confidence below trading threshold"
-        elif min(score_up, score_down) > 18 and separation < 0.6:
-            direction = "NO TRADE"
-            cancellation_reason = "Strong opposing evidence"
-        elif supporting_families < 2:
-            direction = "NO TRADE"
-            cancellation_reason = "Insufficient independent confirmation"
-        elif report.mtf.get("aligned") and report.mtf.get("direction") != direction:
-            direction = "NO TRADE"
-            cancellation_reason = "Higher timeframes disagree with the setup"
-        elif report.mtf.get("direction") == "MIXED" and confidence < 68:
-            direction = "NO TRADE"
-            cancellation_reason = "Timeframes conflict: waiting for alignment"
-
+    evidence = evaluate_evidence(frame, ind, smc, report, analysis_data, now)
+    direction = evidence.direction
+    confidence = evidence.confidence
+    cancellation_reason = evidence.blockers[0] if evidence.blockers else None
+    warnings.extend(evidence.warnings)
     if cancellation_reason:
         warnings.append(cancellation_reason)
+    score_up = sum(
+        max(0.0, signal.score) for signal in report.signals if signal.direction == "UP"
+    )
+    score_down = sum(
+        max(0.0, signal.score) for signal in report.signals if signal.direction == "DOWN"
+    )
     confirmed = report.confirmed(direction) if direction in ("UP", "DOWN") else []
     opposed = report.opposed(direction) if direction in ("UP", "DOWN") else []
     reasons = [signal.reason for signal in confirmed][:6]
+    if not reasons and evidence.blockers:
+        reasons = evidence.blockers[:4]
     invalidation = [signal.invalidation for signal in confirmed[:3]]
 
     if market_data.asset.market in (Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY):
@@ -155,7 +143,8 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
     if market_data.quote is not None and market_data.quote.spread_pct > 0.02:
         quality_points -= 10
     quality_label = "HIGH" if quality_points >= 85 else "MEDIUM" if quality_points >= 65 else "LOW"
-    data_confidence = {"level": quality_label, "score": max(0, quality_points), "bars": bars}
+    data_confidence = dict(evidence.data_quality)
+    data_confidence["level"] = evidence.data_quality.get("level", quality_label)
 
     adx_value = float(report.context.get("adx", 0.0))
     if adx_value >= 30 and (ind["trend"] in ("UP", "DOWN")):
@@ -202,7 +191,7 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
             "stoch_d": ind.get("stoch_d"),
             "buyers": buyers,
             "sellers": sellers,
-            "last_candle_at": market_data.candles[-1].time.isoformat(),
+            "last_candle_at": usable[-1].time.isoformat(),
         },
         smc={
             "trend": smc["trend"],
@@ -225,4 +214,9 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
         invalidation=invalidation,
         cancellation_reason=cancellation_reason,
         session=report.session,
+        confidence_components=evidence.components,
+        blockers=evidence.blockers,
+        data_quality_score=float(evidence.data_quality.get("score", 0)),
+        win_probability=evidence.win_probability,
+        strategy_labels=evidence.strategy_labels,
     )

@@ -206,8 +206,8 @@ async def _show_duration_method(callback: CallbackQuery, asset: Asset) -> None:
     text = fmt.smarty_card_text(asset, source, detail)
     text += (
         "\n\n<b>TRADE DURATION</b>\n"
-        "⚡ AUTO DURATION — يحلل السوق ويختار مدة مدعومة تلقائياً.\n"
-        "✋ MANUAL DURATION — اختر المدة بنفسك من المدد المدعومة."
+        "🤖 SMART DURATION — البوت يختار الوقت المناسب بعد تحليل السوق.\n"
+        "✋ MANUAL DURATION — أنت تختار من المدد المدعومة فعلياً."
     )
     await _edit(callback, text, menus.duration_method_menu(asset))
 
@@ -265,7 +265,7 @@ async def cb_duration_mode(callback: CallbackQuery) -> None:
         return
     mode = callback.data.split(":", 2)[1]
     if mode == "auto":
-        await callback.answer("⏳ AUTO DURATION...")
+        await callback.answer("🤖 SMART DURATION...")
         await _run_auto_duration(callback, asset)
         return
     if mode == "manual":
@@ -293,7 +293,7 @@ async def _run_auto_duration(callback: CallbackQuery, asset: Asset) -> None:
         return
     async with lock:
         ctx = get_context()
-        await _edit(callback, f"⏳ AUTO DURATION — تحليل {asset.display}...", None)
+        await _edit(callback, f"🤖 SMART DURATION — تحليل {asset.display}...", None)
         best = None
         best_frame = None
         errors: list[str] = []
@@ -328,7 +328,7 @@ async def _run_auto_duration(callback: CallbackQuery, asset: Asset) -> None:
                 logger.info("AUTO duration rejected by generator: %s", exc)
                 duration = None
         text = fmt.unified_result_text(best, duration, best_frame, record)
-        text += f"\n\n<b>AUTO DURATION:</b> {reason}"
+        text += f"\n<b>SMART DURATION:</b> {reason}"
         await _edit(callback, text, menus.analysis_actions(asset, best_frame))
 
 
@@ -406,27 +406,32 @@ async def cb_index_signal(callback: CallbackQuery) -> None:
     if asset is None or asset.market not in INDEX_MARKETS or duration <= 0:
         await callback.answer("طلب غير صالح", show_alert=True)
         return
-    await callback.answer(f"⏳ تحليل {asset.market.label}...")
-    await _edit(callback, f"⏳ {asset.market.label} — {asset.display} — {duration}s...", None)
-    user_settings = await ctx.repo.get_user_settings(
-        callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence}
-    )
-    try:
-        result, record = await ctx.generator.generate(
-            callback.from_user.id,
-            asset,
-            smarty_timeframe(duration),
-            duration_seconds=duration,
-            min_confidence=user_settings["min_confidence"],
-        )
-    except DataUnavailable as exc:
-        await _edit(
-            callback,
-            fmt.unavailable_text(asset.market.label, exc.code or "UNAVAILABLE", exc.detail or exc.message),
-            menus.unavailable_menu(asset.market),
-        )
+    lock = _analysis_lock(callback.from_user.id)
+    if lock.locked():
+        await callback.answer("التحليل قيد التنفيذ بالفعل", show_alert=True)
         return
-    await _edit(callback, fmt.smarty_result_text(result, record), menus.index_menu(asset))
+    await callback.answer(f"⏳ تحليل {asset.market.label}...")
+    async with lock:
+        await _edit(callback, f"⏳ {asset.market.label} — {asset.display} — {duration}s...", None)
+        user_settings = await ctx.repo.get_user_settings(
+            callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence}
+        )
+        try:
+            result, record = await ctx.generator.generate(
+                callback.from_user.id,
+                asset,
+                smarty_timeframe(duration),
+                duration_seconds=duration,
+                min_confidence=user_settings["min_confidence"],
+            )
+        except DataUnavailable as exc:
+            await _edit(
+                callback,
+                fmt.unavailable_text(asset.market.label, exc.code or "UNAVAILABLE", exc.detail or exc.message),
+                menus.unavailable_menu(asset.market),
+            )
+            return
+        await _edit(callback, fmt.smarty_result_text(result, record), menus.index_menu(asset))
 
 
 async def _show_smarty(callback: CallbackQuery) -> None:
@@ -575,61 +580,66 @@ async def cb_signal(callback: CallbackQuery) -> None:
         await callback.answer("طلب غير صالح", show_alert=True)
         return
 
+    lock = _analysis_lock(callback.from_user.id)
+    if lock.locked():
+        await callback.answer("التحليل قيد التنفيذ بالفعل", show_alert=True)
+        return
     await callback.answer("⏳ جاري إنشاء الإشارة...")
-    await _edit(callback, f"⏳ GENERATING SIGNAL — {asset.display}...", None)
-    user_settings = await ctx.repo.get_user_settings(
-        callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence}
-    )
-    try:
-        result, record = await ctx.generator.generate(
-            callback.from_user.id,
-            asset,
-            frame_code,
-            duration_seconds=duration,
-            min_confidence=user_settings["min_confidence"],
+    async with lock:
+        await _edit(callback, f"⏳ GENERATING SIGNAL — {asset.display}...", None)
+        user_settings = await ctx.repo.get_user_settings(
+            callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence}
         )
-    except DataUnavailable as exc:
+        try:
+            result, record = await ctx.generator.generate(
+                callback.from_user.id,
+                asset,
+                frame_code,
+                duration_seconds=duration,
+                min_confidence=user_settings["min_confidence"],
+            )
+        except DataUnavailable as exc:
+            await _edit(
+                callback,
+                fmt.unavailable_text(f"ROZLF AI — {asset.display}", exc.message, exc.detail),
+                menus.back_only(f"ast:{asset.key}", "🔙 BACK"),
+            )
+            return
+
+        if record is None:
+            await _edit(
+                callback,
+                f"<b>ROZLF AI — {asset.display}</b>\n\n"
+                f"NO TRADE — الثقة {result.confidence:.0f}% أقل من الحد "
+                f"({user_settings['min_confidence']:.0f}%) أو الأدلة متعارضة.\n\n"
+                "لم يتم تسجيل أي إشارة.",
+                menus.analysis_actions(asset, frame_code),
+            )
+            return
+
+        ai_note = None
+        try:
+            ai_note = await ctx.mistral.analyse_setup(
+                {
+                    "asset": record.asset_display,
+                    "market": record.market,
+                    "direction": record.direction,
+                    "expiry_seconds": record.expiry_seconds,
+                    "confidence": record.confidence,
+                    "entry": record.entry_price,
+                    "reasons": record.reasons,
+                    "indicators": result.indicators,
+                    "structure": result.smc,
+                }
+            )
+        except Exception as exc:
+            logger.info("Mistral signal note unavailable: %s", exc)
+
         await _edit(
             callback,
-            fmt.unavailable_text(f"ROZLF AI — {asset.display}", exc.message, exc.detail),
+            fmt.signal_text(record, ai_note),
             menus.back_only(f"ast:{asset.key}", "🔙 BACK"),
         )
-        return
-
-    if record is None:
-        await _edit(
-            callback,
-            f"<b>ROZLF AI — {asset.display}</b>\n\n"
-            f"NO TRADE — الثقة {result.confidence:.0f}% أقل من الحد "
-            f"({user_settings['min_confidence']:.0f}%) أو الأدلة متعارضة.\n\n"
-            "لم يتم تسجيل أي إشارة.",
-            menus.analysis_actions(asset, frame_code),
-        )
-        return
-
-    ai_note = None
-    try:
-        ai_note = await ctx.mistral.analyse_setup(
-            {
-                "asset": record.asset_display,
-                "market": record.market,
-                "direction": record.direction,
-                "expiry_seconds": record.expiry_seconds,
-                "confidence": record.confidence,
-                "entry": record.entry_price,
-                "reasons": record.reasons,
-                "indicators": result.indicators,
-                "structure": result.smc,
-            }
-        )
-    except Exception as exc:
-        logger.info("Mistral signal note unavailable: %s", exc)
-
-    await _edit(
-        callback,
-        fmt.signal_text(record, ai_note),
-        menus.back_only(f"ast:{asset.key}", "🔙 BACK"),
-    )
 
 
 def smarty_timeframe(duration_seconds: int) -> str:
@@ -656,27 +666,32 @@ async def cb_smarty_signal(callback: CallbackQuery) -> None:
     if asset is None or asset.market is not Market.SMARTY or duration <= 0:
         await callback.answer("طلب غير صالح", show_alert=True)
         return
-    await callback.answer("⏳ تحليل SMARTY...")
-    await _edit(callback, f"⏳ SMARTY — {asset.display} — {duration}s...", None)
-    user_settings = await ctx.repo.get_user_settings(
-        callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence}
-    )
-    try:
-        result, record = await ctx.generator.generate(
-            callback.from_user.id,
-            asset,
-            smarty_timeframe(duration),
-            duration_seconds=duration,
-            min_confidence=user_settings["min_confidence"],
-        )
-    except DataUnavailable as exc:
-        await _edit(
-            callback,
-            fmt.unavailable_text("🧠 SMARTY MARKET", "SMARTY_UNAVAILABLE", exc.detail or exc.message),
-            menus.unavailable_menu(Market.SMARTY),
-        )
+    lock = _analysis_lock(callback.from_user.id)
+    if lock.locked():
+        await callback.answer("التحليل قيد التنفيذ بالفعل", show_alert=True)
         return
-    await _edit(callback, fmt.smarty_result_text(result, record), menus.smarty_menu(asset))
+    await callback.answer("⏳ تحليل SMARTY...")
+    async with lock:
+        await _edit(callback, f"⏳ SMARTY — {asset.display} — {duration}s...", None)
+        user_settings = await ctx.repo.get_user_settings(
+            callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence}
+        )
+        try:
+            result, record = await ctx.generator.generate(
+                callback.from_user.id,
+                asset,
+                smarty_timeframe(duration),
+                duration_seconds=duration,
+                min_confidence=user_settings["min_confidence"],
+            )
+        except DataUnavailable as exc:
+            await _edit(
+                callback,
+                fmt.unavailable_text("🧠 SMARTY MARKET", "SMARTY_UNAVAILABLE", exc.detail or exc.message),
+                menus.unavailable_menu(Market.SMARTY),
+            )
+            return
+        await _edit(callback, fmt.smarty_result_text(result, record), menus.smarty_menu(asset))
 
 
 @router.callback_query(F.data == "auto")

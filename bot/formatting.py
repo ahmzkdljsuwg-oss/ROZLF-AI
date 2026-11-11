@@ -214,6 +214,8 @@ def history_text(records: list[SignalRecord]) -> str:
         lines.append(
             f"   entry {format_price(record.entry_price, record.market)}{close} · {local_time(record.created_at)}"
         )
+        if record.result_reason:
+            lines.append(f"   ↳ {record.result_reason}")
     return "\n".join(lines)
 
 
@@ -246,6 +248,7 @@ def verification_text(record: SignalRecord) -> str:
         f"CLOSE: {format_price(record.close_price, record.market)}\n"
         f"RESULT: <b>{icons.get(record.status, record.status)}</b>\n"
         f"VERIFIED VIA: {record.verification_source or '—'}"
+        f"\nREASON: {record.result_reason or '—'}"
     )
 
 
@@ -464,48 +467,59 @@ def unified_result_text(
     analysis_frame: str,
     record: SignalRecord | None = None,
 ) -> str:
-    signal = {"UP": "BUY 🟢", "DOWN": "SELL 🔴"}.get(result.direction, "NO TRADE ⚪")
-    strategies = [item.get("name", "") for item in result.confirmed_strategies if item.get("name")]
-    strategy_line = " + ".join(strategies[:3]) if strategies else "PRICE ACTION ONLY"
-    reasons = result.reasons[:4] or ["No strategy produced a valid entry condition."]
-    invalidations = result.invalidation[:2]
-    if not invalidations:
-        invalidations = [result.cancellation_reason or "Invalid if price closes against the setup."]
+    signal = {"UP": "BUY ❇️", "DOWN": "SELL 🛑"}.get(result.direction, "NO TRADE ⚪")
+    family_labels = {
+        "structure": "SMC",
+        "liquidity": "SMC",
+        "location": "PRICE ACTION",
+        "confirmation": "PRICE ACTION",
+        "impulse": "PRICE ACTION",
+        "trend": "EMA",
+        "trend_strength": "EMA",
+        "mtf": "MTF",
+        "momentum": "MOMENTUM",
+        "macd": "MOMENTUM",
+        "stochastic": "MOMENTUM",
+        "mean_reversion": "MEAN REVERSION",
+        "vwap": "VWAP",
+        "swing": "SMC",
+        "ict": "ICT",
+    }
+    labels = list(result.strategy_labels)
+    for item in result.confirmed_strategies:
+        label = family_labels.get(str(item.get("family", "")))
+        if label and label not in labels:
+            labels.append(label)
+    strategy_line = " + ".join(labels[:3]) if labels else "NO CONFIRMED STRATEGY"
     quality = int(result.data_confidence.get("score") or 0)
-    data_status = "LIVE" if quality >= 65 else "LIMITED"
-    frame_label = TIMEFRAMES.get(analysis_frame, None)
-    frame_text = frame_label.label if frame_label else result.timeframe
+    data_status = "LIVE" if quality >= 6 else "LIMITED"
+    trade_time = duration_label(duration_seconds) if duration_seconds else "N/A"
+    trend = result.trend_summary.upper() if result.trend_summary else "NEUTRAL"
     lines = [
-        "<b>ROZLF AI SIGNAL</b>",
+        "🧠 <b>ROZLF AI</b>",
         "━━━━━━━━━━━━━━━━━━",
         "",
-        f"MARKET: <b>{market_label(result.market)}</b>",
-        f"ASSET: <b>{result.asset_display}</b>",
-        f"TRADE DURATION: <b>{duration_label(duration_seconds) if duration_seconds else 'N/A'}</b>",
-        f"ANALYSIS TIMEFRAME: <b>{frame_text}</b>",
+        f"📊 MARKET: <b>{market_label(result.market)}</b>",
+        f"💹 ASSET: <b>{result.asset_display}</b>",
         "",
-        f"ANALYSIS STRENGTH: <b>{result.confidence:.0f}%</b>",
+        f"🔴 SIGNAL: <b>{signal}</b>",
         "",
-        f"SIGNAL: <b>{signal}</b>",
+        f"⏱️ TRADE TIME: <b>{trade_time}</b>",
         "",
-        f"TREND: {result.trend_summary}",
-        f"MOMENTUM: {result.momentum_strength}",
+        f"🎯 TRADE CONFIDENCE: <b>{result.confidence:.0f}%</b>",
         "",
-        f"STRATEGIES:\n{strategy_line}",
+        f"📈 TREND: <b>{trend}</b>",
+        f"⚡ MOMENTUM: <b>{result.momentum_strength}</b>",
         "",
-        f"DATA STATUS: <b>{data_status}</b>",
+        "🧠 STRATEGIES:",
+        f"<b>{strategy_line}</b>",
         "",
-        "<b>REASONS:</b>",
+        f"📡 DATA: <b>{data_status}</b>",
+        "",
+        "━━━━━━━━━━━━━━━━━━",
     ]
-    lines.extend(f"• {reason}" for reason in reasons)
-    lines.extend(["", "<b>INVALIDATION:</b>"])
-    lines.extend(f"• {item}" for item in invalidations)
-    lines.append("")
     if record is not None:
-        lines.append(f"SIGNAL ID: #{record.id}")
-    lines.append("DATA: REAL MARKET FEED — analysis only, no orders executed.")
-    lines.append("━━━━━━━━━━━━━━━━━━")
-    lines.append("<b>ROZLF AI</b>")
+        lines.append(f"ID: #{record.id}")
     return "\n".join(lines)
 
 

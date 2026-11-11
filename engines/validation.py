@@ -7,6 +7,16 @@ from providers.base import Candle, ValidationReport, utc_now
 from providers.catalog import Timeframe
 
 
+def closed_candles(candles: list[Candle], tf: Timeframe, now: datetime) -> list[Candle]:
+    """ExpertOption candle timestamps are bar-open times.
+
+    A bar is only usable once ``open_time + tf.seconds`` has passed. This is
+    enforced in live analysis and in the backtester so an unfinished bar can
+    never leak into a decision.
+    """
+    return [candle for candle in candles if candle.time.timestamp() + tf.seconds <= now.timestamp()]
+
+
 def validate_candles(
     candles: list[Candle],
     tf: Timeframe,

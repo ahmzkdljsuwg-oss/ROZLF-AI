@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from config import Settings, normalise_database_url
@@ -45,6 +45,7 @@ class SignalRecord:
     close_price: float | None = None
     verified_at: datetime | None = None
     verification_source: str | None = None
+    result_reason: str | None = None
 
 
 class Repository:
@@ -58,6 +59,11 @@ class Repository:
         self._session_factory = async_sessionmaker(self._engine, expire_on_commit=False)
         async with self._engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
+            columns = await connection.run_sync(
+                lambda sync: {column["name"] for column in inspect(sync).get_columns("signals")}
+            )
+            if "result_reason" not in columns:
+                await connection.execute(text("ALTER TABLE signals ADD COLUMN result_reason TEXT"))
 
     async def close(self) -> None:
         if self._engine is not None:
@@ -130,6 +136,7 @@ class Repository:
         close_price: float | None,
         verified_at: datetime | None,
         source: str | None,
+        reason: str | None = None,
     ) -> None:
         async with self._session() as session:
             row = await session.get(Signal, signal_id)
@@ -139,6 +146,7 @@ class Repository:
             row.close_price = close_price
             row.verified_at = verified_at
             row.verification_source = source
+            row.result_reason = reason
             await session.commit()
 
     async def recent_signals(self, limit: int = 10, user_id: int | None = None) -> list[SignalRecord]:
@@ -261,4 +269,5 @@ class Repository:
             close_price=row.close_price,
             verified_at=_aware(row.verified_at),
             verification_source=row.verification_source,
+            result_reason=row.result_reason,
         )

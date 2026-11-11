@@ -33,6 +33,7 @@ class Signal(Base):
     close_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     verification_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    result_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Signal {self.id} {self.asset_display} {self.direction} {self.status}>"
