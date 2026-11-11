@@ -33,6 +33,12 @@ def _record(direction="UP", status="ACTIVE") -> SignalRecord:
 def test_main_menu_has_real_callbacks():
     markup = menus.main_menu()
     data = [button.callback_data for row in markup.inline_keyboard for button in row]
+    texts = [button.text for row in markup.inline_keyboard for button in row]
+    assert texts == [
+        "🧠 SMARTY MARKET", "⚽ FOOTBALL INDEX", "💎 LUXURY INDEX", "🤖 AI INDEX",
+        "🏏 CRICKET INDEX", "💱 FOREX MARKET", "📡 LIVE SIGNALS", "📜 SIGNAL HISTORY",
+        "📊 PERFORMANCE STATISTICS", "⚙️ SETTINGS", "🖥️ SYSTEM STATUS",
+    ]
     assert data == [
         "mkt:SMARTY", "mkt:FOOTBALL", "mkt:LUXURY", "mkt:AI", "mkt:CRICKET", "mkt:FOREX",
         "live", "hist", "stats", "settings", "status",
@@ -42,7 +48,8 @@ def test_main_menu_has_real_callbacks():
         "mkt:SMARTY", "mkt:FOOTBALL", "mkt:LUXURY", "mkt:AI", "mkt:CRICKET", "mkt:FOREX",
         "menu:main",
     ]
-    assert not any("OTC" in item for item in market_data)
+    assert not any("OTC" in item for item in data + texts)
+    assert not any("GOLD" in item for item in data + texts)
     for item in data:
         assert item
 

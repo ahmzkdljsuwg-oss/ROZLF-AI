@@ -17,6 +17,7 @@ from ai.mistral import MistralClient
 from bot import formatting as fmt
 from bot.context import AppContext, set_context
 from bot.handlers import menus
+from bot.keyboards import menus as keyboards
 from bot.middleware.auth import AccessMiddleware
 from config import settings
 from database.repository import Repository
@@ -55,6 +56,12 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
             "ai": ctx.mistral.configured if ctx else settings.mistral_enabled,
             "bridge_configured": bool(settings.bridge_url and settings.eo_bridge_key),
             "build": os.getenv("ROZLF_BUILD_SHA") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "unknown",
+            "menu_version": "M2",
+            "menu": [
+                {"text": button.text, "callback": button.callback_data}
+                for row in keyboards.main_menu().inline_keyboard
+                for button in row
+            ],
             "error": state.get("error"),
         }
         return web.json_response(payload)
@@ -166,10 +173,20 @@ async def main() -> None:
     runner = await _health_server(ctx, state)
 
     async def on_startup() -> None:
+        try:
+            await bot.delete_webhook(drop_pending_updates=False)
+        except Exception:
+            logger.exception("could not clear a stale Telegram webhook")
+        menu_fingerprint = " | ".join(
+            f"{button.text}={button.callback_data}"
+            for row in keyboards.main_menu().inline_keyboard
+            for button in row
+        )
+        logger.info("ROZLF MENU M2 READY: %s", menu_fingerprint)
         await bot.set_my_commands(
             [
                 BotCommand(command="start", description="فتح لوحة التحكم"),
-                BotCommand(command="markets", description="فتح قائمة الأسواق السبعة"),
+                BotCommand(command="markets", description="فتح قائمة الأسواق"),
                 BotCommand(command="status", description="حالة البيانات والذكاء الاصطناعي"),
                 BotCommand(command="scan", description="فتح الماسح التلقائي"),
                 BotCommand(command="stats", description="الإحصائيات"),

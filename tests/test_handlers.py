@@ -74,6 +74,84 @@ async def test_market_callback_lists_assets(monkeypatch):
     assert callback.answered
 
 
+REQUIRED_MENU = [
+    "🧠 SMARTY MARKET",
+    "⚽ FOOTBALL INDEX",
+    "💎 LUXURY INDEX",
+    "🤖 AI INDEX",
+    "🏏 CRICKET INDEX",
+    "💱 FOREX MARKET",
+    "📡 LIVE SIGNALS",
+    "📜 SIGNAL HISTORY",
+    "📊 PERFORMANCE STATISTICS",
+    "⚙️ SETTINGS",
+    "🖥️ SYSTEM STATUS",
+]
+
+
+async def test_start_renders_exact_new_menu(monkeypatch, settings):
+    from bot import context
+
+    monkeypatch.setattr(context, "_context", SimpleNamespace(settings=settings), raising=False)
+    message = FakeMessage()
+    await handlers.cmd_start(message)
+    text, keyboard = message.answers[0]
+    assert [button.text for row in keyboard.inline_keyboard for button in row] == REQUIRED_MENU
+    assert "OTC" not in text and "GOLD ANALYSIS" not in text
+    assert "PERFORMANCE STATISTICS" in text
+
+
+@pytest.mark.parametrize(
+    ("market_name", "symbol", "asset_id"),
+    [
+        ("SMARTY", "SMRTY", 240),
+        ("FOOTBALL", "FOOTBALL_INDEX_OTC_R", 278),
+        ("LUXURY", "LUXURY_INDEX_OTC_R", 286),
+        ("AI", "AI_INDEX_OTC_R", 285),
+        ("CRICKET", "CRICKET_INDEX_OTC_R", 276),
+    ],
+)
+async def test_each_market_button_opens_its_real_asset(monkeypatch, market_name, symbol, asset_id):
+    from providers.catalog import Market, dynamic_asset
+
+    asset = dynamic_asset(symbol, getattr(Market, market_name), precision=5, bridge_id=asset_id, name=market_name)
+    _fake_context(monkeypatch, inventory=FakeInventory(assets=[asset]))
+    callback = FakeCallback(f"mkt:{market_name}")
+    await handlers.cb_market(callback)
+    text, keyboard = callback.message.edits[0]
+    assert f"ID {asset_id}" in text
+    data = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"dur:auto:{asset.key}" in data
+    assert f"dur:manual:{asset.key}" in data
+
+
+async def test_forex_button_shows_real_pairs(monkeypatch):
+    _fake_context(monkeypatch)
+    callback = FakeCallback("mkt:FOREX")
+    await handlers.cb_market(callback)
+    text, keyboard = callback.message.edits[0]
+    for pair in ("EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "USD/CHF", "NZD/USD", "EUR/JPY", "GBP/JPY"):
+        assert pair in text
+    assert "XAU/USD" not in text
+    assert keyboard is not None
+
+
+async def test_inactive_cricket_shows_unavailable_and_no_durations(monkeypatch):
+    from providers.base import DataUnavailable
+
+    class InactiveCricket(FakeInventory):
+        async def assets(self, market, force=False):
+            raise DataUnavailable("CRICKET_UNAVAILABLE", "CRICKET UNAVAILABLE — no active Cricket instrument")
+
+    _fake_context(monkeypatch, inventory=InactiveCricket())
+    callback = FakeCallback("mkt:CRICKET")
+    await handlers.cb_market(callback)
+    text, keyboard = callback.message.edits[0]
+    assert "CRICKET UNAVAILABLE" in text
+    data = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert not any(item.startswith(("dur:", "md:", "ix:")) for item in data)
+
+
 async def test_market_callback_is_case_insensitive(monkeypatch):
     _fake_context(monkeypatch)
     callback = FakeCallback("mkt:SMARTY")

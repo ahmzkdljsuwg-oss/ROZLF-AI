@@ -62,7 +62,7 @@ def welcome_text(settings: Settings) -> str:
         "<b>الأقسام:</b>\n"
         "📡 LIVE SIGNALS — أفضل الفرص الحالية\n"
         "📜 SIGNAL HISTORY — الإشارات ونتائجها\n"
-        "📊 PERFORMANCE — النتائج المتحققة فقط\n"
+        "📊 PERFORMANCE STATISTICS — النتائج المتحققة فقط\n"
         "⚙️ SETTINGS — حد الثقة والماسح\n"
         "🖥️ SYSTEM STATUS — حالة مصادر البيانات\n\n"
         f"AI STATUS: <b>{ai_status}</b>\n"

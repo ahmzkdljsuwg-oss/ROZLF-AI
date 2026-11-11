@@ -38,7 +38,7 @@ def main_menu() -> InlineKeyboardMarkup:
     for index in range(0, len(MARKET_BUTTONS), 2):
         builder.row(*[_button(text, data) for text, data in MARKET_BUTTONS[index:index + 2]])
     builder.row(_button("📡 LIVE SIGNALS", "live"))
-    builder.row(_button("📜 SIGNAL HISTORY", "hist"), _button("📊 PERFORMANCE", "stats"))
+    builder.row(_button("📜 SIGNAL HISTORY", "hist"), _button("📊 PERFORMANCE STATISTICS", "stats"))
     builder.row(_button("⚙️ SETTINGS", "settings"), _button("🖥️ SYSTEM STATUS", "status"))
     return builder.as_markup()
 
