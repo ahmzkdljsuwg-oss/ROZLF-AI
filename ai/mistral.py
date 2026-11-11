@@ -39,10 +39,40 @@ class MistralClient:
         self._owns_client = client is None
         self._timeout = timeout
         self.last_error: str | None = None
+        self._online: bool | None = None
+        self._checked_at = 0.0
 
     @property
     def configured(self) -> bool:
         return bool(self.api_key)
+
+    @property
+    def online(self) -> bool | None:
+        return self._online
+
+    async def check(self, max_age: float = 300.0) -> bool:
+        """Probe the real API; never reports online from configuration alone."""
+        if not self.configured:
+            self._online = False
+            return False
+        loop = asyncio.get_running_loop()
+        if self._online is not None and loop.time() - self._checked_at < max_age:
+            return self._online
+        try:
+            await self._post(
+                {
+                    "model": self.model,
+                    "messages": [{"role": "user", "content": "Reply with OK"}],
+                    "max_tokens": 1,
+                }
+            )
+            self._online = True
+            self.last_error = None
+        except MistralUnavailable as exc:
+            self._online = False
+            self.last_error = str(exc)
+        self._checked_at = loop.time()
+        return self._online
 
     async def close(self) -> None:
         if self._owns_client and self._client is not None:
@@ -52,6 +82,7 @@ class MistralClient:
     def health(self) -> dict[str, Any]:
         return {
             "configured": self.configured,
+            "online": self._online,
             "model": self.model,
             "last_error": self.last_error,
         }

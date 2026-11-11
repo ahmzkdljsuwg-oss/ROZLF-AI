@@ -67,7 +67,7 @@ class FakeGenerator:
         self.error = error
         self.calls = []
 
-    async def fetch_and_analyse(self, asset, tf):
+    async def fetch_and_analyse(self, asset, tf, duration_seconds=None):
         self.calls.append((asset.key, tf))
         if self.error:
             raise self.error
@@ -238,7 +238,7 @@ async def test_auto_duration_chooses_supported_value_and_explains(monkeypatch):
 async def test_auto_duration_no_trade_does_not_create_signal(monkeypatch):
     asset = dynamic_asset("AI_INDEX_OTC_R", Market.AI, bridge_id=285, name="AI Index")
     generator = FakeGenerator(asset)
-    generator.fetch_and_analyse = lambda asset, tf: _no_trade(asset)
+    generator.fetch_and_analyse = lambda asset, tf, duration_seconds=None: _no_trade(asset)
     _context(monkeypatch, FakeInventory([asset]), generator)
     callback = FakeCallback(f"dur:auto:{asset.key}")
     await handlers.cb_duration_mode(callback)

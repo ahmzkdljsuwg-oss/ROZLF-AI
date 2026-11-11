@@ -40,8 +40,8 @@ def test_sell_template_exact():
 def test_no_trade_template_hides_duration_and_confidence():
     text = fmt.signal_card_text("luxury", "Luxury Index", "NO TRADE", 300, 64.0)
     assert "⚪ SIGNAL: <b>NO TRADE</b>" in text
-    assert "⏱️ TRADE TIME: <b>—</b>" in text
-    assert "🎯 TRADE CONFIDENCE: <b>—</b>" in text
+    assert "REASON: <b>INSUFFICIENT CONFIRMATION</b>" in text
+    assert "TRADE TIME" not in text and "TRADE CONFIDENCE" not in text
     assert "300" not in text and "64%" not in text
 
 
@@ -52,10 +52,10 @@ def test_confidence_is_not_fixed():
 
 
 def test_welcome_has_three_sections_and_no_removed_sections():
-    text = fmt.welcome_text(SimpleNamespace(min_confidence=65.0, mistral_api_key="x"))
+    text = fmt.welcome_text(SimpleNamespace(min_confidence=65.0, mistral_api_key="x"), ai_online=True)
     assert "WELCOME BACK" in text
-    for title in ("ANALYSIS", "SETTINGS", "RECOMMENDATIONS"):
-        assert title in text
+    assert "The bot by lo and Q8" in text
+    assert "API: 🟢 ONLINE" in text
     assert "OTC" not in text
     assert "GOLD" not in text
 

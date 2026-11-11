@@ -32,8 +32,8 @@ async def test_no_trade_never_becomes_signal(settings, repo, eurusd):
     from engines.signals.generator import SignalGenerator as Gen
 
     class NoTradeGen(Gen):
-        async def fetch_and_analyse(self, asset, tf):
-            _, result = await super().fetch_and_analyse(asset, tf)
+        async def fetch_and_analyse(self, asset, tf, duration_seconds=None):
+            _, result = await super().fetch_and_analyse(asset, tf, duration_seconds)
             result.direction = "NO TRADE"
             return None, result
 

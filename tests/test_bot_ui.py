@@ -87,14 +87,16 @@ def test_analysis_text_says_data_unavailable_when_needed():
     assert "DATA UNAVAILABLE" in fmt.DATA_UNAVAILABLE
 
 
-def test_welcome_text_shows_sections(settings):
-    text = fmt.welcome_text(settings)
-    assert "ROZLF AI" in text
+def test_welcome_text_shows_only_requested_lines(settings):
+    text = fmt.welcome_text(settings, ai_online=True)
     assert "WELCOME BACK" in text
-    for item in ("ANALYSIS", "SETTINGS", "RECOMMENDATIONS"):
-        assert item in text
+    assert "ROZLF AI" in text
+    assert "The bot by lo and Q8" in text
+    assert "API: 🟢 ONLINE" in text
     assert "OTC" not in text
     assert "GOLD" not in text
+    assert "DISCLAIMER" not in text.upper()
+    assert len([line for line in text.splitlines() if line.strip()]) == 4
 
 
 def test_market_labels():

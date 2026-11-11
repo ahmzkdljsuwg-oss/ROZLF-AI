@@ -47,20 +47,37 @@ def market_label(market: str) -> str:
     return labels.get(market, market)
 
 
-def welcome_text(settings: Settings) -> str:
-    ai_status = "🟢 ONLINE" if settings.mistral_api_key else "⚪ NOT CONFIGURED"
+def welcome_text(settings: Settings, ai_online: bool | None = None) -> str:
+    online = bool(settings.mistral_api_key) if ai_online is None else ai_online
+    status = "API: 🟢 ONLINE" if online else "API: 🔴 OFFLINE"
     return (
         "WELCOME BACK 👋\n\n"
         "🧠 <b>ROZLF AI</b>\n"
-        "<i>YOUR AI TRADING ASSISTANT</i>\n"
-        "━━━━━━━━━━━━━━━━━━\n\n"
-        "<b>📉 ANALYSIS</b> — تحليل سوق حقيقي وإشارة مبنية على الأدلة\n"
-        "<b>⚙️ SETTINGS</b> — الحد الأدنى لثقة التداول الخاصة بك\n"
-        "<b>🏆 RECOMMENDATIONS</b> — أفضل الفرص الحالية بين الأسواق\n\n"
-        f"AI ENGINE: <b>{ai_status}</b>\n"
-        f"MIN CONFIDENCE: <b>{settings.min_confidence:.0f}%</b>\n\n"
-        f"<i>{DISCLAIMER}</i>"
+        "The bot by lo and Q8\n\n"
+        f"{status}"
     )
+
+
+def no_trade_reason(result: AnalysisResult | None) -> str:
+    if result is None:
+        return "INSUFFICIENT CONFIRMATION"
+    reason = getattr(result, "cancellation_reason", None)
+    if not reason and getattr(result, "blockers", None):
+        reason = result.blockers[0]
+    text = str(reason or "").lower()
+    if "confidence" in text or "below your" in text:
+        return "BELOW YOUR CONFIDENCE MINIMUM"
+    if "conflict" in text or "disagree" in text or "mixed" in text or "choch" in text:
+        return "CONFLICTING EVIDENCE"
+    if "late" in text or "extended" in text or "moved too far" in text:
+        return "LATE ENTRY"
+    if "level" in text:
+        return "PRICE AT KEY LEVEL"
+    if "data" in text or "candle" in text or "stale" in text or "gap" in text:
+        return "INSUFFICIENT DATA"
+    if "sideways" in text or "weak trend" in text or "families" in text:
+        return "INSUFFICIENT CONFIRMATION"
+    return "INSUFFICIENT CONFIRMATION"
 
 
 def signal_card_text(
@@ -69,15 +86,21 @@ def signal_card_text(
     direction: str,
     expiry_seconds: int | None,
     confidence: float | None,
+    reason: str | None = None,
 ) -> str:
     if direction == "UP":
         signal_line = "🟢 SIGNAL: <b>BUY 🟢</b>"
     elif direction == "DOWN":
         signal_line = "🔴 SIGNAL: <b>SELL 🛑</b>"
     else:
-        signal_line = "⚪ SIGNAL: <b>NO TRADE</b>"
-    trade_time = duration_label(expiry_seconds) if expiry_seconds and direction in ("UP", "DOWN") else "—"
-    conf = f"{confidence:.0f}%" if confidence is not None and direction in ("UP", "DOWN") else "—"
+        return (
+            f"📊 MARKET: <b>{market_label(market)}</b>\n"
+            f"💹 ASSET: <b>{asset_display}</b>\n\n"
+            f"⚪ SIGNAL: <b>NO TRADE</b>\n\n"
+            f"REASON: <b>{reason or 'INSUFFICIENT CONFIRMATION'}</b>"
+        )
+    trade_time = duration_label(expiry_seconds) if expiry_seconds else "—"
+    conf = f"{confidence:.0f}%" if confidence is not None else "—"
     return (
         f"📊 MARKET: <b>{market_label(market)}</b>\n"
         f"💹 ASSET: <b>{asset_display}</b>\n\n"
@@ -622,6 +645,7 @@ def unified_result_text(
         direction,
         expiry,
         confidence,
+        no_trade_reason(result),
     )
 
 

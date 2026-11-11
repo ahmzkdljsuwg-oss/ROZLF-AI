@@ -117,7 +117,7 @@ class _Generator:
         self.generated = []
         self.fetched = []
 
-    async def fetch_and_analyse(self, asset, frame):
+    async def fetch_and_analyse(self, asset, frame, duration_seconds=None):
         self.fetched.append(asset.key)
         if asset.key not in self.results:
             raise DataUnavailable("NO_DATA", "no fake data")

@@ -36,6 +36,17 @@ def _analysis_lock(user_id: int) -> asyncio.Lock:
     return _ANALYSIS_LOCKS.setdefault(user_id, asyncio.Lock())
 
 
+async def _ai_online(ctx) -> bool:
+    client = getattr(ctx, "mistral", None)
+    if client is not None:
+        try:
+            return await client.check()
+        except Exception as exc:  # a probe failure must never break the menu
+            logger.info("AI status probe failed: %s", type(exc).__name__)
+            return False
+    return bool(getattr(ctx.settings, "mistral_api_key", None))
+
+
 async def _present_result(
     callback: CallbackQuery,
     asset: Asset,
@@ -45,7 +56,8 @@ async def _present_result(
     note: str | None = None,
 ) -> None:
     _LAST_ANALYSIS[(callback.from_user.id, asset.key)] = (result, record, note)
-    await _edit(callback, fmt.unified_result_text(result, None, frame_code, record),
+    expiry = getattr(record, "expiry_seconds", None)
+    await _edit(callback, fmt.unified_result_text(result, expiry, frame_code, record),
                 menus.signal_result_menu(asset, frame_code))
 
 
@@ -61,8 +73,9 @@ async def _edit(callback: CallbackQuery, text: str, keyboard=None) -> None:
 
 async def _show_main(message: Message) -> None:
     ctx = get_context()
+    online = await _ai_online(ctx)
     await message.answer(
-        fmt.welcome_text(ctx.settings),
+        fmt.welcome_text(ctx.settings, ai_online=online),
         reply_markup=menus.main_menu(),
         disable_web_page_preview=True,
     )
@@ -146,7 +159,8 @@ async def _send_status(message: Message) -> None:
 async def cb_main(callback: CallbackQuery) -> None:
     ctx = get_context()
     await callback.answer()
-    await _edit(callback, fmt.welcome_text(ctx.settings), menus.main_menu())
+    online = await _ai_online(ctx)
+    await _edit(callback, fmt.welcome_text(ctx.settings, ai_online=online), menus.main_menu())
 
 
 @router.callback_query(F.data.startswith("mkt:"))
@@ -318,7 +332,7 @@ async def _run_analyze_time(callback: CallbackQuery, asset: Asset, durations: li
         for duration in durations:
             frame_code = analysis_frame_for_duration(asset, duration)
             try:
-                _, result = await ctx.generator.fetch_and_analyse(asset, frame_code)
+                _, result = await ctx.generator.fetch_and_analyse(asset, frame_code, duration)
             except DataUnavailable as exc:
                 notes.append(f"{fmt.trade_duration_label(duration)}: {exc.message}")
                 continue
@@ -374,6 +388,14 @@ async def _run_recommendations(callback: CallbackQuery) -> None:
             duration, reason = choose_auto_duration(result, asset)
             if duration is None or duration not in _trade_durations(asset):
                 continue
+            try:
+                _, confirmation = await ctx.generator.fetch_and_analyse(asset, frame_code, duration)
+            except DataUnavailable as exc:
+                errors.append(f"{market.label}: {exc.message}")
+                continue
+            if confirmation.direction != result.direction or confirmation.confidence < threshold:
+                continue
+            result = confirmation
             item = {
                 "market": market.label,
                 "asset": asset.display,
@@ -520,8 +542,13 @@ async def _run_auto_duration(callback: CallbackQuery, asset: Asset) -> None:
         )
         if duration is not None and best.direction in ("UP", "DOWN") and best.confidence >= user_settings["min_confidence"]:
             try:
-                record = await ctx.generator.create_signal(callback.from_user.id, best, duration)
-            except ValueError as exc:
+                _, confirmed = await ctx.generator.fetch_and_analyse(asset, best_frame, duration)
+                if confirmed.direction != best.direction or confirmed.confidence < user_settings["min_confidence"]:
+                    duration = None
+                else:
+                    best = confirmed
+                    record = await ctx.generator.create_signal(callback.from_user.id, best, duration)
+            except (DataUnavailable, ValueError) as exc:
                 logger.info("AUTO duration rejected by generator: %s", exc)
                 duration = None
         await _present_result(callback, asset, best_frame, best, record, f"SMART DURATION: {reason}")

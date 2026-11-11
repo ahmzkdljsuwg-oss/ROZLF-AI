@@ -45,7 +45,6 @@ def supported_durations(asset: Asset, tf: Timeframe) -> list[int]:
     else:
         supported = [60, 120, 180, 300]
     return sorted(set(supported) | set(fast))
-    return supported
 
 
 class SignalGenerator:
@@ -54,10 +53,15 @@ class SignalGenerator:
         self.repo = repo
         self.settings = settings
 
-    async def fetch_and_analyse(self, asset: Asset, tf: Timeframe | str) -> tuple[MarketData, AnalysisResult]:
+    async def fetch_and_analyse(
+        self,
+        asset: Asset,
+        tf: Timeframe | str,
+        duration_seconds: int | None = None,
+    ) -> tuple[MarketData, AnalysisResult]:
         tf = timeframe(tf) if isinstance(tf, str) else tf
         market_data = await self.registry.fetch(asset, tf)
-        result = analyze_market_data(market_data)
+        result = analyze_market_data(market_data, duration_seconds=duration_seconds)
         return market_data, result
 
     async def create_signal(
@@ -99,8 +103,14 @@ class SignalGenerator:
         min_confidence: float | None = None,
     ) -> tuple[AnalysisResult, SignalRecord | None]:
         threshold = min_confidence if min_confidence is not None else self.settings.min_confidence
-        _, result = await self.fetch_and_analyse(asset, tf)
-        if result.direction == "NO TRADE" or result.confidence < threshold:
+        _, result = await self.fetch_and_analyse(asset, tf, duration_seconds)
+        if result.direction == "NO TRADE":
+            return result, None
+        if result.confidence < threshold:
+            result.cancellation_reason = (
+                f"CONFIDENCE {result.confidence:.0f}% IS BELOW YOUR "
+                f"{threshold:.0f}% MINIMUM"
+            )
             return result, None
         asset_obj = get_asset(result.asset_key)
         tf_obj = timeframe(result.timeframe)

@@ -59,7 +59,11 @@ def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
-def analyze_market_data(market_data: MarketData, now: datetime | None = None) -> AnalysisResult:
+def analyze_market_data(
+    market_data: MarketData,
+    now: datetime | None = None,
+    duration_seconds: int | None = None,
+) -> AnalysisResult:
     if not market_data.validation.ok:
         raise DataUnavailable("INVALID_DATA", f"Refusing to analyse invalid candles: {market_data.validation.summary}")
     if market_data.validation.stale:
@@ -114,7 +118,9 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
         if spread_pct > 0.02:
             warnings.append(f"Wide spread ({spread_pct:.3f}%)")
 
-    evidence = evaluate_evidence(frame, ind, smc, report, analysis_data, now, profile)
+    evidence = evaluate_evidence(
+        frame, ind, smc, report, analysis_data, now, profile, duration_seconds
+    )
     direction = evidence.direction
     confidence = evidence.confidence
     cancellation_reason = evidence.blockers[0] if evidence.blockers else None
