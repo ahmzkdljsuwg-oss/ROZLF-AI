@@ -77,13 +77,45 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", settings.port)
     await site.start()
+    state["health_started"] = True
+    state["runner"] = runner
     logger.info("health server listening on :%s (role=%s)", settings.port, settings.role)
     return runner
 
 
-async def main() -> None:
+async def _keep_alive_after_failure(state: dict) -> None:
+    """If Telegram/DB init fails, keep serving health so the failure is visible."""
+    runner = None
+    if settings.port and not state.get("health_started"):
+        app = web.Application()
+
+        async def health(_request: web.Request) -> web.Response:
+            return web.json_response(
+                {
+                    "status": "degraded",
+                    "service": "ROZLF AI",
+                    "role": settings.role,
+                    "polling": False,
+                    "stage": state.get("stage"),
+                    "error": state.get("error"),
+                }
+            )
+
+        app.router.add_get("/", health)
+        app.router.add_get("/health", health)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", settings.port)
+        await site.start()
+    try:
+        await asyncio.Event().wait()
+    finally:
+        if runner is not None:
+            await runner.cleanup()
+
+
+async def _run_bot(state: dict) -> None:
     setup_logging()
-    state: dict = {"polling": False, "stage": "starting", "error": None}
     runner = await _health_server(None, state)
 
     if settings.web_only:
@@ -230,6 +262,19 @@ async def main() -> None:
         except (asyncio.CancelledError, Exception):
             pass
         await bot.session.close()
+
+
+async def main() -> None:
+    state: dict = {"polling": False, "stage": "starting", "error": None}
+    try:
+        await _run_bot(state)
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except Exception as exc:
+        logger.exception("ROZLF AI startup failed")
+        state["error"] = f"{type(exc).__name__}"
+        state["stage"] = "failed"
+        await _keep_alive_after_failure(state)
 
 
 if __name__ == "__main__":
