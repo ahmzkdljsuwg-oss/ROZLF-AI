@@ -361,7 +361,20 @@ def market_page_text(asset: Asset, source_state: str, detail: str | None = None)
 
 
 def smarty_card_text(asset: Asset, source_state: str, detail: str | None = None) -> str:
-    return market_page_text(asset, source_state, detail)
+    lines = [
+        f"<b>{market_label(asset.market.value)} — EXPERTOPTION</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        f"ASSET: <b>{asset.display}</b>",
+        f"MARKET: {market_label(asset.market.value)} (ExpertOption)",
+        f"EO ASSET ID: {asset.bridge_id or 'N/A'}",
+        f"DATA SOURCE: {source_state}",
+    ]
+    if detail:
+        lines.append(f"STATUS: {detail}")
+    lines.append("")
+    lines.append(f"اختر مدة الصفقة لتحليل {market_label(asset.market.value)} وإصدار الإشارة:")
+    lines.append("<i>مدة الصفقة مستقلة عن فريم الشموع المستخدم في التحليل.</i>")
+    return "\n".join(lines)
 
 
 def smarty_assets_text(assets: list[Asset], market: Market | None = None) -> str:

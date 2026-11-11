@@ -66,6 +66,14 @@ def test_market_page_separates_candle_frame_from_expiry():
     assert "SMART DURATION" in text
 
 
+def test_original_duration_page_design_is_restored():
+    text = fmt.smarty_card_text(_asset(), "LIVE", "ID 240")
+    assert "EXPERTOPTION" in text
+    assert "ASSET:" in text and "EO ASSET ID:" in text
+    assert "اختر مدة الصفقة" in text
+    assert "مدة الصفقة مستقلة" in text
+
+
 def test_unavailable_hides_duration_actions():
     markup = kb.unavailable_menu(Market.CRICKET)
     data = [b.callback_data for row in markup.inline_keyboard for b in row]

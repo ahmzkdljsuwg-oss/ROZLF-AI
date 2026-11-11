@@ -212,8 +212,13 @@ async def _show_assets(callback: CallbackQuery, market: Market, assets: list[Ass
 async def _show_duration_method(callback: CallbackQuery, asset: Asset) -> None:
     ctx = get_context()
     source = ctx.registry.source_summary(asset)
-    detail = f"EO ID {asset.bridge_id}" if asset.bridge_id else None
-    text = fmt.market_page_text(asset, source, detail)
+    detail = f"ID {asset.bridge_id}" if asset.bridge_id else None
+    text = fmt.smarty_card_text(asset, source, detail)
+    text += (
+        "\n\n<b>TRADE DURATION</b>\n"
+        "🤖 SMART DURATION — البوت يختار الوقت المناسب بعد تحليل السوق.\n"
+        "✋ MANUAL DURATION — أنت تختار من المدد المدعومة فعلياً."
+    )
     await _edit(callback, text, menus.duration_method_menu(asset))
 
 
