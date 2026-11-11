@@ -65,21 +65,22 @@ def test_scan_interval_property():
     assert settings.scan_interval == 120
 
 
-def test_web_role_from_railway_service_name():
+def test_railway_service_name_does_not_disable_polling():
     with patch.dict(os.environ, {"RAILWAY_SERVICE_NAME": "web"}, clear=True):
         settings = Settings.from_env()
-    assert settings.role == "web"
-    assert settings.web_only is True
+    assert settings.role == "bot"
+    assert settings.web_only is False
 
 
 def test_worker_role_is_not_web_only():
     with patch.dict(os.environ, {"RAILWAY_SERVICE_NAME": "worker"}, clear=True):
         settings = Settings.from_env()
-    assert settings.role == "worker"
+    assert settings.role == "bot"
     assert settings.web_only is False
 
 
-def test_explicit_role_wins():
-    with patch.dict(os.environ, {"RAILWAY_SERVICE_NAME": "worker", "ROZLF_ROLE": "web"}, clear=True):
+def test_explicit_health_role_is_web_only():
+    with patch.dict(os.environ, {"RAILWAY_SERVICE_NAME": "worker", "ROZLF_ROLE": "health"}, clear=True):
         settings = Settings.from_env()
-    assert settings.role == "web"
+    assert settings.role == "health"
+    assert settings.web_only is True

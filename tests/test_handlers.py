@@ -172,7 +172,7 @@ async def test_markets_hub_callback():
     callback = FakeCallback("markets")
     await handlers.cb_markets(callback)
     text, keyboard = callback.message.edits[0]
-    assert "SELECT MARKET" in text
+    assert "MARKET DESK" in text
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
     assert data == [
         "mkt:SMARTY",
@@ -232,10 +232,9 @@ async def test_football_duration_reaches_asset_278_analysis(monkeypatch):
         ),
         raising=False,
     )
-    monkeypatch.setattr(handlers.fmt, "smarty_result_text", lambda result, record: "ANALYSIS")
     callback = FakeCallback(f"ix:{asset.key}:30")
     await handlers.cb_index_signal(callback)
-    assert callback.message.edits[-1][0] == "ANALYSIS"
+    assert "📊 MARKET:" in callback.message.edits[-1][0]
     assert len(calls) == 1
     assert calls[0][0].bridge_id == 278
     assert calls[0][0].market is Market.FOOTBALL

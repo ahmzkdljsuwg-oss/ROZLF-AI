@@ -82,6 +82,15 @@ def duration_method_menu(asset: Asset) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def signal_result_menu(asset: Asset, frame_code: str, has_details: bool = True) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    if has_details:
+        builder.row(_button("🔍 WHY THIS SIGNAL", f"whyd:{asset.key}:{frame_code}"))
+    builder.row(_button("🔄 RE-ANALYSE", f"an:{asset.key}:{frame_code}"))
+    builder.row(_button("🏠 MAIN MENU", "menu:main"))
+    return builder.as_markup()
+
+
 def manual_duration_menu(asset: Asset, durations: list[int]) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for seconds in durations:

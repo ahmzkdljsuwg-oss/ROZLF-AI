@@ -77,12 +77,10 @@ def test_weak_market_can_return_no_trade(eurusd):
 def test_premium_card_shows_trade_time_before_confidence(eurusd):
     result = analyze_market_data(_market(eurusd, make_candles(220, noise=0.0001, seed=23)))
     text = unified_result_text(result, 30, "5min")
-    assert text.startswith("🧠 <b>ROZLF AI</b>")
-    assert "📊 MARKET: <b>FOREX</b>" in text
-    assert "🔴 SIGNAL:" in text
+    assert text.startswith("📊 MARKET: <b>FOREX</b>")
+    assert "🔴 SIGNAL:" in text or "🟢 SIGNAL:" in text or "⚪ SIGNAL:" in text
     assert text.index("TRADE TIME") < text.index("TRADE CONFIDENCE")
-    assert "📡 DATA:" in text
-    assert "BUY ❇️" in text or "SELL 🛑" in text or "NO TRADE ⚪" in text
+    assert "🟢 SIGNAL: <b>BUY 🟢</b>" in text or "🔴 SIGNAL: <b>SELL 🛑</b>" in text or "⚪ SIGNAL: <b>NO TRADE</b>" in text
 
 
 async def test_settlement_reason_is_persisted(repo: Repository):

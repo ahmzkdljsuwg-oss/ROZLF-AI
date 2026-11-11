@@ -77,10 +77,20 @@ class FakeGenerator:
         self.calls.append((asset.key, tf, duration_seconds))
         if self.error:
             raise self.error
-        return _result(asset), SimpleNamespace(id=self.record_id)
+        return _result(asset), SimpleNamespace(
+            id=self.record_id,
+            direction="UP",
+            expiry_seconds=duration_seconds,
+            confidence=82.0,
+        )
 
     async def create_signal(self, user_id, result, duration):
-        return SimpleNamespace(id=self.record_id)
+        return SimpleNamespace(
+            id=self.record_id,
+            direction="UP",
+            expiry_seconds=duration,
+            confidence=result.confidence,
+        )
 
 
 class FakeInventory:
@@ -208,7 +218,6 @@ async def test_manual_duration_runs_analysis_with_chosen_duration(monkeypatch):
     assert generator.calls == [(asset.key, "1min", 60)]
     assert "TRADE TIME" in text and "1 MIN" in text
     assert "SIGNAL: <b>BUY" in text
-    assert "DATA: <b>LIVE" in text
 
 
 async def test_auto_duration_chooses_supported_value_and_explains(monkeypatch):
@@ -218,9 +227,11 @@ async def test_auto_duration_chooses_supported_value_and_explains(monkeypatch):
     callback = FakeCallback(f"dur:auto:{asset.key}")
     await handlers.cb_duration_mode(callback)
     text = callback.message.edits[-1][0]
-    assert "SMART DURATION" in text
-    assert "volatility NORMAL" in text
     assert "TRADE TIME" in text
+    assert "TRADE CONFIDENCE" in text
+    _, _, note = handlers._LAST_ANALYSIS[(callback.from_user.id, asset.key)]
+    assert "SMART DURATION" in note
+    assert "volatility NORMAL" in note
     assert generator.calls
 
 

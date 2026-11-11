@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 
 from aiogram import F, Router
@@ -24,10 +25,24 @@ router = Router(name="menus")
 MARKETS = {market.value: market for market in Market}
 INDEX_MARKETS = menus.INDEX_MARKETS
 _ANALYSIS_LOCKS: dict[int, asyncio.Lock] = {}
+_LAST_ANALYSIS: dict[tuple[int, str], tuple] = {}
 
 
 def _analysis_lock(user_id: int) -> asyncio.Lock:
     return _ANALYSIS_LOCKS.setdefault(user_id, asyncio.Lock())
+
+
+async def _present_result(
+    callback: CallbackQuery,
+    asset: Asset,
+    frame_code: str,
+    result,
+    record,
+    note: str | None = None,
+) -> None:
+    _LAST_ANALYSIS[(callback.from_user.id, asset.key)] = (result, record, note)
+    await _edit(callback, fmt.unified_result_text(result, None, frame_code, record),
+                menus.signal_result_menu(asset, frame_code))
 
 
 async def _edit(callback: CallbackQuery, text: str, keyboard=None) -> None:
@@ -58,13 +73,7 @@ async def cmd_start(message: Message) -> None:
 @router.message(Command("markets"))
 async def cmd_markets(message: Message) -> None:
     await message.answer(
-        "<b>🌐 SELECT MARKET</b>\n━━━━━━━━━━━━━━━━━━\n"
-        "<b>INDEX MARKETS</b>\n"
-        "🧠 SMARTY · ⚽ FOOTBALL INDEX · 💎 LUXURY INDEX\n"
-        "🤖 AI INDEX · 🏏 CRICKET INDEX\n\n"
-        "<b>OTHER MARKETS</b>\n"
-        "💱 FOREX\n\n"
-        "اختر السوق لعرض الأصول المتاحة فعلياً من مصدر البيانات:",
+        fmt.markets_selector_text(),
         reply_markup=menus.markets_menu(),
         disable_web_page_preview=True,
     )
@@ -148,7 +157,7 @@ async def cb_market(callback: CallbackQuery) -> None:
 
 async def _show_market(callback: CallbackQuery, market: Market) -> None:
     ctx = get_context()
-    if market in (Market.FOREX, Market.GOLD):
+    if market is Market.FOREX:
         assets = assets_for(market)
         if not assets:
             await _edit(
@@ -197,20 +206,14 @@ async def _show_assets(callback: CallbackQuery, market: Market, assets: list[Ass
         await _show_duration_method(callback, assets[0])
         return
     text = fmt.markets_text(market.value, assets, [tf.label for tf in TIMEFRAMES.values()])
-    text += "\n\n<i>اختر الأصل الحقيقي المتاح، ثم اختر طريقة تحديد مدة الصفقة.</i>"
     await _edit(callback, text, menus.market_menu(market, assets))
 
 
 async def _show_duration_method(callback: CallbackQuery, asset: Asset) -> None:
     ctx = get_context()
     source = ctx.registry.source_summary(asset)
-    detail = f"ID {asset.bridge_id}" if asset.bridge_id else None
-    text = fmt.smarty_card_text(asset, source, detail)
-    text += (
-        "\n\n<b>TRADE DURATION</b>\n"
-        "🤖 SMART DURATION — البوت يختار الوقت المناسب بعد تحليل السوق.\n"
-        "✋ MANUAL DURATION — أنت تختار من المدد المدعومة فعلياً."
-    )
+    detail = f"EO ID {asset.bridge_id}" if asset.bridge_id else None
+    text = fmt.market_page_text(asset, source, detail)
     await _edit(callback, text, menus.duration_method_menu(asset))
 
 
@@ -333,9 +336,7 @@ async def _run_auto_duration(callback: CallbackQuery, asset: Asset) -> None:
             except ValueError as exc:
                 logger.info("AUTO duration rejected by generator: %s", exc)
                 duration = None
-        text = fmt.unified_result_text(best, duration, best_frame, record)
-        text += f"\n<b>SMART DURATION:</b> {reason}"
-        await _edit(callback, text, menus.analysis_actions(asset, best_frame))
+        await _present_result(callback, asset, best_frame, best, record, f"SMART DURATION: {reason}")
 
 
 @router.callback_query(F.data.startswith("md:"))
@@ -378,10 +379,7 @@ async def cb_manual_duration(callback: CallbackQuery) -> None:
                 menus.duration_method_menu(asset),
             )
             return
-        text = fmt.unified_result_text(result, duration, frame_code, record)
-        if record is None:
-            text += "\n\n<i>NO TRADE — لم يتم تسجيل إشارة لأن الأدلة غير كافية أو الثقة أقل من الحد.</i>"
-        await _edit(callback, text, menus.analysis_actions(asset, frame_code))
+        await _present_result(callback, asset, frame_code, result, record)
 
 
 @router.callback_query(F.data.startswith("ia:"))
@@ -437,7 +435,7 @@ async def cb_index_signal(callback: CallbackQuery) -> None:
                 menus.unavailable_menu(asset.market),
             )
             return
-        await _edit(callback, fmt.smarty_result_text(result, record), menus.index_menu(asset))
+        await _present_result(callback, asset, smarty_timeframe(duration), result, record)
 
 
 async def _show_smarty(callback: CallbackQuery) -> None:
@@ -613,14 +611,7 @@ async def cb_signal(callback: CallbackQuery) -> None:
             return
 
         if record is None:
-            await _edit(
-                callback,
-                f"<b>ROZLF AI — {asset.display}</b>\n\n"
-                f"NO TRADE — الثقة {result.confidence:.0f}% أقل من الحد "
-                f"({user_settings['min_confidence']:.0f}%) أو الأدلة متعارضة.\n\n"
-                "لم يتم تسجيل أي إشارة.",
-                menus.analysis_actions(asset, frame_code),
-            )
+            await _present_result(callback, asset, frame_code, result, None)
             return
 
         ai_note = None
@@ -641,11 +632,24 @@ async def cb_signal(callback: CallbackQuery) -> None:
         except Exception as exc:
             logger.info("Mistral signal note unavailable: %s", exc)
 
-        await _edit(
-            callback,
-            fmt.signal_text(record, ai_note),
-            menus.back_only(f"ast:{asset.key}", "🔙 BACK"),
-        )
+        await _present_result(callback, asset, frame_code, result, record, ai_note)
+
+
+@router.callback_query(F.data.startswith("whyd:"))
+async def cb_why_signal(callback: CallbackQuery) -> None:
+    _, asset_key, frame_code = callback.data.split(":", 2)
+    cached = _LAST_ANALYSIS.get((callback.from_user.id, asset_key))
+    if cached is None:
+        await callback.answer("التحليل غير محفوظ — أعد التحليل.", show_alert=True)
+        return
+    result, record, note = cached
+    await callback.answer()
+    text = fmt.analysis_details_text(result, record)
+    if note:
+        text += f"\n\n<b>AI / DURATION NOTE</b>\n{html.escape(note)}"
+    asset = get_asset(asset_key)
+    keyboard = menus.signal_result_menu(asset, frame_code, has_details=False) if asset else menus.back_to_main()
+    await _edit(callback, text, keyboard)
 
 
 def smarty_timeframe(duration_seconds: int) -> str:
@@ -697,7 +701,7 @@ async def cb_smarty_signal(callback: CallbackQuery) -> None:
                 menus.unavailable_menu(Market.SMARTY),
             )
             return
-        await _edit(callback, fmt.smarty_result_text(result, record), menus.smarty_menu(asset))
+        await _present_result(callback, asset, smarty_timeframe(duration), result, record)
 
 
 @router.callback_query(F.data == "auto")
@@ -754,15 +758,23 @@ async def cb_live(callback: CallbackQuery) -> None:
     await callback.answer()
     records = await ctx.repo.active_signals(callback.from_user.id)
     if not records:
-        await _edit(callback, "📡 لا توجد إشارات نشطة الآن.", menus.back_to_main())
+        await _edit(
+            callback,
+            "📡 <b>LIVE SIGNALS</b>\n━━━━━━━━━━━━━━━━━━\n\n"
+            "لا توجد إشارات نشطة الآن.\n"
+            "<i>لن يظهر هنا إلا ما تم تسجيله من بيانات حقيقية واجتاز شروط المحرك.</i>",
+            menus.back_to_main(),
+        )
         return
-    body = "\n\n".join(
-        f"#{r.id} {r.asset_display} — {r.direction} — {fmt.duration_label(r.expiry_seconds)}\n"
-        f"ENTRY {fmt.format_price(r.entry_price, r.market)} · CONF {r.confidence:.0f}% · "
-        f"CLOSES {fmt.local_time(r.expires_at)}"
-        for r in records
-    )
-    await _edit(callback, f"<b>📡 LIVE SIGNALS</b>\n━━━━━━━━━━━━━━━━━━\n{body}", menus.back_to_main())
+    parts = ["📡 <b>LIVE SIGNALS</b>", "━━━━━━━━━━━━━━━━━━"]
+    for r in records:
+        parts.append(
+            f"<b>#{r.id} · {r.asset_display}</b>\n"
+            f"   {fmt.market_label(r.market)} · {r.direction} · {fmt.duration_label(r.expiry_seconds)}\n"
+            f"   ENTRY {fmt.format_price(r.entry_price, r.market)} · CONF {r.confidence:.0f}%\n"
+            f"   CLOSES {fmt.local_time(r.expires_at)}"
+        )
+    await _edit(callback, "\n\n".join(parts), menus.back_to_main())
 
 
 @router.callback_query(F.data == "hist")
@@ -796,12 +808,13 @@ async def cb_settings(callback: CallbackQuery) -> None:
         callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence, "scanner_enabled": ctx.settings.scanner_enabled}
     )
     text = (
-        "<b>⚙️ SETTINGS</b>\n"
+        "⚙️ <b>SETTINGS</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        f"MIN CONFIDENCE: <b>{user['min_confidence']:.0f}%</b>\n"
-        f"SCANNER: {'ON ✅' if user['scanner_enabled'] else 'OFF ⬜'}\n"
-        f"EXCHANGE-RATE SOURCES: {', '.join(f'{k}: {v}' for k, v in ctx.source_map().items())}\n\n"
-        "اختر حد الثقة الأدنى للإشارات:"
+        f"🎯 MIN CONFIDENCE: <b>{user['min_confidence']:.0f}%</b>\n"
+        f"🛰 AUTO SCANNER: {'ON ✅' if user['scanner_enabled'] else 'OFF ⬜'}\n"
+        f"📡 DATA SOURCES: {', '.join(f'{k}: {v}' for k, v in ctx.source_map().items())}\n\n"
+        "اختر الحد الأدنى لجودة الأدلة قبل إصدار الإشارة.\n"
+        "<i>الرفع يقلل عدد الإشارات ويزيد صرامة الشروط.</i>"
     )
     await _edit(callback, text, menus.settings_menu(user["min_confidence"], user["scanner_enabled"]))
 
@@ -869,7 +882,7 @@ def _scanner_text(ctx) -> str:
     for market, reason in getattr(scanner, "last_skips", {}).items():
         text += f"SKIPPED {market}: {reason[:120]}\n"
     text += (
-        "\nالفحص يغطي: FOREX M5/M15، GOLD M15، SMARTY والأسواق المؤشرية M1 (عند توفر جسر موثّق).\n"
+        "\nالفحص يغطي الأسواق المفعّلة فقط: FOREX، SMARTY، والأسواق المؤشرية عند توفر جسر موثّق.\n"
         "يتم منع الإشارات المكررة وتجاهل البيانات الضعيفة تلقائياً."
     )
     return text

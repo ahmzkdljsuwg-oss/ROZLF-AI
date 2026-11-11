@@ -63,7 +63,7 @@ def test_market_menu_lists_all_assets():
 
 def test_signal_text_contains_required_fields():
     text = fmt.signal_text(_record())
-    for fragment in ("ROZLF AI SIGNAL", "ASSET", "MARKET", "DIRECTION", "EXPIRATION", "ENTRY", "CONFIDENCE", "STATUS", "تحليل تعليمي"):
+    for fragment in ("📊 MARKET:", "💹 ASSET:", "SIGNAL:", "⏱️ TRADE TIME:", "🎯 TRADE CONFIDENCE:"):
         assert fragment in text
 
 

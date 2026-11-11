@@ -87,7 +87,7 @@ class Settings:
             scanner_enabled=_flag("SCANNER_ENABLED", True),
             scan_markets=_text("SCAN_MARKETS", "FOREX,SMARTY,AI,FOOTBALL,LUXURY,CRICKET") or "FOREX,SMARTY,AI,FOOTBALL,LUXURY,CRICKET",
             max_scan_signals=max(1, _number("MAX_SCAN_SIGNALS", 3, int)),
-            role=(_text("ROZLF_ROLE") or _text("RAILWAY_SERVICE_NAME") or "all").lower(),
+            role=(_text("ROZLF_ROLE") or "bot").lower(),
         )
 
     @property
@@ -122,8 +122,8 @@ class Settings:
 
     @property
     def web_only(self) -> bool:
-        """The Railway `web` service only serves health; the worker polls Telegram."""
-        return self.role == "web"
+        """Health-only mode for a dedicated service; the default bot role polls Telegram."""
+        return self.role in {"web-only", "health"}
 
     def startup_problems(self) -> list[str]:
         problems: list[str] = []

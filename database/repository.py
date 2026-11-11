@@ -192,6 +192,36 @@ class Repository:
                 best_statement = best_statement.where(Signal.user_id == user_id)
             best = (await session.execute(best_statement)).first()
 
+            closed_statement = select(
+                Signal.market, Signal.status, Signal.entry_price, Signal.close_price
+            ).where(Signal.status.in_((STATUS_WIN, STATUS_LOSS, STATUS_DRAW)))
+            if user_id is not None:
+                closed_statement = closed_statement.where(Signal.user_id == user_id)
+            closed_rows = (await session.execute(closed_statement)).all()
+
+        per_market: dict[str, dict] = {}
+        gross_gain = 0.0
+        gross_loss = 0.0
+        for market, status, entry, close in closed_rows:
+            row = per_market.setdefault(
+                market, {"wins": 0, "losses": 0, "draws": 0, "win_rate": None}
+            )
+            if status == STATUS_WIN:
+                row["wins"] += 1
+            elif status == STATUS_LOSS:
+                row["losses"] += 1
+            else:
+                row["draws"] += 1
+            if entry and close and entry > 0:
+                move = abs((float(close) - float(entry)) / float(entry))
+                if status == STATUS_WIN:
+                    gross_gain += move
+                elif status == STATUS_LOSS:
+                    gross_loss += move
+        for row in per_market.values():
+            decided = row["wins"] + row["losses"]
+            row["win_rate"] = round(row["wins"] / decided * 100, 1) if decided else None
+
         wins = statuses.get(STATUS_WIN, 0)
         losses = statuses.get(STATUS_LOSS, 0)
         draws = statuses.get(STATUS_DRAW, 0)
@@ -209,6 +239,8 @@ class Repository:
             "avg_confidence": round(float(avg_confidence), 1) if avg_confidence is not None else None,
             "best_asset": best[0] if best else None,
             "best_asset_wins": int(best[1]) if best else 0,
+            "per_market": per_market,
+            "profit_factor": round(gross_gain / gross_loss, 2) if gross_loss > 0 else None,
         }
 
     async def get_user_settings(self, user_id: int, defaults: dict | None = None) -> dict:

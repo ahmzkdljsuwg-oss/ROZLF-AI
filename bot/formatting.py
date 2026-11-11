@@ -48,59 +48,63 @@ def market_label(market: str) -> str:
 
 
 def welcome_text(settings: Settings) -> str:
-    ai_status = "MISTRAL AI ONLINE" if settings.mistral_api_key else "MISTRAL AI NOT CONFIGURED"
+    ai_status = "🟢 ONLINE" if settings.mistral_api_key else "⚪ NOT CONFIGURED"
     return (
-        "<b>ROZLF AI</b>\n"
+        "🧠 <b>ROZLF AI</b>\n"
         "<i>ADVANCED TRADING INTELLIGENCE</i>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "مرحباً بك في نظام <b>ROZLF AI</b>.\n"
-        "كل سوق بمحرك تحليل مستقل وبيانات حقيقية.\n\n"
-        "<b>الأسواق — MARKET ANALYSIS:</b>\n"
-        "🧠 SMARTY MARKET · ⚽ FOOTBALL INDEX\n"
-        "💎 LUXURY INDEX · 🤖 AI INDEX\n"
-        "🏏 CRICKET INDEX · 💱 FOREX MARKET\n\n"
-        "<b>الأقسام:</b>\n"
-        "📡 LIVE SIGNALS — أفضل الفرص الحالية\n"
-        "📜 SIGNAL HISTORY — الإشارات ونتائجها\n"
-        "📊 PERFORMANCE STATISTICS — النتائج المتحققة فقط\n"
-        "⚙️ SETTINGS — حد الثقة والماسح\n"
-        "🖥️ SYSTEM STATUS — حالة مصادر البيانات\n\n"
-        f"AI STATUS: <b>{ai_status}</b>\n"
+        "أهلاً بك في منصة التحليل الذكية.\n"
+        "كل سوق بمحرك مستقل · بيانات حقيقية · قرارات مبنية على الأدلة.\n\n"
+        "<b>MARKET DESK — الأسواق</b>\n"
+        "🧠 SMARTY MARKET\n"
+        "⚽ FOOTBALL INDEX\n"
+        "💎 LUXURY INDEX\n"
+        "🤖 AI INDEX\n"
+        "🏏 CRICKET INDEX\n"
+        "💱 FOREX MARKET\n\n"
+        "<b>INTELLIGENCE — الأدوات</b>\n"
+        "📡 LIVE SIGNALS    📜 SIGNAL HISTORY\n"
+        "📊 PERFORMANCE STATISTICS\n"
+        "⚙️ SETTINGS        🖥️ SYSTEM STATUS\n\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"AI ENGINE: <b>{ai_status}</b>\n"
         f"MIN CONFIDENCE: <b>{settings.min_confidence:.0f}%</b>\n\n"
         f"<i>{DISCLAIMER}</i>"
     )
 
 
+def signal_card_text(
+    market: str,
+    asset_display: str,
+    direction: str,
+    expiry_seconds: int | None,
+    confidence: float | None,
+) -> str:
+    if direction == "UP":
+        signal_line = "🟢 SIGNAL: <b>BUY 🟢</b>"
+    elif direction == "DOWN":
+        signal_line = "🔴 SIGNAL: <b>SELL 🛑</b>"
+    else:
+        signal_line = "⚪ SIGNAL: <b>NO TRADE</b>"
+    trade_time = duration_label(expiry_seconds) if expiry_seconds and direction in ("UP", "DOWN") else "—"
+    conf = f"{confidence:.0f}%" if confidence is not None and direction in ("UP", "DOWN") else "—"
+    return (
+        f"📊 MARKET: <b>{market_label(market)}</b>\n"
+        f"💹 ASSET: <b>{asset_display}</b>\n\n"
+        f"{signal_line}\n\n"
+        f"⏱️ TRADE TIME: <b>{trade_time}</b>\n\n"
+        f"🎯 TRADE CONFIDENCE: <b>{conf}</b>"
+    )
+
+
 def signal_text(signal: SignalRecord, ai_note: str | None = None) -> str:
-    lines = [
-        "<b>ROZLF AI SIGNAL</b>",
-        "━━━━━━━━━━━━━━━━━━",
-        f"ASSET: <b>{signal.asset_display}</b> ({market_label(signal.market)})",
-        f"MARKET: {market_label(signal.market)}",
-        f"DIRECTION: <b>{signal.direction}</b>",
-        f"EXPIRATION: {duration_label(signal.expiry_seconds)}",
-        f"ENTRY: {format_price(signal.entry_price, signal.market)}",
-        f"TIMEFRAME: {signal.timeframe}",
-        f"CONFIDENCE: <b>{signal.confidence:.0f}%</b>",
-        f"DATA SOURCE: {signal.source}",
-        f"TIME: {local_time(signal.created_at)}",
-    ]
-    if signal.reasons:
-        lines.append("")
-        lines.append("<b>TECHNICAL REASONS:</b>")
-        lines.extend(f"• {reason}" for reason in signal.reasons)
-    if signal.warnings:
-        lines.append("")
-        lines.append("<b>RISK NOTES:</b>")
-        lines.extend(f"• {warning}" for warning in signal.warnings)
-    if ai_note:
-        lines.append("")
-        lines.append("<b>AI SUMMARY:</b>")
-        lines.append(ai_note)
-    lines.append("")
-    lines.append(f"STATUS: <b>{signal.status}</b>")
-    lines.append(f"<i>{DISCLAIMER}</i>")
-    return "\n".join(lines)
+    return signal_card_text(
+        signal.market,
+        signal.asset_display,
+        signal.direction,
+        signal.expiry_seconds,
+        signal.confidence,
+    )
 
 
 def analysis_text(result: AnalysisResult) -> str:
@@ -206,41 +210,64 @@ def trend_summary_text(result: AnalysisResult, source: str) -> str:
 
 def history_text(records: list[SignalRecord]) -> str:
     if not records:
-        return "📭 لا توجد إشارات مسجلة بعد."
+        return (
+            "📜 <b>SIGNAL HISTORY</b>\n"
+            "━━━━━━━━━━━━━━━━━━\n\n"
+            "📭 لا توجد إشارات مسجلة بعد."
+        )
     icons = {"WIN": "✅", "LOSS": "❌", "DRAW": "➖", "ACTIVE": "⏳", "UNVERIFIED": "❔"}
-    lines = ["<b>🗂 SIGNAL HISTORY</b>", "━━━━━━━━━━━━━━━━━━"]
+    names = {"WIN": "WIN", "LOSS": "LOSS", "DRAW": "DRAW", "ACTIVE": "PENDING", "UNVERIFIED": "UNVERIFIED"}
+    lines = ["📜 <b>SIGNAL HISTORY</b>", "━━━━━━━━━━━━━━━━━━"]
     for record in records:
         icon = icons.get(record.status, "•")
         lines.append(
-            f"{icon} #{record.id} {record.asset_display} {record.direction} "
-            f"{duration_label(record.expiry_seconds)} — {record.confidence:.0f}% — {record.status}"
+            f"{icon} <b>#{record.id} · {record.asset_display}</b>\n"
+            f"   {market_label(record.market)} · {record.direction} · {duration_label(record.expiry_seconds)}\n"
+            f"   {names.get(record.status, record.status)} · CONF {record.confidence:.0f}% · {local_time(record.created_at)}"
         )
-        close = f" → {format_price(record.close_price, record.market)}" if record.close_price else ""
-        lines.append(
-            f"   entry {format_price(record.entry_price, record.market)}{close} · {local_time(record.created_at)}"
-        )
+        if record.close_price is not None:
+            lines.append(
+                f"   ENTRY {format_price(record.entry_price, record.market)} → CLOSE {format_price(record.close_price, record.market)}"
+            )
         if record.result_reason:
-            lines.append(f"   ↳ {record.result_reason}")
+            lines.append(f"   ↳ {record.result_reason[:110]}")
+    lines.append("━━━━━━━━━━━━━━━━━━")
+    lines.append("<i>النتائج القديمة لا تُعاد كتابتها.</i>")
     return "\n".join(lines)
 
 
 def stats_text(stats: dict) -> str:
     accuracy = stats.get("accuracy")
-    accuracy_text = f"{accuracy}%" if accuracy is not None else "N/A (لا نتائج متحققة بعد)"
-    return (
-        "<b>📊 PERFORMANCE STATISTICS</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        f"TOTAL SIGNALS: {stats.get('total', 0)}\n"
-        f"ACTIVE: {stats.get('active', 0)}\n"
-        f"VERIFIED: {stats.get('verified', 0)}\n"
-        f"WINS: {stats.get('wins', 0)} | LOSSES: {stats.get('losses', 0)} | DRAWS: {stats.get('draws', 0)}\n"
-        f"UNVERIFIED: {stats.get('unverified', 0)}\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        f"ACCURACY (verified only): <b>{accuracy_text}</b>\n"
-        f"AVG CONFIDENCE: {stats.get('avg_confidence') or '—'}\n"
-        f"BEST ASSET: {stats.get('best_asset') or '—'}\n\n"
-        "<i>الإحصائيات تعتمد فقط على الإشارات التي تم التحقق من سعر إغلاقها.</i>"
-    )
+    accuracy_text = f"{accuracy}%" if accuracy is not None else "N/A"
+    profit_factor = stats.get("profit_factor")
+    pf_text = f"{profit_factor:.2f}" if profit_factor is not None else "N/A"
+    lines = [
+        "📊 <b>PERFORMANCE STATISTICS</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        f"TOTAL SIGNALS: <b>{stats.get('total', 0)}</b>",
+        f"CLOSED: {stats.get('verified', 0)} · PENDING: {stats.get('active', 0)} · UNVERIFIED: {stats.get('unverified', 0)}",
+        "",
+        f"✅ WINS: <b>{stats.get('wins', 0)}</b>",
+        f"❌ LOSSES: <b>{stats.get('losses', 0)}</b>",
+        f"➖ DRAWS: <b>{stats.get('draws', 0)}</b>",
+        "",
+        f"WIN RATE (closed): <b>{accuracy_text}</b>",
+        f"PROFIT FACTOR (price-based): <b>{pf_text}</b>",
+        f"AVG CONFIDENCE: {stats.get('avg_confidence') or '—'}",
+        "━━━━━━━━━━━━━━━━━━",
+        "<b>BY MARKET</b>",
+    ]
+    per_market = stats.get("per_market") or {}
+    if not per_market:
+        lines.append("لا توجد نتائج مغلقة بعد.")
+    for market, row in per_market.items():
+        rate = f"{row['win_rate']:.1f}%" if row.get("win_rate") is not None else "N/A"
+        lines.append(
+            f"{market}: W {row['wins']} · L {row['losses']} · D {row['draws']} · WR {rate}"
+        )
+    lines.append("")
+    lines.append("<i>Win Rate يُحسب من النتائج المغلقة فقط، وليس نسبة ربح مضمونة.</i>")
+    return "\n".join(lines)
 
 
 def verification_text(record: SignalRecord) -> str:
@@ -258,18 +285,21 @@ def verification_text(record: SignalRecord) -> str:
 
 
 def status_text(settings: Settings, statuses: list[dict], health: dict, ai_health: dict) -> str:
-    lines = ["<b>ROZLF AI — SYSTEM STATUS</b>", "━━━━━━━━━━━━━━━━━━"]
-    lines.append("<b>PROVIDERS</b>")
+    lines = ["🖥️ <b>SYSTEM STATUS</b>", "━━━━━━━━━━━━━━━━━━"]
+    bot_state = "🟢 CONFIGURED" if getattr(settings, "telegram_bot_token", None) else "🔴 MISSING TOKEN"
+    lines.append("<b>CORE</b>")
+    lines.append(f"TELEGRAM BOT: {bot_state}")
+    lines.append(f"EO BRIDGE: {'🟢 CONFIGURED' if getattr(settings, 'eo_bridge_url', None) else '⚪ NOT CONFIGURED'}")
+    lines.append("")
+    lines.append("<b>DATA PROVIDERS</b>")
     for status in statuses:
-        state = "🟢 CONFIGURED" if status["configured"] else "⚪ NOT CONFIGURED"
+        state = "🟢 READY" if status["configured"] else "⚪ NOT CONFIGURED"
         role = "candles" if status["can_serve_candles"] else "quotes"
         lines.append(f"{status['name']}: {state} ({role})")
-        if status.get("detail"):
-            lines.append(f"   · {status['detail']}")
     lines.append("")
     lines.append("<b>MARKET COVERAGE (LIVE PROBE)</b>")
     for market in (
-        Market.FOREX, Market.GOLD, Market.SMARTY,
+        Market.FOREX, Market.SMARTY,
         Market.AI, Market.FOOTBALL, Market.LUXURY, Market.CRICKET,
     ):
         entry = health.get(market.value)
@@ -278,18 +308,17 @@ def status_text(settings: Settings, statuses: list[dict], health: dict, ai_healt
             continue
         if entry.ok:
             stamp = local_time(entry.last_time)
-            lines.append(f"{market_label(market.value)}: 🟢 LIVE — {entry.source}")
-            lines.append(f"   · {entry.asset} · last candle {stamp}")
+            lines.append(f"{market_label(market.value)}: 🟢 LIVE")
+            lines.append(f"   · {entry.source} · {entry.asset}")
+            lines.append(f"   · last candle {stamp}")
         else:
             lines.append(f"{market_label(market.value)}: 🔴 UNAVAILABLE")
             lines.append(f"   · {entry.error}")
-            if entry.detail:
-                lines.append(f"   · {entry.detail[:160]}")
     lines.append("")
     ai_state = "🟢 READY" if ai_health.get("configured") else "⚪ NOT CONFIGURED"
     lines.append(f"MISTRAL AI: {ai_state}")
     if ai_health.get("model"):
-        lines.append(f"TEXT MODEL: {ai_health['model']}")
+        lines.append(f"MODEL: {ai_health['model']}")
     if ai_health.get("last_error"):
         lines.append(f"LAST AI ERROR: {ai_health['last_error']}")
     lines.append("")
@@ -299,29 +328,40 @@ def status_text(settings: Settings, statuses: list[dict], health: dict, ai_healt
 
 
 def unavailable_text(title: str, message: str, detail: str | None = None) -> str:
-    lines = [f"<b>{title}</b>", "━━━━━━━━━━━━━━━━━━", f"<b>{DATA_UNAVAILABLE}</b>", message]
+    lines = [
+        f"🚫 <b>{title}</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        f"<b>{DATA_UNAVAILABLE}</b>",
+        message,
+    ]
     if detail:
         lines.append(f"DETAIL: {detail}")
     lines.append("")
-    lines.append("لن يتم إصدار أي إشارة من بيانات ناقصة أو غير موثوقة.")
+    lines.append("لن يتم إصدار أي إشارة من بيانات ناقصة أو قديمة أو غير موثوقة.")
+    return "\n".join(lines)
+
+
+def market_page_text(asset: Asset, source_state: str, detail: str | None = None) -> str:
+    lines = [
+        f"{market_label(asset.market.value)}",
+        "━━━━━━━━━━━━━━━━━━",
+        f"💹 ASSET: <b>{asset.display}</b>",
+        f"🆔 EO ASSET ID: <b>{asset.bridge_id or 'N/A'}</b>",
+        f"📡 DATA: <b>{source_state}</b>",
+    ]
+    if detail:
+        lines.append(f"ℹ️ {detail}")
+    lines.append("")
+    lines.append("<b>TRADE DURATION</b>")
+    lines.append("🤖 SMART DURATION — البوت يختار المدة من بيانات السوق.")
+    lines.append("✋ MANUAL DURATION — أنت تختار من المدد المدعومة فعلياً.")
+    lines.append("")
+    lines.append("<i>مدة الصفقة مستقلة عن فريم الشموع المستخدم في التحليل.</i>")
     return "\n".join(lines)
 
 
 def smarty_card_text(asset: Asset, source_state: str, detail: str | None = None) -> str:
-    lines = [
-        f"<b>{market_label(asset.market.value)} — EXPERTOPTION</b>",
-        "━━━━━━━━━━━━━━━━━━",
-        f"ASSET: <b>{asset.display}</b>",
-        f"MARKET: {market_label(asset.market.value)} (ExpertOption)",
-        f"EO ASSET ID: {asset.bridge_id or 'N/A'}",
-        f"DATA SOURCE: {source_state}",
-    ]
-    if detail:
-        lines.append(f"STATUS: {detail}")
-    lines.append("")
-    lines.append(f"اختر مدة الصفقة لتحليل {market_label(asset.market.value)} وإصدار الإشارة:")
-    lines.append("<i>مدة الصفقة مستقلة عن فريم الشموع المستخدم في التحليل.</i>")
-    return "\n".join(lines)
+    return market_page_text(asset, source_state, detail)
 
 
 def smarty_assets_text(assets: list[Asset], market: Market | None = None) -> str:
@@ -454,16 +494,18 @@ def smarty_result_text(result: AnalysisResult, record: SignalRecord | None) -> s
 
 def markets_selector_text() -> str:
     return (
-        "<b>🌐 SELECT MARKET</b>\n"
+        "🌐 <b>MARKET DESK</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "<b>INDEX MARKETS</b>\n"
-        "🧠 SMARTY · ⚽ FOOTBALL INDEX\n"
-        "💎 LUXURY INDEX · 🤖 AI INDEX\n"
+        "<b>EXPERT-OPTION MARKETS</b>\n"
+        "🧠 SMARTY MARKET\n"
+        "⚽ FOOTBALL INDEX\n"
+        "💎 LUXURY INDEX\n"
+        "🤖 AI INDEX\n"
         "🏏 CRICKET INDEX\n\n"
-        "<b>OTHER MARKETS</b>\n"
-        "💱 FOREX\n\n"
-        "اختر السوق لعرض الأصول المتاحة فعلياً من مصدر البيانات، "
-        "ثم اختر الأصل وطريقة تحديد مدة الصفقة."
+        "<b>CURRENCY MARKET</b>\n"
+        "💱 FOREX MARKET\n\n"
+        "كل سوق يعمل بمحرك مستقل وبياناته الحقيقية. "
+        "اختر السوق مباشرة."
     )
 
 
@@ -473,78 +515,76 @@ def unified_result_text(
     analysis_frame: str,
     record: SignalRecord | None = None,
 ) -> str:
-    signal = {"UP": "BUY ❇️", "DOWN": "SELL 🛑"}.get(result.direction, "NO TRADE ⚪")
-    family_labels = {
-        "structure": "SMC",
-        "liquidity": "SMC",
-        "location": "PRICE ACTION",
-        "confirmation": "PRICE ACTION",
-        "impulse": "PRICE ACTION",
-        "trend": "EMA",
-        "trend_strength": "EMA",
-        "mtf": "MTF",
-        "momentum": "MOMENTUM",
-        "macd": "MOMENTUM",
-        "stochastic": "MOMENTUM",
-        "mean_reversion": "MEAN REVERSION",
-        "vwap": "VWAP",
-        "swing": "SMC",
-        "ict": "ICT",
-    }
-    labels = list(result.strategy_labels)
-    for item in result.confirmed_strategies:
-        label = family_labels.get(str(item.get("family", "")))
-        if label and label not in labels:
-            labels.append(label)
-    strategy_line = " + ".join(labels[:3]) if labels else "NO CONFIRMED STRATEGY"
-    quality = int(result.data_confidence.get("score") or 0)
-    data_status = "LIVE" if quality >= 9 else "LIMITED"
-    trade_time = duration_label(duration_seconds) if duration_seconds else "N/A"
-    trend = result.trend_summary.upper() if result.trend_summary else "NEUTRAL"
+    direction = getattr(record, "direction", None) or "NO TRADE"
+    expiry = getattr(record, "expiry_seconds", None)
+    confidence = getattr(record, "confidence", None)
+    if confidence is None:
+        confidence = getattr(result, "confidence", None)
+    return signal_card_text(
+        getattr(result, "market", ""),
+        getattr(result, "asset_display", ""),
+        direction,
+        expiry,
+        confidence,
+    )
+
+
+def analysis_details_text(result: AnalysisResult, record: SignalRecord | None = None) -> str:
+    indicators = result.indicators
     lines = [
-        "🧠 <b>ROZLF AI</b>",
+        f"🔍 <b>ANALYSIS DETAILS — {result.asset_display}</b>",
         "━━━━━━━━━━━━━━━━━━",
-        "",
-        f"📊 MARKET: <b>{market_label(result.market)}</b>",
-        f"💹 ASSET: <b>{result.asset_display}</b>",
-        "",
-        f"🔴 SIGNAL: <b>{signal}</b>",
-        "",
-        f"⏱️ TRADE TIME: <b>{trade_time}</b>",
-        "",
-        f"🎯 TRADE CONFIDENCE: <b>{result.confidence:.0f}%</b>",
-        "",
-        f"📈 TREND: <b>{trend}</b>",
-        f"⚡ MOMENTUM: <b>{result.momentum_strength}</b>",
-        "",
-        "🧠 STRATEGIES:",
-        f"<b>{strategy_line}</b>",
-        "",
-        f"📡 DATA: <b>{data_status}</b>",
-        "",
-        "━━━━━━━━━━━━━━━━━━",
+        f"MARKET: {market_label(result.market)}",
+        f"TIMEFRAME: {result.timeframe}",
+        f"TREND: {result.trend_summary or 'NEUTRAL'} · MOMENTUM: {result.momentum_strength}",
+        f"EVIDENCE SCORE: {result.confidence:.0f}% · DATA QUALITY: {result.data_quality_score:.1f}/10",
     ]
+    rsi = indicators.get("rsi")
+    if isinstance(rsi, (int, float)):
+        lines.append(f"RSI: {rsi:.1f}")
+    if result.reasons:
+        lines.append("")
+        lines.append("<b>TECHNICAL REASONS</b>")
+        lines.extend(f"• {reason}" for reason in result.reasons[:6])
+    lines.extend(_smc_lines(result))
+    if result.warnings:
+        lines.append("")
+        lines.extend(f"⚠️ {warning}" for warning in result.warnings[:4])
     if record is not None:
-        lines.append(f"ID: #{record.id}")
+        entry = getattr(record, "entry_price", None)
+        if entry is not None:
+            lines.append("")
+            lines.append(f"ENTRY: {format_price(entry, getattr(record, 'market', result.market))}")
+            created = getattr(record, "created_at", None)
+            expires = getattr(record, "expires_at", None)
+            if created:
+                lines.append(f"SIGNAL TIME: {local_time(created)}")
+            if expires:
+                lines.append(f"EXPIRY: {local_time(expires)} · ID #{getattr(record, 'id', '—')}")
+    lines.append("")
+    lines.append("<i>Confidence Score يقيس جودة الأدلة، وليس نسبة ربح مضمونة.</i>")
     return "\n".join(lines)
 
 
 def markets_text(market: str, assets: list[Asset], tfs: list[str]) -> str:
     title = {
         Market.FOREX.value: "💱 FOREX MARKET",
-        Market.GOLD.value: "🥇 GOLD ANALYSIS",
         Market.SMARTY.value: "🧠 SMARTY MARKET",
         Market.AI.value: "🤖 AI INDEX",
         Market.FOOTBALL.value: "⚽ FOOTBALL INDEX",
         Market.LUXURY.value: "💎 LUXURY INDEX",
+        Market.CRICKET.value: "🏏 CRICKET INDEX",
     }.get(market, market)
-    lines = [f"<b>{title}</b>", "━━━━━━━━━━━━━━━━━━"]
+    lines = [f"{title}", "━━━━━━━━━━━━━━━━━━", "📡 DATA: <b>LIVE</b>", ""]
     if not assets:
-        lines.append("لا توجد أصول معرفة لهذا السوق.")
+        lines.append("لا توجد أصول نشطة لهذا السوق الآن.")
         return "\n".join(lines)
-    lines.extend(f"• {asset.display}" for asset in assets)
+    lines.append(f"🎯 ASSETS: <b>{len(assets)}</b>")
+    for asset in assets:
+        ident = f" · ID {asset.bridge_id}" if asset.bridge_id else ""
+        lines.append(f"• {asset.display}{ident}")
     lines.append("")
-    lines.append(f"FRAMES: {', '.join(tfs)}")
+    lines.append("اختر الأصل الحقيقي المتاح، ثم اختر طريقة تحديد مدة الصفقة.")
     return "\n".join(lines)
 
 
