@@ -50,23 +50,13 @@ def market_label(market: str) -> str:
 def welcome_text(settings: Settings) -> str:
     ai_status = "🟢 ONLINE" if settings.mistral_api_key else "⚪ NOT CONFIGURED"
     return (
+        "WELCOME BACK 👋\n\n"
         "🧠 <b>ROZLF AI</b>\n"
-        "<i>ADVANCED TRADING INTELLIGENCE</i>\n"
+        "<i>YOUR AI TRADING ASSISTANT</i>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "أهلاً بك في منصة التحليل الذكية.\n"
-        "كل سوق بمحرك مستقل · بيانات حقيقية · قرارات مبنية على الأدلة.\n\n"
-        "<b>MARKET DESK — الأسواق</b>\n"
-        "🧠 SMARTY MARKET\n"
-        "⚽ FOOTBALL INDEX\n"
-        "💎 LUXURY INDEX\n"
-        "🤖 AI INDEX\n"
-        "🏏 CRICKET INDEX\n"
-        "💱 FOREX MARKET\n\n"
-        "<b>INTELLIGENCE — الأدوات</b>\n"
-        "📡 LIVE SIGNALS    📜 SIGNAL HISTORY\n"
-        "📊 PERFORMANCE STATISTICS\n"
-        "⚙️ SETTINGS        🖥️ SYSTEM STATUS\n\n"
-        "━━━━━━━━━━━━━━━━━━\n"
+        "<b>📉 ANALYSIS</b> — تحليل سوق حقيقي وإشارة مبنية على الأدلة\n"
+        "<b>⚙️ SETTINGS</b> — الحد الأدنى لثقة التداول الخاصة بك\n"
+        "<b>🏆 RECOMMENDATIONS</b> — أفضل الفرص الحالية بين الأسواق\n\n"
         f"AI ENGINE: <b>{ai_status}</b>\n"
         f"MIN CONFIDENCE: <b>{settings.min_confidence:.0f}%</b>\n\n"
         f"<i>{DISCLAIMER}</i>"
@@ -507,19 +497,112 @@ def smarty_result_text(result: AnalysisResult, record: SignalRecord | None) -> s
 
 def markets_selector_text() -> str:
     return (
-        "🌐 <b>MARKET DESK</b>\n"
+        "📉 <b>ANALYSIS</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "<b>EXPERT-OPTION MARKETS</b>\n"
+        "<b>اختر السوق</b>\n\n"
         "🧠 SMARTY MARKET\n"
         "⚽ FOOTBALL INDEX\n"
         "💎 LUXURY INDEX\n"
         "🤖 AI INDEX\n"
-        "🏏 CRICKET INDEX\n\n"
-        "<b>CURRENCY MARKET</b>\n"
+        "🏏 CRICKET INDEX\n"
         "💱 FOREX MARKET\n\n"
-        "كل سوق يعمل بمحرك مستقل وبياناته الحقيقية. "
-        "اختر السوق مباشرة."
+        "<i>كل سوق بمحرك مستقل وبياناته الحقيقية. الأسواق غير المتاحة تُعرض بحالتها دون إشارات.</i>"
     )
+
+
+def trade_duration_text(asset: Asset, source_state: str, durations: list[int]) -> str:
+    lines = [
+        f"<b>{asset.market.label}</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        f"💹 ASSET: <b>{asset.display}</b>",
+        f"🆔 MARKET ID: <b>{asset.bridge_id or 'N/A'}</b>",
+        f"📡 DATA: <b>{source_state}</b>",
+        "",
+        "<b>اختر مدة الصفقة:</b>",
+    ]
+    for seconds in durations:
+        lines.append(f"• {trade_duration_label(seconds)}")
+    lines.append("")
+    lines.append(
+        "🧠 <b>ANALYZE TRADE TIME</b> — يقارن جودة الفرص بين المدد المدعومة "
+        "ويقترح المدة الأنسب، ثم تؤكدها بنفسك."
+    )
+    lines.append("<i>مدة الصفقة (Trade Expiry) مختلفة عن فريم الشموع (Candle Timeframe).</i>")
+    return "\n".join(lines)
+
+
+def trade_duration_label(seconds: int) -> str:
+    return {
+        30: "⏱️ 30 SECONDS",
+        60: "⏱️ 1 MINUTE",
+        120: "⏱️ 2 MINUTES",
+        180: "⏱️ 3 MINUTES",
+        300: "⏱️ 5 MINUTES",
+    }.get(seconds, f"⏱️ {duration_label(seconds)}")
+
+
+def recommendation_text(
+    items: list[dict],
+    min_confidence: float,
+    errors: list[str] | None = None,
+) -> str:
+    lines = ["🏆 <b>RECOMMENDATIONS</b>", "━━━━━━━━━━━━━━━━━━"]
+    if not items:
+        lines.append("")
+        lines.append("<b>NO VALID RECOMMENDATIONS RIGHT NOW.</b>")
+        lines.append("")
+        lines.append(
+            f"لا توجد فرصة حقيقية تحقق حد الثقة {min_confidence:.0f}% الآن. "
+            "لن يتم اختراع توصية."
+        )
+    else:
+        lines.append(f"<i>مرتبة حسب جودة الأدلة (Evidence Quality) وليس الرقم وحده.</i>")
+        for index, item in enumerate(items, start=1):
+            lines.append("")
+            lines.append(f"<b>{index}. {item['market']} — {item['asset']}</b>")
+            lines.append(f"📊 MARKET: <b>{item['market']}</b>")
+            lines.append(f"💹 ASSET: <b>{item['asset']}</b>")
+            lines.append(f"🔀 SIGNAL: <b>{item['signal']}</b>")
+            lines.append(f"⏱️ TRADE TIME: <b>{trade_duration_label(item['duration'])}</b>")
+            lines.append(f"🎯 TRADE CONFIDENCE: <b>{item['confidence']:.0f}%</b>")
+            lines.append(f"📡 DATA: {item['data']}")
+            lines.append(f"<i>{item['reason']}</i>")
+    if errors:
+        lines.append("")
+        lines.append("<b>SKIPPED</b>")
+        lines.extend(f"• {err[:110]}" for err in errors[:6])
+    lines.append("")
+    lines.append(
+        f"<i>التوصيات تعتمد على بيانات حقيقية متاحة الآن وحد ثقتك {min_confidence:.0f}%. "
+        "Confidence Score ليس احتمال ربح مضمون.</i>"
+    )
+    return "\n".join(lines)
+
+
+def analyze_time_text(asset: Asset, recommendation: dict | None, durations: list[int], notes: list[str]) -> str:
+    lines = [
+        f"🧠 <b>ANALYZE TRADE TIME — {asset.market.label}</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        f"💹 ASSET: <b>{asset.display}</b>",
+        "",
+    ]
+    if recommendation is None:
+        lines.append("<b>⚪ SIGNAL: NO TRADE</b>")
+        lines.append("")
+        lines.append("لا توجد مدة يمكن اعتمادها من البيانات الحالية.")
+    else:
+        lines.append(f"<b>المدة المقترحة: {trade_duration_label(recommendation['duration'])}</b>")
+        lines.append(f"الاتجاه من البيانات: <b>{recommendation['direction']}</b>")
+        lines.append(f"جودة الأدلة: <b>{recommendation['confidence']:.0f}%</b>")
+    for note in notes[:4]:
+        lines.append(f"• {note}")
+    lines.append("")
+    lines.append("اختر المدة للتأكيد وإصدار التحليل والإشارة:")
+    for seconds in durations:
+        lines.append(f"• {trade_duration_label(seconds)}")
+    lines.append("")
+    lines.append("<i>لا يتم إصدار إشارة قبل اختيارك وتأكيدك للمدة.</i>")
+    return "\n".join(lines)
 
 
 def unified_result_text(

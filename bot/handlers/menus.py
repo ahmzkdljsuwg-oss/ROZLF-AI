@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import html
 import logging
+import time
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
@@ -26,6 +27,9 @@ MARKETS = {market.value: market for market in Market}
 INDEX_MARKETS = menus.INDEX_MARKETS
 _ANALYSIS_LOCKS: dict[int, asyncio.Lock] = {}
 _LAST_ANALYSIS: dict[tuple[int, str], tuple] = {}
+_PENDING_MIN: dict[int, float] = {}
+_RECS_CACHE: dict[int, tuple[float, str]] = {}
+TRADE_DURATION_CHOICES: tuple[int, ...] = (30, 60, 120, 180, 300)
 
 
 def _analysis_lock(user_id: int) -> asyncio.Lock:
@@ -209,17 +213,196 @@ async def _show_assets(callback: CallbackQuery, market: Market, assets: list[Ass
     await _edit(callback, text, menus.market_menu(market, assets))
 
 
+def _trade_durations(asset: Asset) -> list[int]:
+    supported = set(_manual_durations(asset))
+    return [seconds for seconds in TRADE_DURATION_CHOICES if seconds in supported]
+
+
 async def _show_duration_method(callback: CallbackQuery, asset: Asset) -> None:
     ctx = get_context()
     source = ctx.registry.source_summary(asset)
-    detail = f"ID {asset.bridge_id}" if asset.bridge_id else None
-    text = fmt.smarty_card_text(asset, source, detail)
-    text += (
-        "\n\n<b>TRADE DURATION</b>\n"
-        "🤖 SMART DURATION — البوت يختار الوقت المناسب بعد تحليل السوق.\n"
-        "✋ MANUAL DURATION — أنت تختار من المدد المدعومة فعلياً."
+    durations = _trade_durations(asset)
+    if not durations:
+        await _edit(
+            callback,
+            fmt.unavailable_text(asset.market.label, "DURATION_UNAVAILABLE", "no verified expiry for this market"),
+            menus.back_to_main(),
+        )
+        return
+    text = fmt.trade_duration_text(asset, source, durations)
+    await _edit(callback, text, menus.trade_duration_menu(asset, durations))
+
+
+@router.callback_query(F.data == "analysis")
+async def cb_analysis(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await _edit(callback, fmt.markets_selector_text(), menus.markets_menu())
+
+
+@router.callback_query(F.data.startswith("td:"))
+async def cb_trade_duration(callback: CallbackQuery) -> None:
+    _, first, second = callback.data.split(":", 2)
+    if first == "smart":
+        asset_key, raw = second, "smart"
+    else:
+        asset_key, raw = first, second
+    asset = get_asset(asset_key)
+    if asset is None and get_context().inventory is not None:
+        asset = await get_context().inventory.resolve(asset_key)
+    if asset is None:
+        await callback.answer("ASSET غير معروف", show_alert=True)
+        return
+    durations = _trade_durations(asset)
+    if raw == "smart":
+        await _run_analyze_time(callback, asset, durations)
+        return
+    try:
+        duration = int(raw)
+    except ValueError:
+        await callback.answer("مدة غير صالحة", show_alert=True)
+        return
+    if duration not in durations:
+        await callback.answer("هذه المدة غير مدعومة لهذا السوق", show_alert=True)
+        return
+    await _run_trade(callback, asset, duration)
+
+
+async def _run_trade(callback: CallbackQuery, asset: Asset, duration: int, note: str | None = None) -> None:
+    lock = _analysis_lock(callback.from_user.id)
+    if lock.locked():
+        await callback.answer("التحليل قيد التنفيذ بالفعل", show_alert=True)
+        return
+    await callback.answer("⏳ جاري التحليل...")
+    async with lock:
+        ctx = get_context()
+        frame_code = analysis_frame_for_duration(asset, duration)
+        await _edit(callback, f"⏳ ANALYSING {asset.display} — {fmt.trade_duration_label(duration)}...", None)
+        user_settings = await ctx.repo.get_user_settings(
+            callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence}
+        )
+        try:
+            result, record = await ctx.generator.generate(
+                callback.from_user.id,
+                asset,
+                frame_code,
+                duration_seconds=duration,
+                min_confidence=user_settings["min_confidence"],
+            )
+        except DataUnavailable as exc:
+            await _edit(
+                callback,
+                fmt.unavailable_text(f"{asset.market.label} — {asset.display}", exc.code or "UNAVAILABLE", exc.detail or exc.message),
+                menus.trade_duration_menu(asset, _trade_durations(asset)),
+            )
+            return
+        await _present_result(callback, asset, frame_code, result, record, note)
+
+
+def _evidence_rank(result) -> tuple[float, float, float]:
+    evidence = float(getattr(result, "evidence_score", 0.0) or 0.0)
+    quality = float(getattr(result, "data_quality_score", 0.0) or 0.0)
+    return (evidence, quality, float(result.confidence))
+
+
+async def _run_analyze_time(callback: CallbackQuery, asset: Asset, durations: list[int]) -> None:
+    lock = _analysis_lock(callback.from_user.id)
+    if lock.locked():
+        await callback.answer("التحليل قيد التنفيذ بالفعل", show_alert=True)
+        return
+    await callback.answer("🧠 مقارنة المدد...")
+    async with lock:
+        ctx = get_context()
+        await _edit(callback, f"🧠 ANALYZE TRADE TIME — {asset.display}...", None)
+        notes: list[str] = []
+        best = None
+        for duration in durations:
+            frame_code = analysis_frame_for_duration(asset, duration)
+            try:
+                _, result = await ctx.generator.fetch_and_analyse(asset, frame_code)
+            except DataUnavailable as exc:
+                notes.append(f"{fmt.trade_duration_label(duration)}: {exc.message}")
+                continue
+            if result.direction == "NO TRADE":
+                notes.append(f"{fmt.trade_duration_label(duration)}: no actionable evidence")
+                continue
+            item = {
+                "direction": result.direction,
+                "confidence": result.confidence,
+                "duration": duration,
+                "rank": _evidence_rank(result),
+            }
+            if best is None or item["rank"] > best["rank"]:
+                best = item
+        await _edit(
+            callback,
+            fmt.analyze_time_text(asset, best, durations, notes),
+            menus.trade_duration_menu(asset, durations),
+        )
+
+
+async def _run_recommendations(callback: CallbackQuery) -> None:
+    ctx = get_context()
+    user_settings = await ctx.repo.get_user_settings(
+        callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence}
     )
-    await _edit(callback, text, menus.duration_method_menu(asset))
+    threshold = float(user_settings["min_confidence"])
+    cached = _RECS_CACHE.get(callback.from_user.id)
+    if cached and time.monotonic() - cached[0] < 45:
+        await _edit(callback, cached[1], menus.back_to_main())
+        return
+    await _edit(callback, "🏆 SCANNING SIX MARKETS...", None)
+    items: list[dict] = []
+    errors: list[str] = []
+    for market in (Market.SMARTY, Market.FOOTBALL, Market.LUXURY, Market.AI, Market.CRICKET, Market.FOREX):
+        try:
+            asset = await _primary_asset(ctx, market)
+        except DataUnavailable as exc:
+            errors.append(f"{market.label}: {exc.message}")
+            continue
+        if asset is None:
+            errors.append(f"{market.label}: no active asset")
+            continue
+        best = None
+        for frame_code in auto_frames(asset)[:2]:
+            try:
+                _, result = await ctx.generator.fetch_and_analyse(asset, frame_code)
+            except DataUnavailable as exc:
+                errors.append(f"{market.label}: {exc.message}")
+                continue
+            if result.direction == "NO TRADE" or result.confidence < threshold:
+                continue
+            duration, reason = choose_auto_duration(result, asset)
+            if duration is None or duration not in _trade_durations(asset):
+                continue
+            item = {
+                "market": market.label,
+                "asset": asset.display,
+                "signal": "BUY 🟢" if result.direction == "UP" else "SELL 🛑",
+                "duration": duration,
+                "confidence": result.confidence,
+                "data": result.source or "LIVE",
+                "reason": reason,
+                "rank": _evidence_rank(result),
+            }
+            if best is None or item["rank"] > best["rank"]:
+                best = item
+        if best is not None:
+            items.append(best)
+    items.sort(key=lambda row: row["rank"], reverse=True)
+    text = fmt.recommendation_text(items[:3], threshold, errors[:4])
+    _RECS_CACHE[callback.from_user.id] = (time.monotonic(), text)
+    await _edit(callback, text, menus.back_to_main())
+
+
+async def _primary_asset(ctx, market: Market) -> Asset | None:
+    if market is Market.FOREX:
+        assets = assets_for(market)
+        return assets[0] if assets else None
+    if ctx.inventory is not None:
+        assets = await ctx.inventory.assets(market, force=False)
+        return assets[0] if assets else None
+    assets = assets_for(market)
+    return assets[0] if assets else None
 
 
 @router.callback_query(F.data.startswith("pick:"))
@@ -805,23 +988,64 @@ async def cb_status(callback: CallbackQuery) -> None:
     await _send_status(callback.message)
 
 
+@router.callback_query(F.data == "recs")
+async def cb_recommendations(callback: CallbackQuery) -> None:
+    await callback.answer("🏆 فحص الأسواق الستة...")
+    await _run_recommendations(callback)
+
+
 @router.callback_query(F.data == "settings")
 async def cb_settings(callback: CallbackQuery) -> None:
-    ctx = get_context()
     await callback.answer()
+    await _render_settings(callback)
+
+
+async def _render_settings(callback: CallbackQuery) -> None:
+    ctx = get_context()
     user = await ctx.repo.get_user_settings(
-        callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence, "scanner_enabled": ctx.settings.scanner_enabled}
+        callback.from_user.id, defaults={"min_confidence": ctx.settings.min_confidence}
     )
+    selected = _PENDING_MIN.get(callback.from_user.id, float(user["min_confidence"]))
     text = (
         "⚙️ <b>SETTINGS</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        f"🎯 MIN CONFIDENCE: <b>{user['min_confidence']:.0f}%</b>\n"
-        f"🛰 AUTO SCANNER: {'ON ✅' if user['scanner_enabled'] else 'OFF ⬜'}\n"
-        f"📡 DATA SOURCES: {', '.join(f'{k}: {v}' for k, v in ctx.source_map().items())}\n\n"
-        "اختر الحد الأدنى لجودة الأدلة قبل إصدار الإشارة.\n"
-        "<i>الرفع يقلل عدد الإشارات ويزيد صرامة الشروط.</i>"
+        "🎯 <b>MINIMUM TRADE CONFIDENCE</b>\n"
+        f"القيمة المحددة الآن: <b>{selected:.0f}%</b>\n\n"
+        "اختر الحد الأدنى للثقة قبل إصدار الإشارة.\n"
+        "• لا يتم عرض إشارة أقل من هذا الحد.\n"
+        "• لا يتم رفع الثقة لتجاوز الحد.\n"
+        "• إذا لم توجد فرصة تحققه، تكون النتيجة NO TRADE.\n\n"
+        "<i>Confidence Score ليس احتمال ربح مضمون، ولا نضمن أي نسبة نجاح.</i>"
     )
-    await _edit(callback, text, menus.settings_menu(user["min_confidence"], user["scanner_enabled"]))
+    await _edit(callback, text, menus.settings_menu(selected))
+
+
+@router.callback_query(F.data.startswith("set:pick:"))
+async def cb_set_pick(callback: CallbackQuery) -> None:
+    try:
+        value = float(callback.data.split(":", 2)[2])
+    except (IndexError, ValueError):
+        await callback.answer("قيمة غير صالحة", show_alert=True)
+        return
+    value = max(50.0, min(90.0, value))
+    _PENDING_MIN[callback.from_user.id] = value
+    await callback.answer(f"محدد: {value:.0f}% — اضغط SAVE SETTINGS")
+    await _render_settings(callback)
+
+
+@router.callback_query(F.data == "set:save")
+async def cb_set_save(callback: CallbackQuery) -> None:
+    ctx = get_context()
+    value = _PENDING_MIN.pop(callback.from_user.id, None)
+    if value is None:
+        await callback.answer("اختر نسبة أولاً", show_alert=True)
+        return
+    user = await ctx.repo.get_user_settings(callback.from_user.id)
+    user["min_confidence"] = value
+    await ctx.repo.save_user_settings(callback.from_user.id, user)
+    _RECS_CACHE.pop(callback.from_user.id, None)
+    await callback.answer(f"✅ تم الحفظ: {value:.0f}%")
+    await _render_settings(callback)
 
 
 @router.callback_query(F.data.startswith("set:min:"))

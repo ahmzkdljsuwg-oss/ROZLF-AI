@@ -33,13 +33,19 @@ MARKET_BUTTONS: tuple[tuple[str, str], ...] = (
 )
 
 
+TRADE_DURATION_LABELS: dict[int, str] = {
+    30: "⏱️ 30 SECONDS",
+    60: "⏱️ 1 MINUTE",
+    120: "⏱️ 2 MINUTES",
+    180: "⏱️ 3 MINUTES",
+    300: "⏱️ 5 MINUTES",
+}
+
+
 def main_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    for index in range(0, len(MARKET_BUTTONS), 2):
-        builder.row(*[_button(text, data) for text, data in MARKET_BUTTONS[index:index + 2]])
-    builder.row(_button("📡 LIVE SIGNALS", "live"))
-    builder.row(_button("📜 SIGNAL HISTORY", "hist"), _button("📊 PERFORMANCE STATISTICS", "stats"))
-    builder.row(_button("⚙️ SETTINGS", "settings"), _button("🖥️ SYSTEM STATUS", "status"))
+    builder.row(_button("📉 ANALYSIS", "analysis"))
+    builder.row(_button("⚙️ SETTINGS", "settings"), _button("🏆 RECOMMENDATIONS", "recs"))
     return builder.as_markup()
 
 
@@ -47,7 +53,24 @@ def markets_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for index in range(0, len(MARKET_BUTTONS), 2):
         builder.row(*[_button(text, data) for text, data in MARKET_BUTTONS[index:index + 2]])
-    builder.row(_button("🏠 MAIN MENU", "menu:main"))
+    builder.row(_button("🔙 BACK", "menu:main"), _button("🏠 MAIN MENU", "menu:main"))
+    return builder.as_markup()
+
+
+def trade_duration_menu(asset: Asset, durations: list[int]) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for seconds in durations:
+        builder.button(
+            text=TRADE_DURATION_LABELS.get(seconds, f"⏱️ {DURATION_LABELS.get(seconds, f'{seconds}s')}"),
+            callback_data=f"td:{asset.key}:{seconds}",
+        )
+    builder.adjust(2)
+    if durations:
+        builder.row(_button("🧠 ANALYZE TRADE TIME", f"td:smart:{asset.key}"))
+    builder.row(
+        _button("🔙 BACK", "menu:analysis"),
+        _button("🏠 MAIN MENU", "menu:main"),
+    )
     return builder.as_markup()
 
 
@@ -87,7 +110,10 @@ def signal_result_menu(asset: Asset, frame_code: str, has_details: bool = True) 
     if has_details:
         builder.row(_button("🔍 WHY THIS SIGNAL", f"whyd:{asset.key}:{frame_code}"))
     builder.row(_button("🔄 RE-ANALYSE", f"an:{asset.key}:{frame_code}"))
-    builder.row(_button("🏠 MAIN MENU", "menu:main"))
+    builder.row(
+        _button("🔙 BACK", f"ast:{asset.key}"),
+        _button("🏠 MAIN MENU", "menu:main"),
+    )
     return builder.as_markup()
 
 
@@ -236,23 +262,15 @@ def scanner_menu(running: bool, markets: list[str]) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def settings_menu(min_confidence: float, scanner_enabled: bool) -> InlineKeyboardMarkup:
+def settings_menu(min_confidence: float, scanner_enabled: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(
-        _button("MIN CONF 60%", "set:min:60"),
-        _button("MIN CONF 65%", "set:min:65"),
-        _button("MIN CONF 70%", "set:min:70"),
-    )
-    builder.row(
-        _button("MIN CONF 75%", "set:min:75"),
-        _button("MIN CONF 80%", "set:min:80"),
-        _button("MIN CONF 85%", "set:min:85"),
-    )
-    builder.row(
-        _button(f"SCANNER {'ON ✅' if scanner_enabled else 'OFF ⬜'}", "set:scan"),
-        _button("🔄 UPDATE", "settings"),
-    )
-    builder.row(_button("🏠 MAIN", "menu:main"))
+    values = (50, 60, 70, 80, 90)
+    for value in values:
+        mark = "✅ " if abs(min_confidence - value) < 1 else ""
+        builder.button(text=f"{mark}{value}%", callback_data=f"set:pick:{value}")
+    builder.adjust(3)
+    builder.row(_button("💾 SAVE SETTINGS", "set:save"))
+    builder.row(_button("🔙 BACK", "menu:main"), _button("🏠 MAIN MENU", "menu:main"))
     return builder.as_markup()
 
 

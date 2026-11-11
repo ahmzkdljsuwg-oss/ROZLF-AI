@@ -51,9 +51,10 @@ def test_confidence_is_not_fixed():
     )
 
 
-def test_welcome_has_six_markets_and_no_removed_sections():
+def test_welcome_has_three_sections_and_no_removed_sections():
     text = fmt.welcome_text(SimpleNamespace(min_confidence=65.0, mistral_api_key="x"))
-    for title in ("SMARTY MARKET", "FOOTBALL INDEX", "LUXURY INDEX", "AI INDEX", "CRICKET INDEX", "FOREX MARKET"):
+    assert "WELCOME BACK" in text
+    for title in ("ANALYSIS", "SETTINGS", "RECOMMENDATIONS"):
         assert title in text
     assert "OTC" not in text
     assert "GOLD" not in text

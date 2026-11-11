@@ -74,19 +74,7 @@ async def test_market_callback_lists_assets(monkeypatch):
     assert callback.answered
 
 
-REQUIRED_MENU = [
-    "🧠 SMARTY MARKET",
-    "⚽ FOOTBALL INDEX",
-    "💎 LUXURY INDEX",
-    "🤖 AI INDEX",
-    "🏏 CRICKET INDEX",
-    "💱 FOREX MARKET",
-    "📡 LIVE SIGNALS",
-    "📜 SIGNAL HISTORY",
-    "📊 PERFORMANCE STATISTICS",
-    "⚙️ SETTINGS",
-    "🖥️ SYSTEM STATUS",
-]
+REQUIRED_MENU = ["📉 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS"]
 
 
 async def test_start_renders_exact_new_menu(monkeypatch, settings):
@@ -97,8 +85,8 @@ async def test_start_renders_exact_new_menu(monkeypatch, settings):
     await handlers.cmd_start(message)
     text, keyboard = message.answers[0]
     assert [button.text for row in keyboard.inline_keyboard for button in row] == REQUIRED_MENU
-    assert "OTC" not in text and "GOLD ANALYSIS" not in text
-    assert "PERFORMANCE STATISTICS" in text
+    assert "WELCOME BACK" in text
+    assert "OTC" not in text and "GOLD" not in text
 
 
 @pytest.mark.parametrize(
@@ -119,10 +107,10 @@ async def test_each_market_button_opens_its_real_asset(monkeypatch, market_name,
     callback = FakeCallback(f"mkt:{market_name}")
     await handlers.cb_market(callback)
     text, keyboard = callback.message.edits[0]
-    assert f"ID {asset_id}" in text
+    assert f"MARKET ID: <b>{asset_id}</b>" in text
     data = [button.callback_data for row in keyboard.inline_keyboard for button in row]
-    assert f"dur:auto:{asset.key}" in data
-    assert f"dur:manual:{asset.key}" in data
+    assert data[:3] == [f"td:{asset.key}:30", f"td:{asset.key}:60", f"td:{asset.key}:300"]
+    assert f"td:smart:{asset.key}" in data
 
 
 async def test_forex_button_shows_real_pairs(monkeypatch):
@@ -172,7 +160,7 @@ async def test_markets_hub_callback():
     callback = FakeCallback("markets")
     await handlers.cb_markets(callback)
     text, keyboard = callback.message.edits[0]
-    assert "MARKET DESK" in text
+    assert "ANALYSIS" in text
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
     assert data == [
         "mkt:SMARTY",
@@ -181,6 +169,7 @@ async def test_markets_hub_callback():
         "mkt:AI",
         "mkt:CRICKET",
         "mkt:FOREX",
+        "menu:main",
         "menu:main",
     ]
     assert not any("OTC" in item for item in data)
@@ -198,8 +187,7 @@ async def test_football_market_opens_asset_278_durations(monkeypatch):
     text, keyboard = callback.message.edits[0]
     assert "FOOTBALL INDEX" in text and "278" in text
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert f"dur:auto:{asset.key}" in data
-    assert f"dur:manual:{asset.key}" in data
+    assert f"td:smart:{asset.key}" in data
 
 
 async def test_football_duration_reaches_asset_278_analysis(monkeypatch):
@@ -282,7 +270,7 @@ async def test_smarty_market_lists_assets_and_single_tap_selects(monkeypatch):
     text, keyboard = callback.message.edits[0]
     assert chosen.key.replace("SMARTY_", "") in text.replace(" ", "") or "SMRTY" in text
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert f"dur:manual:{chosen.key}" in data
+    assert f"td:smart:{chosen.key}" in data
 
 
 async def test_smarty_single_asset_opens_durations_immediately(monkeypatch):
@@ -292,8 +280,7 @@ async def test_smarty_single_asset_opens_durations_immediately(monkeypatch):
     await handlers.cb_market(callback)
     _, keyboard = callback.message.edits[0]
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert f"dur:manual:{asset.key}" in data
-    assert f"dur:auto:{asset.key}" in data
+    assert f"td:smart:{asset.key}" in data
     assert all(not item.startswith("sa:") for item in data)
 
 
@@ -305,5 +292,5 @@ async def test_smarty_asset_callback_shows_durations_once(monkeypatch):
     text, keyboard = callback.message.edits[0]
     assert "SMARTY" in text.upper()
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert f"dur:manual:{asset.key}" in data
+    assert f"td:smart:{asset.key}" in data
     assert "SMARTY_241" not in text

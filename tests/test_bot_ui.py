@@ -34,23 +34,18 @@ def test_main_menu_has_real_callbacks():
     markup = menus.main_menu()
     data = [button.callback_data for row in markup.inline_keyboard for button in row]
     texts = [button.text for row in markup.inline_keyboard for button in row]
-    assert texts == [
-        "🧠 SMARTY MARKET", "⚽ FOOTBALL INDEX", "💎 LUXURY INDEX", "🤖 AI INDEX",
-        "🏏 CRICKET INDEX", "💱 FOREX MARKET", "📡 LIVE SIGNALS", "📜 SIGNAL HISTORY",
-        "📊 PERFORMANCE STATISTICS", "⚙️ SETTINGS", "🖥️ SYSTEM STATUS",
-    ]
-    assert data == [
-        "mkt:SMARTY", "mkt:FOOTBALL", "mkt:LUXURY", "mkt:AI", "mkt:CRICKET", "mkt:FOREX",
-        "live", "hist", "stats", "settings", "status",
-    ]
+    assert texts == ["📉 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS"]
+    assert data == ["analysis", "settings", "recs"]
     market_data = [b.callback_data for row in menus.markets_menu().inline_keyboard for b in row]
     assert market_data == [
         "mkt:SMARTY", "mkt:FOOTBALL", "mkt:LUXURY", "mkt:AI", "mkt:CRICKET", "mkt:FOREX",
-        "menu:main",
+        "menu:main", "menu:main",
     ]
-    assert not any("OTC" in item for item in data + texts)
-    assert not any("GOLD" in item for item in data + texts)
-    for item in data:
+    market_texts = [b.text for row in menus.markets_menu().inline_keyboard for b in row]
+    assert "🧠 SMARTY MARKET" in market_texts
+    assert not any("OTC" in item for item in data + texts + market_texts)
+    assert not any("GOLD" in item for item in data + texts + market_texts)
+    for item in data + market_data:
         assert item
 
 
@@ -95,10 +90,11 @@ def test_analysis_text_says_data_unavailable_when_needed():
 def test_welcome_text_shows_sections(settings):
     text = fmt.welcome_text(settings)
     assert "ROZLF AI" in text
-    for item in ("SMARTY MARKET", "FOOTBALL INDEX", "LUXURY INDEX", "AI INDEX", "CRICKET INDEX", "FOREX MARKET", "LIVE SIGNALS", "SIGNAL HISTORY", "PERFORMANCE", "SETTINGS", "SYSTEM STATUS"):
+    assert "WELCOME BACK" in text
+    for item in ("ANALYSIS", "SETTINGS", "RECOMMENDATIONS"):
         assert item in text
     assert "OTC" not in text
-    assert "TREND" not in text
+    assert "GOLD" not in text
 
 
 def test_market_labels():

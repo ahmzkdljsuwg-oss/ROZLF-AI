@@ -143,7 +143,7 @@ async def test_market_routes_to_real_asset_id(monkeypatch, market, bridge_id, la
     text, keyboard = callback.message.edits[0]
     assert str(bridge_id) in text
     assert label in text
-    assert f"dur:auto:{asset.key}" in _ids(keyboard)
+    assert f"td:smart:{asset.key}" in _ids(keyboard)
 
 
 async def test_cricket_comes_from_catalog_not_guessed_id(monkeypatch):
@@ -153,7 +153,7 @@ async def test_cricket_comes_from_catalog_not_guessed_id(monkeypatch):
     await handlers.cb_market(callback)
     text, keyboard = callback.message.edits[0]
     assert "CRICKET INDEX" in text and "276" in text
-    assert f"dur:manual:{cricket.key}" in _ids(keyboard)
+    assert f"td:smart:{cricket.key}" in _ids(keyboard)
 
 
 async def test_cricket_unavailable_keeps_market_visible(monkeypatch):
