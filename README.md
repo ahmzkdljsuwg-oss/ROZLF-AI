@@ -23,21 +23,23 @@ ROZLF AI بوت Telegram مستقل للتحليل الفني وإشارات ا�
 | محرك استراتيجيات (SMC/ICT/Price Action/Trend/Momentum) | ✅ يعمل مع درجات توافق أدلة وشروط إبطال |
 | تحليل صور الشارت | ❌ أُزيل بالكامل (زر + handlers + اعتماديات) |
 | Mistral لتحليل الإشارات | ✅ يعمل؛ يحتاج مفتاحاً حقيقياً |
-| OTC و SMARTY | ⛔ يظهر `DATA UNAVAILABLE` حتى توصيل جسر ExpertOption موثّق (`EO_BRIDGE_URL`/`EO_BRIDGE_KEY`) |
+| SMARTY و FOOTBALL/LUXURY/AI/CRICKET | ✅ محرك مستقل لكل سوق؛ تتطلب جسر ExpertOption موثّقاً (`EO_BRIDGE_URL`/`EO_BRIDGE_KEY`)، وبدونه تظهر `DATA UNAVAILABLE` |
+| OTC | ❌ خارج المشروع بالكامل (لا أزرار، لا ماسح، لا إشارات) |
+| قائمة رئيسية: كل سوق بزر مستقل + SMART/MANUAL DURATION | ✅ يعمل |
 | تنفيذ صفقات تلقائي | ❌ غير موجود بالتصميم |
 
 ## 2. هيكل المشروع
 
 ```
 bot/          واجهة Telegram (handlers, keyboards, middleware)
-engines/      forex/gold/otc/smarty providers wrappers + technical + smc + signals
+engines/      markets (ملف مستقل لكل سوق) + technical + smc + strategies + signals
 providers/    قاعدة المزودين، الكتالوج، التحقق، الـ registry
 ai/           Mistral لتحليل الإشارات النصية
 engines/strategies/  محرك الاستراتيجيات الموحّد
 engines/backtest/    اختبار تاريخي سببي (walk-forward)
 services/     scanner، signal tracker، statistics
 database/     SQLAlchemy models + repository
-tests/        pytest suite (93 اختباراً)
+tests/        pytest suite (129 اختباراً)
 docs/         DATA-SOURCES.md، TEST-REPORT.md، BACKTEST-RESULTS.md
 main.py       نقطة التشغيل (Polling)
 ```
@@ -69,7 +71,7 @@ PYTHONPATH=. python scripts/live_smoke.py
 | `MISTRAL_MODEL` | اختياري | افتراضياً `mistral-small-latest` |
 | `MISTRAL_VISION_MODEL` | اختياري | افتراضياً `pixtral-12b-2409` |
 | `TWELVE_DATA_API_KEY` | اختياري لكنه مهم | بدونه demo mode يدعم EUR/USD و USD/JPY فقط |
-| `EO_BRIDGE_URL` / `EO_BRIDGE_KEY` | اختياري | جسر OTC/Smarty موثّق |
+| `EO_BRIDGE_URL` / `EO_BRIDGE_KEY` | اختياري | جسر SMARTY ومؤشرات ExpertOption |
 | `SCANNER_ENABLED`, `SCAN_MARKETS`, `MAX_SCAN_SIGNALS`, `MIN_CONFIDENCE` | اختياري | إعدادات الماسح |
 | `LOG_LEVEL` | اختياري | INFO افتراضياً |
 
@@ -90,8 +92,8 @@ PYTHONPATH=. python scripts/live_smoke.py
 
 ## 6. ملاحظات الصدق والبيانات
 
-- لا تُستخدم أسعار Forex بدلاً من OTC أو Smarty مطلقاً.
+- لا تُستخدم أسعار Forex بدلاً من SMARTY أو أي سوق مؤشرات مطلقاً. OTC غير مدعوم في هذه المرحلة.
 - كل إشارة تعرض مصدر بياناتها، وكل تحقق يعرض مصدر سعر الإغلاق.
 - الأسعار القديمة أو الشموع غير الصالحة تُرفض قبل التحليل.
 - بدون مصدر متوافق تظهر رسالة `DATA UNAVAILABLE` ولا تُصدر إشارة.
-- التفاصيل الكاملة في `docs/DATA-SOURCES.md` وتقرير الاختبار في `docs/TEST-REPORT.md`.
+- التفاصيل الكاملة في `docs/DATA-SOURCES.md`، ونتائج Task M في `docs/TASK-M-REPORT.md`، وتقرير الاختبار في `docs/TEST-REPORT.md`.
