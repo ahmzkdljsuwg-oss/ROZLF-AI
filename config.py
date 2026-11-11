@@ -85,7 +85,7 @@ class Settings:
             verification_interval_seconds=max(10, _number("VERIFICATION_INTERVAL_SECONDS", 20, int)),
             min_confidence=min(95.0, max(50.0, _number("MIN_CONFIDENCE", 65.0, float))),
             scanner_enabled=_flag("SCANNER_ENABLED", True),
-            scan_markets=_text("SCAN_MARKETS", "FOREX,GOLD") or "FOREX,GOLD",
+            scan_markets=_text("SCAN_MARKETS", "FOREX,SMARTY,AI,FOOTBALL,LUXURY,CRICKET") or "FOREX,SMARTY,AI,FOOTBALL,LUXURY,CRICKET",
             max_scan_signals=max(1, _number("MAX_SCAN_SIGNALS", 3, int)),
             role=(_text("ROZLF_ROLE") or _text("RAILWAY_SERVICE_NAME") or "all").lower(),
         )

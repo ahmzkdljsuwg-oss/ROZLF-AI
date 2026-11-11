@@ -13,6 +13,7 @@ from bot import formatting as fmt
 from bot.context import get_context
 from bot.keyboards import menus
 from engines.signals.duration import auto_frames, choose_auto_duration
+from engines.markets import profile_for
 from engines.signals.generator import DURATION_LABELS, supported_durations
 from providers.base import DataUnavailable
 from providers.catalog import SMARTY_ASSET, TIMEFRAMES, Asset, Market, assets_for, get_asset, timeframe
@@ -59,9 +60,10 @@ async def cmd_markets(message: Message) -> None:
     await message.answer(
         "<b>🌐 SELECT MARKET</b>\n━━━━━━━━━━━━━━━━━━\n"
         "<b>INDEX MARKETS</b>\n"
-        "⚽ FOOTBALL INDEX · 🧠 SMARTY · 💎 LUXURY INDEX · 🤖 AI INDEX · 🏏 CRICKET INDEX\n\n"
+        "🧠 SMARTY · ⚽ FOOTBALL INDEX · 💎 LUXURY INDEX\n"
+        "🤖 AI INDEX · 🏏 CRICKET INDEX\n\n"
         "<b>OTHER MARKETS</b>\n"
-        "💱 FOREX · 🎯 OTC\n\n"
+        "💱 FOREX\n\n"
         "اختر السوق لعرض الأصول المتاحة فعلياً من مصدر البيانات:",
         reply_markup=menus.markets_menu(),
         disable_web_page_preview=True,
@@ -255,7 +257,11 @@ def analysis_frame_for_duration(asset: Asset, duration_seconds: int) -> str:
 
 def _manual_durations(asset: Asset) -> list[int]:
     base = "1min" if asset.market.is_expertoption else "5min"
-    return supported_durations(asset, timeframe(base))
+    frames = profile_for(asset.market).frames
+    return [
+        seconds for seconds in supported_durations(asset, timeframe(base))
+        if analysis_frame_for_duration(asset, seconds) in frames
+    ]
 
 
 @router.callback_query(F.data.startswith("dur:"))
@@ -863,7 +869,7 @@ def _scanner_text(ctx) -> str:
     for market, reason in getattr(scanner, "last_skips", {}).items():
         text += f"SKIPPED {market}: {reason[:120]}\n"
     text += (
-        "\nالفحص يغطي: FOREX M5/M15، GOLD M15، OTC/SMARTY M1/M5 (عند توفر جسر موثّق).\n"
+        "\nالفحص يغطي: FOREX M5/M15، GOLD M15، SMARTY والأسواق المؤشرية M1 (عند توفر جسر موثّق).\n"
         "يتم منع الإشارات المكررة وتجاهل البيانات الضعيفة تلقائياً."
     )
     return text

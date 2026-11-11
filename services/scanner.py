@@ -20,11 +20,11 @@ logger = logging.getLogger(__name__)
 SCAN_PLAN: dict[Market, tuple[str, ...]] = {
     Market.FOREX: ("5min", "15min"),
     Market.GOLD: ("15min",),
-    Market.OTC: ("1min", "5min"),
     Market.SMARTY: ("1min",),
     Market.AI: ("1min",),
     Market.FOOTBALL: ("1min",),
     Market.LUXURY: ("1min",),
+    Market.CRICKET: ("1min",),
 }
 
 Notifier = Callable[[SignalRecord], Awaitable[None]]
@@ -115,10 +115,10 @@ class AutoScanner:
     def enabled_markets(self) -> list[Market]:
         wanted = {name.upper() for name in self.market_selection()}
         markets = [market for market in SCAN_PLAN if market.value.upper() in wanted]
-        return markets or [Market.FOREX, Market.GOLD]
+        return markets or [Market.FOREX, Market.SMARTY]
 
     async def market_assets(self, market: Market) -> list[Asset]:
-        if market not in (Market.OTC, Market.SMARTY):
+        if market not in (Market.SMARTY, Market.CRICKET):
             return assets_for(market)
         label = market.value.upper()
         if self.inventory is None:

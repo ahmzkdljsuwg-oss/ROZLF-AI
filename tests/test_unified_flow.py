@@ -184,7 +184,7 @@ async def test_manual_duration_lists_only_supported_values(monkeypatch):
         for b in row
         if b.callback_data.startswith("md:")
     ]
-    assert durations == [5, 15, 30, 45, 60, 105, 300]
+    assert durations == [30, 45, 60, 105, 300]
     assert 999 not in durations
 
 

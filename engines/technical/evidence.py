@@ -11,6 +11,7 @@ from datetime import datetime
 
 import pandas as pd
 
+from engines.markets import MarketProfile, profile_for
 from engines.strategies.models import StrategyReport
 from providers.base import MarketData
 
@@ -27,6 +28,20 @@ FAMILY_MAX = {
     "data": 12,
 }
 TOTAL_MAX = sum(FAMILY_MAX.values())
+
+FAMILY_ALIASES = {
+    "confirmation": "price_action",
+    "impulse": "price_action",
+    "macd": "momentum",
+    "stochastic": "momentum",
+    "divergence": "momentum",
+    "mean_reversion": "price_action",
+    "vwap": "location",
+    "swing": "structure",
+    "mtf": "trend",
+    "trend_strength": "trend",
+    "ict": "liquidity",
+}
 
 STRATEGY_LABELS = {
     "structure": "SMC",
@@ -75,13 +90,22 @@ def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
-def _family_scores(report: StrategyReport) -> dict[tuple[str, str], float]:
+def _family_scores(
+    report: StrategyReport, profile: MarketProfile
+) -> dict[tuple[str, str], float]:
     scores: dict[tuple[str, str], float] = {}
     for signal in report.signals:
         if signal.direction not in ("UP", "DOWN"):
             continue
-        key = (signal.family, signal.direction)
-        scores[key] = max(scores.get(key, 0.0), float(signal.score))
+        family = FAMILY_ALIASES.get(signal.family, signal.family)
+        if family not in FAMILY_MAX:
+            continue
+        if family == "price_action" and signal.family == "mean_reversion" and not profile.allow_mean_reversion:
+            continue
+        weight = profile.weight(family)
+        score = min(FAMILY_MAX[family], float(signal.score) * weight)
+        key = (family, signal.direction)
+        scores[key] = max(scores.get(key, 0.0), score)
     return scores
 
 
@@ -129,14 +153,16 @@ def evaluate_evidence(
     report: StrategyReport,
     market_data: MarketData,
     now: datetime,
+    profile: MarketProfile | None = None,
 ) -> EvidenceResult:
+    profile = profile or profile_for(market_data.asset.market)
     price = float(ind["price"])
     atr = float(ind["atr"] or price * 1e-5)
     components = {name: 0.0 for name in FAMILY_MAX}
     blockers: list[str] = []
     warnings: list[str] = []
 
-    family_scores = _family_scores(report)
+    family_scores = _family_scores(report, profile)
     score_up = sum(value for (family, direction), value in family_scores.items() if direction == "UP")
     score_down = sum(value for (family, direction), value in family_scores.items() if direction == "DOWN")
     total = score_up + score_down
@@ -153,8 +179,11 @@ def evaluate_evidence(
     opposite = "DOWN" if direction == "UP" else "UP"
     best = max(score_up, score_down)
     separation = best / total
-    if separation < 0.56:
-        blockers.append("Signals conflict: no clear directional edge")
+    if separation < profile.min_separation:
+        blockers.append(
+            f"{profile.name}: signals conflict, directional edge {separation:.0%} "
+            f"is below the {profile.min_separation:.0%} minimum"
+        )
 
     support_families = {family for (family, side) in family_scores if side == direction}
     oppose_families = {family for (family, side) in family_scores if side == opposite}
@@ -176,9 +205,12 @@ def evaluate_evidence(
     if mtf.get("aligned") and mtf.get("direction") == direction:
         components["trend"] += 8
     elif mtf.get("direction") == "MIXED":
-        warnings.append("Timeframes conflict")
+        if profile.mtf_strict:
+            blockers.append(f"{profile.name}: timeframes are mixed")
+        else:
+            warnings.append("Timeframes conflict")
     elif mtf.get("direction") not in (None, "MIXED", direction):
-        blockers.append("Higher timeframes disagree with the setup")
+        blockers.append(f"{profile.name}: higher timeframes disagree with the setup")
 
     adx_value = float(report.context.get("adx", 0.0))
     di_up = float(report.context.get("plus_di", 0.0))
@@ -188,8 +220,10 @@ def evaluate_evidence(
         components["trend"] += 5
     elif adx_value >= 20 and di_match:
         components["trend"] += 3
-    elif adx_value < 18:
-        blockers.append(f"Weak trend: ADX {adx_value:.1f} below 18")
+    elif adx_value < profile.adx_floor:
+        blockers.append(
+            f"{profile.name}: weak trend, ADX {adx_value:.1f} below {profile.adx_floor:.0f}"
+        )
 
     last_event = smc.get("last_event")
     if last_event and (len(frame) - 1 - last_event["index"]) <= 12:
@@ -220,10 +254,18 @@ def evaluate_evidence(
 
     supports = ind.get("support") or []
     resistances = ind.get("resistance") or []
-    if bullish and resistances and (resistances[0] - price) <= atr * 0.35:
-        blockers.append("Price is too close to resistance for a long entry")
-    elif not bullish and supports and (price - supports[0]) <= atr * 0.35:
-        blockers.append("Price is too close to support for a short entry")
+    nearest_level = resistances[0] if bullish and resistances else supports[0] if not bullish and supports else None
+    if nearest_level is not None:
+        distance_atr = abs(nearest_level - price) / atr
+        if distance_atr <= profile.level_distance_atr:
+            blockers.append(
+                f"{profile.name}: price is too close to the opposing level "
+                f"({distance_atr:.2f} ATR)"
+            )
+        elif distance_atr <= 1.6:
+            components["location"] += 4
+        else:
+            components["location"] += 1
     elif (bullish and supports) or (not bullish and resistances):
         components["location"] += 2
 
@@ -261,22 +303,36 @@ def evaluate_evidence(
     if not bullish and float(last["low"]) < prior_low and float(last["close"]) > prior_low:
         blockers.append("Fake breakout: downside break was rejected")
 
-    if ind.get("ema21") and abs(price - ind["ema21"]) > atr * 2.2:
-        blockers.append("Price is extended from EMA21; late entry refused")
+    if ind.get("ema21") and abs(price - ind["ema21"]) > atr * profile.max_extension_atr:
+        blockers.append(
+            f"{profile.name}: price is extended from EMA21; late entry refused"
+        )
     recent_move = abs(price - float(frame["close"].iloc[-6])) if len(frame) >= 6 else 0.0
-    if recent_move > atr * 3.0:
-        blockers.append("Price moved too far in the last bars; entry is late")
+    if recent_move > atr * (profile.max_extension_atr + 0.8):
+        blockers.append(f"{profile.name}: price moved too far in the last bars; entry is late")
 
     if adx_value < 18 and float(ind.get("atr_percentile") or 0.0) < 0.3:
         blockers.append("Sideways market: trend and volatility are both weak")
 
     data_score, data_quality, data_issues = _data_quality(market_data, now)
     components["data"] = float(data_score)
-    if data_score < 6:
+    if data_score < profile.data_quality_floor:
         blockers.extend(data_issues)
+        blockers.append(
+            f"{profile.name}: data quality {data_score}/{FAMILY_MAX['data']} "
+            f"below the required {profile.data_quality_floor}"
+        )
 
-    if len(support_families) < 2:
-        blockers.append("Insufficient independent confirmation")
+    if len(support_families) < profile.min_families:
+        blockers.append(
+            f"{profile.name}: {len(support_families)} independent families support "
+            f"the setup, {profile.min_families} are required"
+        )
+    if profile.required_families and not (support_families & profile.required_families):
+        blockers.append(
+            f"{profile.name}: none of the required evidence families "
+            f"({', '.join(sorted(profile.required_families))}) confirmed"
+        )
 
     against_points = sum(
         min(FAMILY_MAX.get(family, 0), value * 1.2)
@@ -287,11 +343,13 @@ def evaluate_evidence(
     if pair_conflict := (score_up > 0 and score_down > 0 and min(score_up, score_down) / total > 0.35):
         warnings.append("Meaningful opposing evidence was deducted")
 
-    earned = sum(components.values()) - conflict_penalty
+    earned = sum(min(FAMILY_MAX[key], value) for key, value in components.items()) - conflict_penalty
     quality_pct = _clamp(earned / TOTAL_MAX * 100, 0.0, 100.0)
     confidence = round(_clamp(45.0 + quality_pct * 0.52, 0.0, 92.0), 1)
-    if confidence < 58.0:
-        blockers.append("Confidence below the trading threshold")
+    if confidence < max(54.0, profile.min_confidence - 6.0):
+        blockers.append(
+            f"{profile.name}: evidence confidence is below the market threshold"
+        )
 
     labels: list[str] = []
     for signal in report.confirmed(direction):

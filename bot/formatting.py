@@ -54,14 +54,17 @@ def welcome_text(settings: Settings) -> str:
         "<i>ADVANCED TRADING INTELLIGENCE</i>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
         "مرحباً بك في نظام <b>ROZLF AI</b>.\n"
-        "تحليل فني + Smart Money Concepts + إشارات موثّقة.\n\n"
-        "<b>الأقسام الرئيسية:</b>\n"
-        "🚀 تداول الآن — الأسواق السبعة والتحليل\n"
-        "📡 الإشارات المباشرة — أفضل الفرص الحالية\n"
-        "📜 سجل الصفقات — الإشارات ونتائجها\n"
-        "📊 إحصائيات الأداء — النتائج المتحققة فقط\n"
-        "⚙️ الإعدادات — حد الثقة والماسح\n"
-        "🖥️ حالة النظام — الاتصال بمصادر البيانات\n\n"
+        "كل سوق بمحرك تحليل مستقل وبيانات حقيقية.\n\n"
+        "<b>الأسواق — MARKET ANALYSIS:</b>\n"
+        "🧠 SMARTY MARKET · ⚽ FOOTBALL INDEX\n"
+        "💎 LUXURY INDEX · 🤖 AI INDEX\n"
+        "🏏 CRICKET INDEX · 💱 FOREX MARKET\n\n"
+        "<b>الأقسام:</b>\n"
+        "📡 LIVE SIGNALS — أفضل الفرص الحالية\n"
+        "📜 SIGNAL HISTORY — الإشارات ونتائجها\n"
+        "📊 PERFORMANCE — النتائج المتحققة فقط\n"
+        "⚙️ SETTINGS — حد الثقة والماسح\n"
+        "🖥️ SYSTEM STATUS — حالة مصادر البيانات\n\n"
         f"AI STATUS: <b>{ai_status}</b>\n"
         f"MIN CONFIDENCE: <b>{settings.min_confidence:.0f}%</b>\n\n"
         f"<i>{DISCLAIMER}</i>"
@@ -266,8 +269,8 @@ def status_text(settings: Settings, statuses: list[dict], health: dict, ai_healt
     lines.append("")
     lines.append("<b>MARKET COVERAGE (LIVE PROBE)</b>")
     for market in (
-        Market.FOREX, Market.GOLD, Market.OTC, Market.SMARTY,
-        Market.AI, Market.FOOTBALL, Market.LUXURY,
+        Market.FOREX, Market.GOLD, Market.SMARTY,
+        Market.AI, Market.FOOTBALL, Market.LUXURY, Market.CRICKET,
     ):
         entry = health.get(market.value)
         if entry is None:
@@ -454,10 +457,11 @@ def markets_selector_text() -> str:
         "<b>🌐 SELECT MARKET</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
         "<b>INDEX MARKETS</b>\n"
-        "⚽ FOOTBALL INDEX · 🧠 SMARTY · 💎 LUXURY INDEX\n"
-        "🤖 AI INDEX · 🏏 CRICKET INDEX\n\n"
+        "🧠 SMARTY · ⚽ FOOTBALL INDEX\n"
+        "💎 LUXURY INDEX · 🤖 AI INDEX\n"
+        "🏏 CRICKET INDEX\n\n"
         "<b>OTHER MARKETS</b>\n"
-        "💱 FOREX · 🎯 OTC\n\n"
+        "💱 FOREX\n\n"
         "اختر السوق لعرض الأصول المتاحة فعلياً من مصدر البيانات، "
         "ثم اختر الأصل وطريقة تحديد مدة الصفقة."
     )
@@ -529,7 +533,6 @@ def markets_text(market: str, assets: list[Asset], tfs: list[str]) -> str:
     title = {
         Market.FOREX.value: "💱 FOREX MARKET",
         Market.GOLD.value: "🥇 GOLD ANALYSIS",
-        Market.OTC.value: "🌐 OTC MARKET",
         Market.SMARTY.value: "🧠 SMARTY MARKET",
         Market.AI.value: "🤖 AI INDEX",
         Market.FOOTBALL.value: "⚽ FOOTBALL INDEX",

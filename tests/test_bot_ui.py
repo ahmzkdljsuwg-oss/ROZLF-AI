@@ -33,18 +33,16 @@ def _record(direction="UP", status="ACTIVE") -> SignalRecord:
 def test_main_menu_has_real_callbacks():
     markup = menus.main_menu()
     data = [button.callback_data for row in markup.inline_keyboard for button in row]
-    assert data == ["analyze", "live", "hist", "stats", "settings", "status"]
+    assert data == [
+        "mkt:SMARTY", "mkt:FOOTBALL", "mkt:LUXURY", "mkt:AI", "mkt:CRICKET", "mkt:FOREX",
+        "live", "hist", "stats", "settings", "status",
+    ]
     market_data = [b.callback_data for row in menus.markets_menu().inline_keyboard for b in row]
     assert market_data == [
-        "mkt:FOOTBALL",
-        "mkt:SMARTY",
-        "mkt:LUXURY",
-        "mkt:AI",
-        "mkt:CRICKET",
-        "mkt:FOREX",
-        "mkt:OTC",
+        "mkt:SMARTY", "mkt:FOOTBALL", "mkt:LUXURY", "mkt:AI", "mkt:CRICKET", "mkt:FOREX",
         "menu:main",
     ]
+    assert not any("OTC" in item for item in market_data)
     for item in data:
         assert item
 
@@ -90,8 +88,9 @@ def test_analysis_text_says_data_unavailable_when_needed():
 def test_welcome_text_shows_sections(settings):
     text = fmt.welcome_text(settings)
     assert "ROZLF AI" in text
-    for item in ("تداول الآن", "الإشارات المباشرة", "سجل الصفقات", "إحصائيات الأداء", "الإعدادات", "حالة النظام"):
+    for item in ("SMARTY MARKET", "FOOTBALL INDEX", "LUXURY INDEX", "AI INDEX", "CRICKET INDEX", "FOREX MARKET", "LIVE SIGNALS", "SIGNAL HISTORY", "PERFORMANCE", "SETTINGS", "SYSTEM STATUS"):
         assert item in text
+    assert "OTC" not in text
     assert "TREND" not in text
 
 

@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from engines.markets import MarketProfile
 from engines.strategies.models import StrategyReport, StrategySignal
 from engines.technical.indicators import (
     adx,
@@ -94,6 +95,7 @@ def evaluate_strategies(
     market: Market,
     timeframe_seconds: int,
     now: datetime | None = None,
+    profile: MarketProfile | None = None,
 ) -> StrategyReport:
     now = now or datetime.now(timezone.utc)
     price = ind["price"]
@@ -212,6 +214,14 @@ def evaluate_strategies(
                  "UP" if gap["direction"] == "bullish" else "DOWN", 7,
                  f"{session} FVG entry window", "session close or FVG fill")
 
+    if last_event and last_event["event"] == "CHoCH" and (len(frame) - 1 - last_event["index"]) <= 3:
+        last = frame.iloc[-1]
+        reversal = "UP" if float(last["close"]) > float(last["open"]) else "DOWN"
+        if reversal == ("UP" if last_event["direction"] == "bullish" else "DOWN"):
+            _add(signals, "Reversal Confirmation", "confirmation", reversal, 6,
+                 "CHoCH followed by a close in the reversal direction",
+                 "close back through the CHoCH level")
+
     # ---- Price action ------------------------------------------------------
     if ind.get("support") and price - ind["support"][0] <= atr * 0.6:
         _add(signals, "Support Reaction", "location", "UP", 5,
@@ -312,10 +322,11 @@ def evaluate_strategies(
         _add(signals, "Stochastic Cross", "stochastic",
              "UP" if ind["stoch_cross"] == "BULLISH" else "DOWN", 4,
              f"stochastic {ind['stoch_cross'].lower()} cross", "cross reverses")
-    if price < ind["bb_lower"] and close.iloc[-1] > close.iloc[-2]:
+    mean_reversion_allowed = profile is None or profile.allow_mean_reversion
+    if mean_reversion_allowed and price < ind["bb_lower"] and close.iloc[-1] > close.iloc[-2]:
         _add(signals, "Bollinger Mean Reversion", "mean_reversion", "UP", 5,
              "close reclaiming lower Bollinger band", "new low below the band")
-    if price > ind["bb_upper"] and close.iloc[-1] < close.iloc[-2]:
+    if mean_reversion_allowed and price > ind["bb_upper"] and close.iloc[-1] < close.iloc[-2]:
         _add(signals, "Bollinger Mean Reversion", "mean_reversion", "DOWN", 5,
              "close rejecting upper Bollinger band", "new high above the band")
     vwap_line = vwap(frame)

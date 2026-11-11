@@ -97,15 +97,15 @@ async def test_markets_hub_callback():
     assert "SELECT MARKET" in text
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
     assert data == [
-        "mkt:FOOTBALL",
         "mkt:SMARTY",
+        "mkt:FOOTBALL",
         "mkt:LUXURY",
         "mkt:AI",
         "mkt:CRICKET",
         "mkt:FOREX",
-        "mkt:OTC",
         "menu:main",
     ]
+    assert not any("OTC" in item for item in data)
 
 
 async def test_football_market_opens_asset_278_durations(monkeypatch):

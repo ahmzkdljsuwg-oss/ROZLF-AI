@@ -33,8 +33,8 @@ class AppContext:
     def source_map(self) -> dict[str, str]:
         sources: dict[str, str] = {}
         for market in (
-            Market.FOREX, Market.GOLD, Market.OTC, Market.SMARTY,
-            Market.AI, Market.FOOTBALL, Market.LUXURY,
+            Market.FOREX, Market.GOLD, Market.SMARTY,
+            Market.AI, Market.FOOTBALL, Market.LUXURY, Market.CRICKET,
         ):
             assets = assets_for(market)
             if not assets:

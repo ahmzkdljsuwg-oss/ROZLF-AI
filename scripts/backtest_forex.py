@@ -19,7 +19,7 @@ PLAN = (
 )
 
 
-async def main(pairs: list[str]) -> int:
+async def main(pairs: list[str], limit: int = 1500, step: int = 3) -> int:
     provider = YahooForexProvider()
     results = []
     try:
@@ -31,12 +31,12 @@ async def main(pairs: list[str]) -> int:
             for frame_code, expiries in PLAN:
                 tf = timeframe(frame_code)
                 try:
-                    candles = await provider.fetch_candles(asset, tf, limit=300)
+                    candles = await provider.fetch_candles(asset, tf, limit=limit)
                 except Exception as exc:  # noqa: BLE001 - report data failures honestly
                     print(f"{asset.symbol} {frame_code}: DATA UNAVAILABLE ({exc})")
                     continue
                 for expiry in expiries:
-                    config = BacktestConfig(asset, tf, expiry, step_bars=2)
+                    config = BacktestConfig(asset, tf, expiry, step_bars=step)
                     result = run_backtest(config, candles, "yahoo")
                     payload = result.as_dict()
                     payload["walk_forward"] = walk_forward(result.trades)
@@ -59,5 +59,9 @@ async def main(pairs: list[str]) -> int:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--pairs", default=",".join(asset.key for asset in FOREX_ASSETS[:5]))
+    parser.add_argument("--limit", type=int, default=1500)
+    parser.add_argument("--step", type=int, default=3)
     args = parser.parse_args()
-    raise SystemExit(asyncio.run(main([p.strip() for p in args.pairs.split(",") if p.strip()])))
+    raise SystemExit(asyncio.run(main(
+        [p.strip() for p in args.pairs.split(",") if p.strip()], args.limit, args.step
+    )))

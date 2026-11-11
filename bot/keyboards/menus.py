@@ -23,32 +23,30 @@ INDEX_MARKETS: tuple[Market, ...] = (
 )
 
 
-def main_menu() -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.row(_button("🚀 تداول الآن", "analyze"))
-    builder.row(_button("📡 الإشارات المباشرة", "live"))
-    builder.row(_button("📜 سجل الصفقات", "hist"))
-    builder.row(_button("📊 إحصائيات الأداء", "stats"))
-    builder.row(_button("⚙️ الإعدادات", "settings"))
-    builder.row(_button("🖥️ حالة النظام", "status"))
-    return builder.as_markup()
-
-
 MARKET_BUTTONS: tuple[tuple[str, str], ...] = (
+    ("🧠 SMARTY MARKET", "mkt:SMARTY"),
     ("⚽ FOOTBALL INDEX", "mkt:FOOTBALL"),
-    ("🧠 SMARTY", "mkt:SMARTY"),
     ("💎 LUXURY INDEX", "mkt:LUXURY"),
     ("🤖 AI INDEX", "mkt:AI"),
     ("🏏 CRICKET INDEX", "mkt:CRICKET"),
-    ("💱 FOREX", "mkt:FOREX"),
-    ("🎯 OTC", "mkt:OTC"),
+    ("💱 FOREX MARKET", "mkt:FOREX"),
 )
+
+
+def main_menu() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for index in range(0, len(MARKET_BUTTONS), 2):
+        builder.row(*[_button(text, data) for text, data in MARKET_BUTTONS[index:index + 2]])
+    builder.row(_button("📡 LIVE SIGNALS", "live"))
+    builder.row(_button("📜 SIGNAL HISTORY", "hist"), _button("📊 PERFORMANCE", "stats"))
+    builder.row(_button("⚙️ SETTINGS", "settings"), _button("🖥️ SYSTEM STATUS", "status"))
+    return builder.as_markup()
 
 
 def markets_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    for text, data in MARKET_BUTTONS:
-        builder.row(_button(text, data))
+    for index in range(0, len(MARKET_BUTTONS), 2):
+        builder.row(*[_button(text, data) for text, data in MARKET_BUTTONS[index:index + 2]])
     builder.row(_button("🏠 MAIN MENU", "menu:main"))
     return builder.as_markup()
 
@@ -222,8 +220,9 @@ def scanner_menu(running: bool, markets: list[str]) -> InlineKeyboardMarkup:
     )
     builder.row(
         _button("💎 LUXURY " + ("✅" if "LUXURY" in markets else "⬜"), "scan:mk:LUXURY"),
-        _button("🔄 UPDATE", "scan:menu"),
+        _button("🏏 CRICKET " + ("✅" if "CRICKET" in markets else "⬜"), "scan:mk:CRICKET"),
     )
+    builder.row(_button("🔄 UPDATE", "scan:menu"))
     builder.row(_button("🏠 MAIN", "menu:main"))
     return builder.as_markup()
 

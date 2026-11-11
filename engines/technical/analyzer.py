@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
 
+from engines.markets import profile_for
 from engines.technical.evidence import evaluate_evidence
 from engines.technical.indicators import compute_indicators, frame_from_candles
 from engines.technical.smc import analyze_smc
@@ -46,6 +47,7 @@ class AnalysisResult:
     data_quality_score: float = 0.0
     win_probability: float | None = None
     strategy_labels: list[str] = field(default_factory=list)
+    market_profile: str = ""
 
     def as_dict(self) -> dict:
         data = asdict(self)
@@ -67,7 +69,13 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
     usable = closed_candles(market_data.candles, market_data.timeframe, now)
     if not usable:
         raise DataUnavailable("NO_CLOSED_CANDLES", "No closed candles are available yet")
-    min_bars = 60
+    profile = profile_for(market_data.asset.market)
+    if market_data.timeframe.code not in profile.frames:
+        raise DataUnavailable(
+            "UNSUPPORTED_FRAME",
+            f"{profile.name} analyses only {', '.join(profile.frames)}",
+        )
+    min_bars = max(60, profile.min_bars)
     if len(usable) < min_bars:
         raise DataUnavailable(
             "INSUFFICIENT_BARS",
@@ -81,7 +89,9 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
     frame = frame_from_candles(usable)
     ind = compute_indicators(frame)
     smc = analyze_smc(frame, ind["atr"])
-    report = evaluate_strategies(frame, ind, smc, market_data.asset.market, market_data.timeframe.seconds, now)
+    report = evaluate_strategies(
+        frame, ind, smc, market_data.asset.market, market_data.timeframe.seconds, now, profile
+    )
     price = ind["price"]
     atr = ind["atr"] or price * 1e-5
 
@@ -104,7 +114,7 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
         if spread_pct > 0.02:
             warnings.append(f"Wide spread ({spread_pct:.3f}%)")
 
-    evidence = evaluate_evidence(frame, ind, smc, report, analysis_data, now)
+    evidence = evaluate_evidence(frame, ind, smc, report, analysis_data, now, profile)
     direction = evidence.direction
     confidence = evidence.confidence
     cancellation_reason = evidence.blockers[0] if evidence.blockers else None
@@ -124,12 +134,8 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
         reasons = evidence.blockers[:4]
     invalidation = [signal.invalidation for signal in confirmed[:3]]
 
-    if market_data.asset.market in (Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY):
-        # Expiry follows measured volatility, not the candle frame: quiet
-        # conditions need room to move, choppy ones need a shorter window.
-        expiry_seconds = {"LOW": 300, "NORMAL": 60, "HIGH": 30}.get(ind["volatility"], 60)
-    else:
-        expiry_seconds = max(30, market_data.timeframe.seconds)
+    # Expiry is the market's own volatility map, never the candle frame.
+    expiry_seconds = profile.expiry_for(ind["volatility"], market_data.timeframe.seconds)
 
     total_score = score_up + score_down
     if total_score > 0:
@@ -219,4 +225,5 @@ def analyze_market_data(market_data: MarketData, now: datetime | None = None) ->
         data_quality_score=float(evidence.data_quality.get("score", 0)),
         win_probability=evidence.win_probability,
         strategy_labels=evidence.strategy_labels,
+        market_profile=profile.name,
     )

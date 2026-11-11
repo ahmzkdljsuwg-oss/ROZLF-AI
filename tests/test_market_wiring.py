@@ -151,8 +151,8 @@ async def test_health_probe_surfaces_real_reason():
     bridge = FakeBridge(error=DataUnavailable("EO_BRIDGE_NOT_CONFIGURED", "No verified ExpertOption bridge is configured"))
     health = MarketHealthService(registry, MarketInventory(bridge))
     snapshot = await health.snapshot(force=True)
-    assert snapshot[Market.OTC.value].ok is False
-    assert snapshot[Market.OTC.value].error
+    assert snapshot[Market.CRICKET.value].ok is False
+    assert snapshot[Market.CRICKET.value].error
 
 
 async def test_scanner_skips_unavailable_market_with_reason(settings, repo):
@@ -165,8 +165,8 @@ async def test_scanner_skips_unavailable_market_with_reason(settings, repo):
     inventory = MarketInventory(FakeBridge(error=DataUnavailable("EO_BRIDGE_NOT_CONFIGURED", "bridge missing")))
     from dataclasses import replace
 
-    scan_settings = replace(settings, scan_markets="OTC")
+    scan_settings = replace(settings, scan_markets="SMARTY")
     scanner = AutoScanner(generator, repo, registry, scan_settings, inventory=inventory)
     await scanner.scan_once()
-    assert "OTC" in scanner.last_skips
-    assert "bridge" in scanner.last_skips["OTC"].lower()
+    assert "SMARTY" in scanner.last_skips
+    assert "bridge" in scanner.last_skips["SMARTY"].lower()
