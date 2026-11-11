@@ -134,8 +134,10 @@ async def _run_bot(state: dict) -> None:
     for problem in problems:
         logger.warning("startup: %s", problem)
     if not settings.telegram_bot_token:
-        logger.error("TELEGRAM_BOT_TOKEN is required; exiting")
-        sys.exit(1)
+        logger.error("TELEGRAM_BOT_TOKEN is missing for role %s; keeping health endpoint only", settings.role)
+        state["stage"] = "no-telegram-token"
+        await asyncio.Event().wait()
+        return
 
     state["stage"] = "database"
     bot = Bot(
