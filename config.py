@@ -37,6 +37,23 @@ def _flag(name: str, default: bool) -> bool:
     return raw.lower() in {"1", "true", "yes", "on"}
 
 
+def _mini_app_url() -> str | None:
+    raw = _text("MINI_APP_URL") or _text("PUBLIC_BASE_URL")
+    if not raw:
+        domain = _text("RAILWAY_PUBLIC_DOMAIN")
+        raw = f"https://{domain}" if domain else None
+    if not raw:
+        return None
+    url = raw.strip().rstrip("/")
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    if url.endswith("/mini-app"):
+        url = url[: -len("/mini-app")]
+    if not url.startswith("https://") and "localhost" not in url and "127.0.0.1" not in url:
+        return None
+    return url + "/mini-app/"
+
+
 def normalise_database_url(url: str) -> str:
     """SQLAlchemy needs an explicit async driver."""
     if url.startswith("postgres://"):
@@ -67,6 +84,7 @@ class Settings:
     scan_markets: str
     max_scan_signals: int
     role: str
+    mini_app_url: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -88,6 +106,7 @@ class Settings:
             scan_markets=_text("SCAN_MARKETS", "FOREX,SMARTY,AI,FOOTBALL,LUXURY,CRICKET") or "FOREX,SMARTY,AI,FOOTBALL,LUXURY,CRICKET",
             max_scan_signals=max(1, _number("MAX_SCAN_SIGNALS", 3, int)),
             role=(_text("ROZLF_ROLE") or "bot").lower(),
+            mini_app_url=_mini_app_url(),
         )
 
     @property
@@ -152,6 +171,7 @@ class Settings:
             "database": "postgresql" if "postgresql" in self.async_database_url else "sqlite",
             "scanner_enabled": self.scanner_enabled,
             "min_confidence": self.min_confidence,
+            "mini_app": bool(self.mini_app_url),
         }
 
 

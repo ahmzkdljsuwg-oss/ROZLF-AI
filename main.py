@@ -20,6 +20,7 @@ from bot.handlers import menus
 from bot.keyboards import menus as keyboards
 from bot.middleware.auth import AccessMiddleware
 from config import normalise_database_url, settings
+from mini_app.api import install as install_mini_app
 from database.repository import Repository
 from engines.signals.generator import SignalGenerator
 from providers.eobridge import ExpertOptionBridgeProvider
@@ -60,7 +61,8 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
             "ai": live.mistral.configured if live else settings.mistral_enabled,
             "bridge_configured": bool(settings.bridge_url and settings.eo_bridge_key),
             "build": os.getenv("ROZLF_BUILD_SHA") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "unknown",
-            "menu_version": "M3",
+            "menu_version": "M4",
+            "mini_app_configured": bool(settings.mini_app_url),
             "menu": [
                 {"text": button.text, "callback": button.callback_data}
                 for row in keyboards.main_menu().inline_keyboard
@@ -73,6 +75,7 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
     app = web.Application()
     app.router.add_get("/", health)
     app.router.add_get("/health", health)
+    install_mini_app(app, lambda: state.get("ctx"))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", settings.port)
@@ -190,7 +193,6 @@ async def _run_bot(state: dict) -> None:
     ctx.tracker = tracker
     ctx.scanner = scanner
     set_context(ctx)
-
     access = AccessMiddleware(settings)
     dp.message.outer_middleware(access)
     dp.callback_query.outer_middleware(access)

@@ -1,9 +1,10 @@
 """Inline keyboard builders. Every button maps to a real callback handler."""
 from __future__ import annotations
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from config import settings
 from engines.signals.generator import DURATION_LABELS, supported_durations
 from providers.catalog import Asset, Market, assets_for, timeframe
 
@@ -42,10 +43,13 @@ TRADE_DURATION_LABELS: dict[int, str] = {
 }
 
 
-def main_menu() -> InlineKeyboardMarkup:
+def main_menu(mini_app_url: str | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(_button("📉 ANALYSIS", "analysis"))
     builder.row(_button("⚙️ SETTINGS", "settings"), _button("🏆 RECOMMENDATIONS", "recs"))
+    url = mini_app_url if mini_app_url is not None else settings.mini_app_url
+    if url:
+        builder.row(InlineKeyboardButton(text="🚀 ROZLF MINI APP", web_app=WebAppInfo(url=url)))
     return builder.as_markup()
 
 

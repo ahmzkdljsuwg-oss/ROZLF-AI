@@ -26,6 +26,7 @@ ROZLF AI بوت Telegram مستقل للتحليل الفني وإشارات ا�
 | SMARTY و FOOTBALL/LUXURY/AI/CRICKET | ✅ محرك مستقل لكل سوق؛ تتطلب جسر ExpertOption موثّقاً (`EO_BRIDGE_URL`/`EO_BRIDGE_KEY`)، وبدونه تظهر `DATA UNAVAILABLE` |
 | OTC | ❌ خارج المشروع بالكامل (لا أزرار، لا ماسح، لا إشارات) |
 | قائمة رئيسية: كل سوق بزر مستقل + SMART/MANUAL DURATION | ✅ يعمل |
+| 🚀 ROZLF MINI APP داخل Telegram (6 أسواق، نفس المحرك) | ✅ يعمل عبر `/mini-app/` مع تحقق initData |
 | تنفيذ صفقات تلقائي | ❌ غير موجود بالتصميم |
 
 ## 2. هيكل المشروع
@@ -39,7 +40,8 @@ engines/strategies/  محرك الاستراتيجيات الموحّد
 engines/backtest/    اختبار تاريخي سببي (walk-forward)
 services/     scanner، signal tracker، statistics
 database/     SQLAlchemy models + repository
-tests/        pytest suite (129 اختباراً)
+tests/        pytest suite (188+ اختباراً)
+mini_app/     Telegram Mini App (API + static UI)
 docs/         DATA-SOURCES.md، TEST-REPORT.md، BACKTEST-RESULTS.md
 main.py       نقطة التشغيل (Polling)
 ```
@@ -90,7 +92,13 @@ PYTHONPATH=. python scripts/live_smoke.py
 
 > البوت يعمل بـ Polling فقط، ولا يشغّل Webhook في نفس الوقت.
 
-## 6. ملاحظات الصدق والبيانات
+## 6. ROZLF MINI APP
+
+يُخدم التطبيق من نفس خدمة الويب على `/mini-app/`، ويضيف زراً واحداً في القائمة الرئيسية.
+الرابط العام يُؤخذ من `MINI_APP_URL` أو `PUBLIC_BASE_URL` أو `RAILWAY_PUBLIC_DOMAIN`.
+التفاصيل الكاملة: `docs/MINI-APP.md`.
+
+## 7. ملاحظات الصدق والبيانات
 
 - لا تُستخدم أسعار Forex بدلاً من SMARTY أو أي سوق مؤشرات مطلقاً. OTC غير مدعوم في هذه المرحلة.
 - كل إشارة تعرض مصدر بياناتها، وكل تحقق يعرض مصدر سعر الإغلاق.
