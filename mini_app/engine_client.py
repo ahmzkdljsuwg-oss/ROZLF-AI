@@ -35,7 +35,10 @@ class EngineClient:
         timeout_seconds: float = 30.0,
         session: aiohttp.ClientSession | None = None,
     ) -> None:
-        self.base_url = base_url.rstrip("/")
+        base = base_url.rstrip("/")
+        if base.endswith("/api/mini"):
+            base = base[: -len("/api/mini")]
+        self.base_url = base
         self.timeout_seconds = timeout_seconds
         self._session = session
         self._owns_session = session is None
