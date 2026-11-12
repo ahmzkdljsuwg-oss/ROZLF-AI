@@ -12,6 +12,11 @@ from mini_app import service
 from mini_app.auth import AuthError, authenticate
 from providers.base import DataUnavailable
 
+try:
+    from config import settings
+except Exception:  # pragma: no cover - import guard for isolated API tests
+    settings = None
+
 logger = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).parent / "static"
 ContextProvider = Callable[[], object | None]
@@ -42,10 +47,44 @@ def _context(provider: ContextProvider):
     ctx = provider()
     if ctx is None:
         raise web.HTTPServiceUnavailable(
-            text=json.dumps({"error": "SERVICE_UNAVAILABLE", "message": "Bot context is not ready"}),
+            text=json.dumps(
+                {
+                    "error": "ENGINE_NOT_READY",
+                    "message": "محرك التحليل غير مهيأ على الخادم. أعد المحاولة بعد قليل.",
+                },
+                ensure_ascii=False,
+            ),
             content_type="application/json",
+            headers={"Retry-After": "15"},
+        )
+    if not getattr(ctx.settings, "telegram_bot_token", ""):
+        raise web.HTTPServiceUnavailable(
+            text=json.dumps(
+                {
+                    "error": "ENGINE_NOT_READY",
+                    "message": "محرك التحليل غير مهيأ على الخادم. أعد المحاولة بعد قليل.",
+                },
+                ensure_ascii=False,
+            ),
+            content_type="application/json",
+            headers={"Retry-After": "15"},
         )
     return ctx
+
+
+def _origin_allowed(origin: str) -> bool:
+    if not origin:
+        return False
+    origin = origin.rstrip("/")
+    if origin in {"https://telegram.org", "https://web.telegram.org"}:
+        return True
+    if origin.endswith(".telegram.org"):
+        return True
+    if settings is not None and settings.mini_app_url:
+        base = settings.mini_app_url.split("/mini-app", 1)[0].rstrip("/")
+        if origin == base:
+            return True
+    return False
 
 
 def _user(request: web.Request, ctx):
@@ -60,6 +99,36 @@ def _user(request: web.Request, ctx):
 
 def install(app: web.Application, context_provider: ContextProvider) -> None:
     """Register API and static assets on the existing aiohttp application."""
+
+    @web.middleware
+    async def cors(request: web.Request, handler):
+        if request.method == "OPTIONS":
+            response = web.Response(status=204)
+        else:
+            response = await handler(request)
+        origin = request.headers.get("Origin")
+        if _origin_allowed(origin):
+            response.headers["Access-Control-Allow-Origin"] = origin.rstrip("/")
+            response.headers["Vary"] = "Origin"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Telegram-Init-Data"
+            response.headers["Access-Control-Max-Age"] = "86400"
+        return response
+
+    app.middlewares.append(cors)
+
+    async def health(request: web.Request) -> web.Response:
+        ctx = context_provider()
+        payload = {
+            "engine_ready": ctx is not None and bool(getattr(ctx.settings, "telegram_bot_token", "")),
+            "telegram_configured": bool(ctx and getattr(ctx.settings, "telegram_bot_token", "")),
+            "bridge_configured": bool(
+                ctx and getattr(ctx.settings, "eo_bridge_url", "") and getattr(ctx.settings, "eo_bridge_key", "")
+            ),
+            "ai": bool(ctx and getattr(getattr(ctx, "mistral", None), "configured", False)),
+            "build": __import__("os").getenv("RAILWAY_GIT_COMMIT_SHA", ""),
+        }
+        return _json(payload, 200 if payload["engine_ready"] else 503)
 
     async def bootstrap(request: web.Request) -> web.Response:
         ctx = _context(context_provider)
@@ -173,6 +242,7 @@ def install(app: web.Application, context_provider: ContextProvider) -> None:
     async def app_redirect(request: web.Request) -> web.Response:
         raise web.HTTPFound("/mini-app/")
 
+    app.router.add_get("/api/mini/health", health)
     app.router.add_get("/api/mini/bootstrap", bootstrap)
     app.router.add_get("/api/mini/markets", markets)
     app.router.add_get("/api/mini/market/{market}", market_detail)

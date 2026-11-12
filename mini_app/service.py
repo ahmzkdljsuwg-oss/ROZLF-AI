@@ -22,6 +22,14 @@ MARKET_ICONS = {
     Market.CRICKET: "🏏",
     Market.FOREX: "💱",
 }
+MINI_LABELS = {
+    Market.SMARTY: "SMARTY MARKET",
+    Market.FOOTBALL: "FOOTBALL INDEX",
+    Market.LUXURY: "LUXURY INDEX",
+    Market.AI: "AI INDEX",
+    Market.CRICKET: "CRICKET INDEX",
+    Market.FOREX: "FOREX MARKET",
+}
 MINI_DURATIONS = (30, 60, 120, 180, 300)
 RECS_TTL = 45.0
 _RECS_CACHE: dict[int, tuple[float, dict]] = {}
@@ -198,7 +206,7 @@ async def analyse_smart(ctx, user_id: int, market: Market, asset: Asset, allowed
 async def market_snapshot(ctx, market: Market, include_candles: bool = True) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "key": market.value.upper(),
-        "label": market.label,
+        "label": MINI_LABELS.get(market, market.label),
         "icon": MARKET_ICONS[market],
         "available": False,
         "assets": [],
@@ -274,7 +282,7 @@ async def markets_overview(ctx) -> dict[str, Any]:
         entry = health.get(market.value)
         row: dict[str, Any] = {
             "key": market.value.upper(),
-            "label": market.label,
+            "label": MINI_LABELS.get(market, market.label),
             "icon": MARKET_ICONS[market],
             "status": "LIVE" if entry is not None and entry.ok else "UNAVAILABLE",
             "source": entry.source if entry is not None and entry.ok else None,
@@ -289,7 +297,13 @@ async def markets_overview(ctx) -> dict[str, Any]:
             row["error"] = str(exc)
         rows.append(row)
     available = sum(1 for row in rows if row["status"] == "LIVE")
-    return {"markets": rows, "available_markets": available, "total_markets": len(rows)}
+    times = [row["last_time"] for row in rows if row.get("last_time")]
+    return {
+        "markets": rows,
+        "available_markets": available,
+        "total_markets": len(rows),
+        "last_update": max(times) if times else None,
+    }
 
 
 async def recommendations(ctx, user_id: int) -> dict[str, Any]:
@@ -327,7 +341,7 @@ async def recommendations(ctx, user_id: int) -> dict[str, Any]:
                 result = confirmation
                 item = {
                     "market": market.value.upper(),
-                    "market_label": market.label,
+                    "market_label": MINI_LABELS.get(market, market.label),
                     "icon": MARKET_ICONS[market],
                     "asset": asset.display,
                     "direction": result.direction,
@@ -404,6 +418,8 @@ async def bootstrap(ctx, user) -> dict[str, Any]:
         },
         "markets": overview["markets"],
         "available_markets": overview["available_markets"],
+        "total_markets": overview["total_markets"],
+        "last_update": overview.get("last_update"),
         "settings": settings,
         "durations": list(MINI_DURATIONS),
     }

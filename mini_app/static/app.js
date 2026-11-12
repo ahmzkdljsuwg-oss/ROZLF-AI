@@ -23,8 +23,10 @@
   if (tg) {
     tg.ready();
     tg.expand();
-    if (tg.setHeaderColor) tg.setHeaderColor("#040706");
-    if (tg.setBackgroundColor) tg.setBackgroundColor("#040706");
+    if (tg.setHeaderColor) tg.setHeaderColor("#04070a");
+    if (tg.setBackgroundColor) tg.setBackgroundColor("#04070a");
+    if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+    if (tg.setBottomBarColor) tg.setBottomBarColor("#04070a");
     if (tg.enableClosingConfirmation) tg.enableClosingConfirmation();
   }
 
@@ -90,9 +92,17 @@
       '<span class="market-badge ' + (live ? "live" : "down") + '">' + (live ? "LIVE" : "UNAVAILABLE") + "</span>" +
       '<span class="market-icon">' + api.esc(market.icon) + "</span>" +
       "<h3>" + api.esc(market.label) + "</h3>" +
-      "<small>" + (market.assets || 0) + " أصول متاحة · " + api.esc(market.source || "بانتظار المصدر") + "</small>" +
+      "<small>" + (market.assets || 0) + " أصول متاحة · " + api.esc(market.source || "بيانات غير متاحة الآن") + "</small>" +
       "</button>"
     );
+  }
+
+  function liveMarkets(data) {
+    return (data && data.markets ? data.markets : []).filter((m) => m.status === "LIVE").length;
+  }
+
+  function engineLive(data, liveCount) {
+    return Boolean(data && data.api && data.api.telegram && liveCount > 0);
   }
 
   function signalBadge(direction) {
@@ -154,6 +164,9 @@
         api.history.catch(() => ({ signals: [], stats: {} })),
       ]);
       const aiOnline = data.api && data.api.ai;
+      const liveCount = liveMarkets(data);
+      const live = engineLive(data, liveCount);
+      setPill(liveCount ? "live" : "down", liveCount ? "DATA LIVE" : "DATA OFFLINE");
       const cards = (data.markets || []).map(marketCard).join("");
       const opportunities = (recs.items || []).length
         ? recs.items.map((item) => (
@@ -173,12 +186,17 @@
       view.innerHTML =
         '<section class="hero fade-in"><div class="eyebrow">ADVANCED TRADING INTELLIGENCE</div>' +
         '<h1>ROZLF <span>AI</span><br>لوحة تحليل<br>احترافية</h1>' +
-        "<p>ستة أسواق · محرك تحليل واحد · بيانات حقيقية فقط.<br><small>" + api.esc(data.brand.tagline) + "</small></p>" +
+        "<p>ستة أسواق · محرك تحليل واحد · بيانات حقيقية فقط.<br><small>" +
+        api.esc(data.brand.tagline) + " · " + api.esc(data.user ? data.user.name : "") + "</small></p>" +
         '<div class="hero-grid">' +
-        '<div class="hero-stat"><small>MARKETS LIVE</small><strong>' + (data.available_markets || 0) + "/" + (data.total_markets || 6) + "</strong></div>" +
-        '<div class="hero-stat"><small>AI ENGINE</small><strong>' + (aiOnline ? "ONLINE" : "OFFLINE") + "</strong></div>" +
-        '<div class="hero-stat gold"><small>DATA FEED</small><strong>' + (data.api && data.api.bridge ? "BRIDGE" : "DIRECT") + "</strong></div>" +
-        "</div></section>" +
+        '<div class="hero-stat"><small>ENGINE</small><strong>' + (live ? "LIVE" : "OFFLINE") + "</strong></div>" +
+        '<div class="hero-stat"><small>MARKETS LIVE</small><strong>' + liveCount + "/" + (data.total_markets || 6) + "</strong></div>" +
+        '<div class="hero-stat gold"><small>LAST UPDATE</small><strong>' + api.fmtTime(data.last_update) + "</strong></div>" +
+        "</div>" +
+        '<div class="analysis-actions"><button class="btn block" data-route="analysis">◎ بدء التحليل الآن</button></div>' +
+        '<div class="row" style="margin-top:8px"><div class="row-main"><strong>SHARED ANALYSIS ENGINE</strong><small>نفس محرك البوت · نفس المصادر · نفس النتائج</small></div><span class="badge ' + (live ? "live" : "down") + '">' + (live ? "CONNECTED" : "DISCONNECTED") + "</span></div>" +
+        '<div class="row"><div class="row-main"><strong>MISTRAL AI</strong><small>' + api.esc((data.api && data.api.ai_detail && data.api.ai_detail.model) || "technical engine only") + "</small></div><span class=\"badge " + (aiOnline ? "live" : "down") + '">' + (aiOnline ? "ONLINE" : "OFFLINE") + "</span></div>" +
+        "</section>" +
         '<section class="section"><div class="section-head"><h2>الأسواق الستة</h2><button data-route="markets">الكل ›</button></div><div class="cards">' + cards + "</div></section>" +
         '<section class="section"><div class="section-head"><h2>أفضل الفرص الحالية</h2><button data-route="recommendations">الكل ›</button></div><div class="panel">' + opportunities + "</div></section>" +
         '<section class="section"><div class="section-head"><h2>آخر التحليلات</h2><button data-route="history">السجل ›</button></div><div class="panel">' + latest + "</div></section>";
@@ -195,10 +213,11 @@
     try {
       const data = await api.markets;
       state.markets = data.markets || [];
-      setPill(data.available_markets ? "live" : "down", data.available_markets ? "DATA LIVE" : "DATA OFFLINE");
+      const liveCount = liveMarkets(data);
+      setPill(liveCount ? "live" : "down", liveCount ? "DATA LIVE" : "DATA OFFLINE");
       view.innerHTML =
         '<div class="page-head fade-in"><div class="eyebrow">SIX INDEPENDENT MARKETS</div><h1>الأسواق</h1>' +
-        "<p>" + (data.available_markets || 0) + " من " + (data.total_markets || 6) + " أسواق متصلة الآن بمصادر بيانات حقيقية.</p></div>" +
+        "<p>" + liveCount + " من " + (data.total_markets || 6) + " أسواق متصلة الآن بمصادر بيانات حقيقية.</p></div>" +
         '<div class="cards">' + state.markets.map(marketCard).join("") + "</div>";
       bind(view);
     } catch (error) {
@@ -253,7 +272,7 @@
     view.innerHTML =
       '<div class="market-hero fade-in"><div class="market-hero-top"><div><div class="eyebrow">' + api.esc(market.icon + " " + market.label) + "</div>" +
       "<h1>" + api.esc(market.price_display || "DATA UNAVAILABLE") + "</h1>" +
-      "<div class=\"price\"><small>" + api.esc(live ? "LAST PRICE · " + (market.source || "") : (market.error || "لا يوجد مصدر بيانات موثوق")) + "</small></div></div>" +
+      "<div class=\"price\"><small>" + api.esc(live ? "LAST PRICE · " + (market.source || "") : "المصدر غير متاح الآن — لن تُصدر إشارة بدون بيانات موثوقة") + "</small></div></div>" +
       '<span class="badge ' + (live ? "live" : "down") + '">' + (live ? "LIVE" : "UNAVAILABLE") + "</span></div>" +
       '<div class="chart-wrap"><canvas id="market-chart"></canvas></div>' +
       '<div class="row"><div class="row-main"><strong>مدة تحديث آخر شمعة</strong><small>' + api.esc(market.timeframe || "—") + " · " + api.fmtTime(market.last_time) + "</small></div>" +
@@ -262,8 +281,10 @@
       (assetChips ? '<div class="chip-row">' + assetChips + "</div>" : '<div class="panel"><div class="empty">لا توجد أصول حقيقية متاحة في هذا السوق.</div></div>') + "</section>" +
       '<section class="section"><div class="section-head"><h2>مدة الصفقة</h2><span class="badge">EXPIRY</span></div>' +
       (durationChips ? '<div class="chip-row">' + durationChips + "</div>" : "") +
-      '<div class="analysis-actions"><button class="btn block" id="analyse-btn"' + (assets.length && durations.length ? "" : " disabled") + ">بدء التحليل</button>" +
-      '<button class="btn ghost block" id="smart-btn"' + (assets.length ? "" : " disabled") + ">🧠 ANALYZE TRADE TIME</button></div></section>" +
+      '<div class="analysis-actions"><button class="btn block" id="analyse-btn"' + (live && assets.length && durations.length ? "" : " disabled") + ">بدء التحليل</button>" +
+      '<button class="btn ghost block" id="smart-btn"' + (live && assets.length ? "" : " disabled") + ">🧠 ANALYZE TRADE TIME</button></div>" +
+      (!live ? '<div class="note" style="margin-top:10px">هذا السوق غير متصل بمصدر بيانات موثوق حالياً. التحليل معطّل حتى تعود البيانات، ولا تُعرض أي إشارة تجريبية.</div>' : "") +
+      "</section>" +
       '<section id="result-zone"></section>';
     bind(view);
     const canvas = document.getElementById("market-chart");
@@ -472,10 +493,15 @@
   document.querySelectorAll("#tabbar button").forEach((button) => {
     button.addEventListener("click", () => navigate(button.dataset.route));
   });
-  pill.addEventListener("click", showStatus);
+  pill.addEventListener("click", () => navigate("home", true));
+  const settingsBtn = document.getElementById("settings-btn");
+  if (settingsBtn) settingsBtn.addEventListener("click", () => navigate("settings"));
 
-  // Settings is reachable from the top-right brand area on long press-free tap targets.
-  document.querySelector(".brand").addEventListener("dblclick", () => navigate("settings"));
+  window.addEventListener("online", () => toast("عاد الاتصال بالإنترنت"));
+  window.addEventListener("offline", () => {
+    setPill("down", "NO NETWORK");
+    toast("لا يوجد اتصال بالإنترنت");
+  });
 
   if (!api.initData) {
     errorView(new api.ApiError("افتح التطبيق من داخل Telegram حتى يتم التحقق من هويتك.", "NO_TELEGRAM_INIT_DATA", 401));
