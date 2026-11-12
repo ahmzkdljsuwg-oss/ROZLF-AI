@@ -380,3 +380,42 @@ async def test_proxy_reports_unreachable_engine_without_fake_success():
         )
         assert bootstrap.status == 503
         assert (await bootstrap.json())["error"] == "ENGINE_UNREACHABLE"
+
+
+async def test_proxy_preserves_init_data_authentication_and_real_engine_result(forex_asset):
+    from mini_app.engine_client import EngineClient
+
+    engine_app = web.Application()
+    engine_ctx = fake_context(forex_asset)
+    mini_api.install(engine_app, lambda: engine_ctx)
+    async with TestServer(engine_app) as engine_server:
+        app = web.Application()
+        mini_api.install(app, lambda: None, engine=EngineClient(str(engine_server.make_url("")).rstrip("/")))
+        async with TestClient(TestServer(app)) as web_client:
+            denied = await web_client.get("/api/mini/bootstrap")
+            assert denied.status == 401
+            forged = await web_client.get(
+                "/api/mini/bootstrap", headers={"X-Telegram-Init-Data": "bad"}
+            )
+            assert forged.status == 401
+
+            headers = {"X-Telegram-Init-Data": make_init_data(7)}
+            bootstrap = await web_client.get("/api/mini/bootstrap", headers=headers)
+            assert bootstrap.status == 200
+            assert (await bootstrap.json())["brand"]["name"] == "ROZLF AI"
+
+            duration = service.durations_for(forex_asset)[0]
+            analyse = await web_client.post(
+                "/api/mini/analyse",
+                json={"market": "FOREX", "asset": forex_asset.key, "duration": duration},
+                headers=headers,
+            )
+            result = await analyse.json()
+            assert analyse.status == 200
+            assert result["confidence"] == 78.0
+            assert result["price"] == 1.10123
+            assert engine_ctx.generator.calls[-1] == (
+                forex_asset.key,
+                service.analysis_frame(forex_asset, duration),
+                duration,
+            )
