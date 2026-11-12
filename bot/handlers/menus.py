@@ -87,6 +87,22 @@ async def cmd_start(message: Message) -> None:
     await _show_main(message)
 
 
+@router.message(Command("miniapp"))
+async def cmd_miniapp(message: Message) -> None:
+    """Send a direct link to the Mini App as a WebApp button."""
+    from config import settings, DEFAULT_MINI_APP_URL
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+    url = settings.mini_app_url or (DEFAULT_MINI_APP_URL + "/mini-app/")
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🚀 Open Mini App", web_app=WebAppInfo(url=url))
+    ]])
+    await message.answer(
+        "<b>🚀 ROZLF AI Mini App</b>\nاضغط الزر أدناه لفتح التطبيق:",
+        reply_markup=kb,
+        parse_mode="HTML",
+    )
+
+
 @router.message(Command("markets"))
 async def cmd_markets(message: Message) -> None:
     await message.answer(

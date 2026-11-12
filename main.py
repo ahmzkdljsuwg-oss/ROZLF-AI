@@ -237,23 +237,27 @@ async def _run_bot(state: dict) -> None:
                     BotCommand(command="scan", description="فتح الماسح التلقائي"),
                     BotCommand(command="stats", description="الإحصائيات"),
                     BotCommand(command="id", description="عرض CHAT ID"),
+                    BotCommand(command="miniapp", description="🚀 فتح Mini App مباشرة"),
                 ]
             )
         except Exception:
             logger.exception("could not publish bot commands; continuing")
-        if settings.mini_app_url:
+        # Set chat menu button — use configured URL or fall back to default
+        from config import DEFAULT_MINI_APP_URL
+        _menu_btn_url = settings.mini_app_url or (DEFAULT_MINI_APP_URL + "/mini-app/")
+        if _menu_btn_url:
             try:
                 await bot.set_chat_menu_button(
                     menu_button=MenuButtonWebApp(
-                        text="Open Mini App",
-                        web_app=WebAppInfo(url=settings.mini_app_url),
+                        text="🚀 Open Mini App",
+                        web_app=WebAppInfo(url=_menu_btn_url),
                     )
                 )
                 state["menu_button"] = "ok"
-                logger.info("chat menu button set: %s", settings.mini_app_url)
+                logger.info("chat menu button set: %s", _menu_btn_url)
             except Exception as exc:
-                state["menu_button"] = f"error:{type(exc).__name__}"
-                logger.exception("could not set chat menu button; continuing")
+                state["menu_button"] = f"error:{type(exc).__name__}:{exc}"
+                logger.exception("could not set chat menu button (url=%s); continuing", _menu_btn_url)
         if settings.scanner_enabled:
             await scanner.start()
         logger.info("ROZLF AI started: %s", settings.describe())
