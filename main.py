@@ -63,6 +63,8 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
             "build": os.getenv("ROZLF_BUILD_SHA") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "unknown",
             "menu_version": "M4",
             "mini_app_configured": bool(settings.mini_app_url),
+            "mini_app_url": settings.mini_app_url,
+            "menu_button": state.get("menu_button", "pending"),
             "menu": [
                 {"text": button.text, "callback": button.callback_data}
                 for row in keyboards.main_menu().inline_keyboard
@@ -247,8 +249,10 @@ async def _run_bot(state: dict) -> None:
                         web_app=WebAppInfo(url=settings.mini_app_url),
                     )
                 )
+                state["menu_button"] = "ok"
                 logger.info("chat menu button set: %s", settings.mini_app_url)
-            except Exception:
+            except Exception as exc:
+                state["menu_button"] = f"error:{type(exc).__name__}"
                 logger.exception("could not set chat menu button; continuing")
         if settings.scanner_enabled:
             await scanner.start()
