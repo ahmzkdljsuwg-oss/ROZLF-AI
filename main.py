@@ -165,6 +165,10 @@ async def _run_bot(state: dict) -> None:
 
     if settings.web_only:
         logger.info("ROZLF AI started: web-only role (Mini App + health, no Telegram polling)")
+        if not settings.engine_api_url and not settings.telegram_bot_token:
+            logger.error(
+                "Mini App API has no engine: set ENGINE_API_URL to the bot service public domain"
+            )
         try:
             await asyncio.Event().wait()
         finally:
