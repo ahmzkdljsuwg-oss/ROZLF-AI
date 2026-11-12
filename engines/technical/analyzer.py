@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
+import logging
 
 from engines.markets import profile_for
 from engines.technical.evidence import evaluate_evidence
@@ -12,6 +13,8 @@ from engines.strategies.engine import evaluate_strategies
 from engines.validation import closed_candles
 from providers.base import DataUnavailable, MarketData, utc_now
 from providers.catalog import Market
+
+LOG = logging.getLogger(__name__)
 
 
 @dataclass
@@ -141,7 +144,9 @@ def analyze_market_data(
     invalidation = [signal.invalidation for signal in confirmed[:3]]
 
     # Expiry is the market's own volatility map, never the candle frame.
-    expiry_seconds = profile.expiry_for(ind["volatility"], market_data.timeframe.seconds)
+    expiry_seconds = duration_seconds or profile.expiry_for(
+        ind["volatility"], market_data.timeframe.seconds
+    )
 
     total_score = score_up + score_down
     if total_score > 0:
@@ -170,7 +175,7 @@ def analyze_market_data(
     if trend_summary == "MIXED":
         trend_summary = ind["trend"]
 
-    return AnalysisResult(
+    result = AnalysisResult(
         asset_key=market_data.asset.key,
         asset_display=market_data.asset.display,
         market=market_data.asset.market.value,
@@ -233,3 +238,11 @@ def analyze_market_data(
         strategy_labels=evidence.strategy_labels,
         market_profile=profile.name,
     )
+    LOG.info(
+        "ROZLF DECISION market=%s asset=%s tf=%s duration=%s direction=%s confidence=%.1f "
+        "evidence=%.1f families=%s blockers=%s",
+        result.market, result.asset_key, result.timeframe, duration_seconds,
+        result.direction, result.confidence, result.evidence_score,
+        len(result.confirmed_strategies), result.blockers or ["none"],
+    )
+    return result

@@ -37,11 +37,11 @@ def test_duration_changes_the_evidence_weighting():
 @pytest.mark.parametrize(
     ("reason", "label"),
     [
-        ("CONFIDENCE 61% IS BELOW YOUR 70% MINIMUM", "BELOW YOUR CONFIDENCE MINIMUM"),
-        ("A fresh CHoCH reverses the setup", "CONFLICTING EVIDENCE"),
-        ("price is extended from EMA21; late entry refused", "LATE ENTRY"),
-        ("price is pressed against the opposing level", "PRICE AT KEY LEVEL"),
-        ("STALE_DATA", "INSUFFICIENT DATA"),
+        ("CONFIDENCE 61% IS BELOW YOUR 70% MINIMUM", "قوة الإشارة أقل من الحد المطلوب"),
+        ("A fresh CHoCH reverses the setup", "تعارض بين الأدلة"),
+        ("price is extended from EMA21; late entry refused", "دخول متأخر"),
+        ("price is pressed against the opposing level", "السعر عند مستوى مهم"),
+        ("STALE_DATA", "بيانات غير كافية أو غير محدثة"),
     ],
 )
 def test_no_trade_reason_is_specific(reason, label):
@@ -53,8 +53,8 @@ def test_no_trade_card_has_no_invented_numbers():
     text = fmt.signal_card_text(
         "smarty", "SMARTY", "NO TRADE", 60, 82.0, "INSUFFICIENT CONFIRMATION"
     )
-    assert "⚪ SIGNAL: <b>NO TRADE</b>" in text
-    assert "REASON: <b>INSUFFICIENT CONFIRMATION</b>" in text
+    assert "⚪ الإشارة: <b>لا توجد فرصة تداول</b>" in text
+    assert "⏱️ مدة الصفقة: —" in text
     assert "82%" not in text
 
 
@@ -62,4 +62,4 @@ def test_welcome_screen_is_exactly_the_four_lines():
     settings = SimpleNamespace(min_confidence=70.0, mistral_api_key="configured")
     text = fmt.welcome_text(settings, ai_online=False)
     lines = [line for line in text.splitlines() if line.strip()]
-    assert lines == ["WELCOME BACK 👋", "🧠 <b>ROZLF AI</b>", "The bot by lo and Q8", "API: 🔴 OFFLINE"]
+    assert lines == ["مرحباً بعودتك 👋", "🧠 <b>ROZLF AI</b>", "The bot by lo and Q8", "API: 🔴 غير متصل"]

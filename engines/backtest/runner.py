@@ -156,7 +156,9 @@ def run_backtest(config: BacktestConfig, candles: list[Candle], source: str) -> 
         )
         decisions += 1
         try:
-            analysis = analyze_market_data(market_data, now=decision.time)
+            analysis = analyze_market_data(
+                market_data, now=decision.time, duration_seconds=config.expiry_seconds
+            )
         except DataUnavailable:
             continue
         if analysis.direction not in ("UP", "DOWN"):

@@ -30,9 +30,7 @@ DURATION_LABELS = {
 def supported_durations(asset: Asset, tf: Timeframe) -> list[int]:
     """Durations that the analysis resolution can realistically verify."""
     if asset.market.is_expertoption and asset.market is not Market.OTC:
-        # Frames confirmed live by the bridge on ExpertOption SMRTY and the
-        # AI/Football/Luxury indexes: 5s..300s (180s is rejected upstream).
-        return [5, 15, 30, 45, 60, 105, 300]
+        return [30, 60, 120, 180, 300]
     fast = [] if asset.market is Market.OTC else [30, 45, 60, 105, 120, 180]
     if tf.seconds >= 3600:
         supported = [3600]

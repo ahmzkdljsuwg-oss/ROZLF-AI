@@ -874,7 +874,9 @@ def smarty_timeframe(duration_seconds: int) -> str:
         return "15sec"
     if duration_seconds <= 30:
         return "30sec"
-    return "1min"
+    if duration_seconds <= 180:
+        return "1min"
+    return "5min"
 
 
 @router.callback_query(F.data.startswith("sm:"))

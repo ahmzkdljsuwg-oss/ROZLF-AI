@@ -49,35 +49,117 @@ def market_label(market: str) -> str:
 
 def welcome_text(settings: Settings, ai_online: bool | None = None) -> str:
     online = bool(settings.mistral_api_key) if ai_online is None else ai_online
-    status = "API: 🟢 ONLINE" if online else "API: 🔴 OFFLINE"
+    status = "API: 🟢 متصل" if online else "API: 🔴 غير متصل"
     return (
-        "WELCOME BACK 👋\n\n"
+        "مرحباً بعودتك 👋\n\n"
         "🧠 <b>ROZLF AI</b>\n"
         "The bot by lo and Q8\n\n"
         f"{status}"
     )
 
 
-def no_trade_reason(result: AnalysisResult | None) -> str:
+ARABIC_REASONS = {
+    "BOS / CHoCH": "كسر هيكل السوق (BOS/CHoCH).",
+    "Market Structure": "هيكل السوق يدعم الاتجاه.",
+    "Order Block": "تفاعل السعر مع منطقة أوامر مؤسسية.",
+    "Fair Value Gap": "وجود فجوة قيمة عادلة غير مغلقة.",
+    "Liquidity Sweep / Raid": "سحب سيولة قبل الحركة.",
+    "Buy-side Liquidity": "منطقة سيولة مرتفعة قريبة.",
+    "Sell-side Liquidity": "منطقة سيولة منخفضة قريبة.",
+    "Premium / Discount": "الدخول من منطقة سعرية مناسبة.",
+    "ICT Displacement": "شمعة اندفاع قوية تؤكد الحركة.",
+    "Optimal Trade Entry": "دخول من منطقة تصحيح مناسبة.",
+    "Support Reaction": "ارتداد من مستوى دعم.",
+    "Resistance Rejection": "رفض من مستوى مقاومة.",
+    "Breakout & Retest": "اختراق ثم إعادة اختبار ناجحة.",
+    "False Breakout": "اختراق كاذب يدعم الاتجاه المعاكس.",
+    "Trendline Break": "كسر خط اتجاه.",
+    "Candlestick Pattern": "نموذج شموع مؤكد.",
+    "EMA 9/21/50 Stack": "ترتيب المتوسطات الأسية يدعم الاتجاه.",
+    "EMA 200 Regime": "السعر في الاتجاه العام للمتوسط 200.",
+    "MA Crossover": "تقاطع المتوسطات المتحركة.",
+    "ADX / DI": "ADX واتجاه DI يؤكدان قوة الترند.",
+    "Supertrend": "اتجاه Supertrend يدعم الإشارة.",
+    "MACD Trend": "زخم MACD يدعم الاتجاه.",
+    "Higher Highs / Higher Lows": "قمم وقيعان صاعدة.",
+    "Lower Highs / Lower Lows": "قمم وقيعان هابطة.",
+    "Multi-Timeframe Trend": "توافق الأطر الزمنية.",
+    "RSI Divergence": "دايفرجنس RSI.",
+    "MACD Divergence": "دايفرجنس MACD.",
+    "Stochastic Cross": "تقاطع Stochastic.",
+    "Bollinger Mean Reversion": "ارتداد من حدود Bollinger.",
+    "VWAP": "السعر مقابل VWAP.",
+    "Alligator": "تقاطع خطوط Alligator يدعم الاتجاه.",
+    "Parabolic SAR": "Parabolic SAR يدعم الاتجاه.",
+    "Aroon": "Aroon يؤكد قوة الاتجاه.",
+    "Fractals": "كسر Fractal يؤكد الحركة.",
+    "Tweezers": "نموذج Tweezers انعكاسي.",
+    "Three Methods": "نموذج Three Methods استمراري.",
+    "V-Bounce": "ارتداد V من مستوى مهم.",
+    "RSI + MACD Reversal": "انعكاس مؤكد من RSI وMACD.",
+    "Momentum Breakout": "اختراق زخم واضح.",
+}
+
+
+def signal_reasons(result: AnalysisResult, direction: str) -> list[str]:
+    phrases: list[str] = []
+    trend = str(getattr(result, "trend_summary", "") or "")
+    if trend == direction:
+        phrases.append("اتجاه السوق يدعم الصعود." if direction == "UP" else "اتجاه السوق يدعم الهبوط.")
+    for item in getattr(result, "confirmed_strategies", []) or []:
+        if str(item.get("direction")) != direction:
+            continue
+        phrase = ARABIC_REASONS.get(str(item.get("name", "")))
+        if phrase and phrase not in phrases:
+            phrases.append(phrase)
+        if len(phrases) >= 3:
+            break
+    return phrases
+
+
+def arabic_reason(result: AnalysisResult | None) -> str:
     if result is None:
-        return "INSUFFICIENT CONFIRMATION"
-    reason = getattr(result, "cancellation_reason", None)
-    if not reason and getattr(result, "blockers", None):
-        reason = result.blockers[0]
-    text = str(reason or "").lower()
-    if "confidence" in text or "below your" in text:
-        return "BELOW YOUR CONFIDENCE MINIMUM"
-    if "conflict" in text or "disagree" in text or "mixed" in text or "choch" in text:
-        return "CONFLICTING EVIDENCE"
+        return "بيانات غير كافية"
+    text = str(getattr(result, "cancellation_reason", "") or "").lower()
+    if not text and getattr(result, "blockers", None):
+        text = str(result.blockers[0]).lower()
+    if "confidence" in text or "threshold" in text or "below your" in text:
+        return "قوة الإشارة أقل من الحد المطلوب"
+    if "level" in text or "pressed" in text:
+        return "السعر عند مستوى مهم"
+    if "conflict" in text or "disagree" in text or "mixed" in text or "oppos" in text:
+        return "تعارض بين الأدلة"
+    if "choch" in text or "reverses" in text or "reversal" in text:
+        return "تعارض بين الأدلة"
     if "late" in text or "extended" in text or "moved too far" in text:
-        return "LATE ENTRY"
-    if "level" in text:
-        return "PRICE AT KEY LEVEL"
+        return "دخول متأخر"
+    if "level" in text or "pressed" in text:
+        return "السعر عند مستوى مهم"
     if "data" in text or "candle" in text or "stale" in text or "gap" in text:
-        return "INSUFFICIENT DATA"
-    if "sideways" in text or "weak trend" in text or "families" in text:
-        return "INSUFFICIENT CONFIRMATION"
-    return "INSUFFICIENT CONFIRMATION"
+        return "بيانات غير كافية أو غير محدثة"
+    return "تأكيد غير كافٍ"
+
+
+def no_trade_reason(result: AnalysisResult | None) -> str:
+    return arabic_reason(result)
+
+
+ARABIC_DURATIONS = {
+    30: "30 ثانية",
+    60: "دقيقة واحدة",
+    120: "دقيقتان",
+    180: "3 دقائق",
+    300: "5 دقائق",
+    900: "15 دقيقة",
+    1800: "30 دقيقة",
+    3600: "ساعة واحدة",
+}
+
+
+def arabic_duration(seconds: int | None) -> str:
+    if not seconds:
+        return "—"
+    return ARABIC_DURATIONS.get(int(seconds), f"{seconds} ثانية")
 
 
 def signal_card_text(
@@ -87,36 +169,41 @@ def signal_card_text(
     expiry_seconds: int | None,
     confidence: float | None,
     reason: str | None = None,
+    reasons: list[str] | None = None,
 ) -> str:
-    if direction == "UP":
-        signal_line = "🟢 SIGNAL: <b>BUY 🟢</b>"
-    elif direction == "DOWN":
-        signal_line = "🔴 SIGNAL: <b>SELL 🛑</b>"
-    else:
+    if direction not in ("UP", "DOWN"):
         return (
-            f"📊 MARKET: <b>{market_label(market)}</b>\n"
-            f"💹 ASSET: <b>{asset_display}</b>\n\n"
-            f"⚪ SIGNAL: <b>NO TRADE</b>\n\n"
-            f"REASON: <b>{reason or 'INSUFFICIENT CONFIRMATION'}</b>"
+            f"📊 السوق: <b>{market_label(market)}</b>\n"
+            f"💹 الأصل: <b>{asset_display}</b>\n"
+            "⚪ الإشارة: <b>لا توجد فرصة تداول</b>\n"
+            "⏱️ مدة الصفقة: —\n"
+            "🎯 قوة الإشارة: —"
         )
-    trade_time = duration_label(expiry_seconds) if expiry_seconds else "—"
+    label = "🟢 الإشارة: <b>شراء</b>" if direction == "UP" else "🔴 الإشارة: <b>بيع</b>"
     conf = f"{confidence:.0f}%" if confidence is not None else "—"
-    return (
-        f"📊 MARKET: <b>{market_label(market)}</b>\n"
-        f"💹 ASSET: <b>{asset_display}</b>\n\n"
-        f"{signal_line}\n\n"
-        f"⏱️ TRADE TIME: <b>{trade_time}</b>\n\n"
-        f"🎯 TRADE CONFIDENCE: <b>{conf}</b>"
-    )
+    lines = [
+        f"📊 السوق: <b>{market_label(market)}</b>",
+        f"💹 الأصل: <b>{asset_display}</b>",
+        label,
+        f"⏱️ مدة الصفقة: <b>{arabic_duration(expiry_seconds)}</b>",
+        f"🎯 قوة الإشارة: <b>{conf}</b>",
+    ]
+    actual = [item for item in (reasons or []) if item]
+    if actual:
+        lines.append("🧠 سبب الإشارة:")
+        lines.extend(f"* {item}" for item in actual[:3])
+    return "\n".join(lines)
 
 
 def signal_text(signal: SignalRecord, ai_note: str | None = None) -> str:
+    reasons = [reason for reason in (signal.reasons or []) if reason]
     return signal_card_text(
         signal.market,
         signal.asset_display,
         signal.direction,
         signal.expiry_seconds,
         signal.confidence,
+        reasons=reasons,
     )
 
 
@@ -646,6 +733,7 @@ def unified_result_text(
         expiry,
         confidence,
         no_trade_reason(result),
+        signal_reasons(result, direction) if direction in ("UP", "DOWN") else [],
     )
 
 

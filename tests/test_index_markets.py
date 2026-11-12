@@ -60,7 +60,7 @@ async def test_index_analysis_uses_its_own_candles(settings, repo):
     registry = DataSourceRegistry([IndexBridge()])
     generator = SignalGenerator(registry, repo, settings)
     asset = get_asset("AI_INDEX_OTC_R_AI")
-    result, record = await generator.generate(7, asset, "30sec", duration_seconds=45, min_confidence=0.0)
+    result, record = await generator.generate(7, asset, "30sec", duration_seconds=60, min_confidence=0.0)
     assert result.market == "ai"
     assert result.direction in {"UP", "DOWN", "NO TRADE"}
     assert result.indicators["rsi"] is not None
@@ -101,8 +101,7 @@ async def test_conflicting_index_market_returns_no_trade(settings, repo):
 async def test_index_durations_are_expertoption_native():
     for key in ("AI_INDEX_OTC_R_AI", "FOOTBALL_INDEX_OTC_R_FOOTBALL", "LUXURY_INDEX_OTC_R_LUXURY"):
         allowed = supported_durations(get_asset(key), timeframe("1min"))
-        assert {5, 15, 30, 45, 60, 105, 300}.issubset(set(allowed))
-        assert 180 not in allowed
+        assert set(allowed) == {30, 60, 120, 180, 300}
 
 
 async def test_forex_durations_gain_45_and_105():

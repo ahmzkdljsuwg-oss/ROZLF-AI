@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from engines.markets import MarketProfile
+from engines.strategies.expertoption import expertoption_signals
 from engines.strategies.models import StrategyReport, StrategySignal
 from engines.technical.indicators import (
     adx,
@@ -348,6 +349,8 @@ def evaluate_strategies(
 
     if ind["volatility"] == "HIGH":
         warnings.append("High ATR regime: wider stops and shorter expiries are safer")
+
+    signals.extend(expertoption_signals(frame, ind))
 
     return StrategyReport(
         signals=signals,

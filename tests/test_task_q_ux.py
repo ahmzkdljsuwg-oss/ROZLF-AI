@@ -201,7 +201,7 @@ async def test_selected_duration_drives_signal_with_user_threshold(monkeypatch):
     await handlers.cb_trade_duration(callback)
     assert generator.generated == [asset.key]
     text = callback.message.edits[-1][0]
-    assert "📊 MARKET:" in text and "SIGNAL:" in text
+    assert "📊 السوق:" in text and "الإشارة:" in text
 
 
 async def test_recommendations_skip_below_threshold_and_order_by_evidence(monkeypatch):

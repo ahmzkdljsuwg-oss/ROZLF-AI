@@ -85,7 +85,7 @@ async def test_start_renders_exact_new_menu(monkeypatch, settings):
     await handlers.cmd_start(message)
     text, keyboard = message.answers[0]
     assert [button.text for row in keyboard.inline_keyboard for button in row] == REQUIRED_MENU
-    assert "WELCOME BACK" in text
+    assert "مرحباً بعودتك" in text
     assert "OTC" not in text and "GOLD" not in text
 
 
@@ -109,7 +109,7 @@ async def test_each_market_button_opens_its_real_asset(monkeypatch, market_name,
     text, keyboard = callback.message.edits[0]
     assert f"MARKET ID: <b>{asset_id}</b>" in text
     data = [button.callback_data for row in keyboard.inline_keyboard for button in row]
-    assert data[:3] == [f"td:{asset.key}:30", f"td:{asset.key}:60", f"td:{asset.key}:300"]
+    assert data[:3] == [f"td:{asset.key}:30", f"td:{asset.key}:60", f"td:{asset.key}:120"]
     assert f"td:smart:{asset.key}" in data
 
 
@@ -222,7 +222,7 @@ async def test_football_duration_reaches_asset_278_analysis(monkeypatch):
     )
     callback = FakeCallback(f"ix:{asset.key}:30")
     await handlers.cb_index_signal(callback)
-    assert "📊 MARKET:" in callback.message.edits[-1][0]
+    assert "📊 السوق:" in callback.message.edits[-1][0]
     assert len(calls) == 1
     assert calls[0][0].bridge_id == 278
     assert calls[0][0].market is Market.FOOTBALL

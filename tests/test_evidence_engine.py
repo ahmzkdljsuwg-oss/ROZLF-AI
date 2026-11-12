@@ -77,14 +77,14 @@ def test_weak_market_can_return_no_trade(eurusd):
 def test_premium_card_shows_trade_time_before_confidence(eurusd):
     result = analyze_market_data(_market(eurusd, make_candles(220, noise=0.0001, seed=23)))
     text = unified_result_text(result, 30, "5min")
-    assert text.startswith("📊 MARKET: <b>FOREX</b>")
-    assert "⚪ SIGNAL: <b>NO TRADE</b>" in text
+    assert text.startswith("📊 السوق: <b>FOREX</b>")
+    assert "⚪ الإشارة: <b>لا توجد فرصة تداول</b>" in text
 
     from bot import formatting as fmt
 
     card = fmt.signal_card_text("forex", "EUR/USD", "UP", 30, 72.0)
-    assert card.index("TRADE TIME") < card.index("TRADE CONFIDENCE")
-    assert "🟢 SIGNAL: <b>BUY 🟢</b>" in card
+    assert card.index("مدة الصفقة") < card.index("قوة الإشارة")
+    assert "🟢 الإشارة: <b>شراء</b>" in card
 
 
 async def test_settlement_reason_is_persisted(repo: Repository):

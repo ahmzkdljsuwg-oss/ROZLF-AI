@@ -194,7 +194,7 @@ async def test_manual_duration_lists_only_supported_values(monkeypatch):
         for b in row
         if b.callback_data.startswith("md:")
     ]
-    assert durations == [30, 45, 60, 105, 300]
+    assert durations == [30, 60, 120, 180, 300]
     assert 999 not in durations
 
 
@@ -216,8 +216,8 @@ async def test_manual_duration_runs_analysis_with_chosen_duration(monkeypatch):
     await handlers.cb_manual_duration(callback)
     text = callback.message.edits[-1][0]
     assert generator.calls == [(asset.key, "1min", 60)]
-    assert "TRADE TIME" in text and "1 MIN" in text
-    assert "SIGNAL: <b>BUY" in text
+    assert "مدة الصفقة" in text and "دقيقة واحدة" in text
+    assert "الإشارة: <b>شراء" in text
 
 
 async def test_auto_duration_chooses_supported_value_and_explains(monkeypatch):
@@ -227,8 +227,8 @@ async def test_auto_duration_chooses_supported_value_and_explains(monkeypatch):
     callback = FakeCallback(f"dur:auto:{asset.key}")
     await handlers.cb_duration_mode(callback)
     text = callback.message.edits[-1][0]
-    assert "TRADE TIME" in text
-    assert "TRADE CONFIDENCE" in text
+    assert "مدة الصفقة" in text
+    assert "قوة الإشارة" in text
     _, _, note = handlers._LAST_ANALYSIS[(callback.from_user.id, asset.key)]
     assert "SMART DURATION" in note
     assert "volatility NORMAL" in note
@@ -243,7 +243,7 @@ async def test_auto_duration_no_trade_does_not_create_signal(monkeypatch):
     callback = FakeCallback(f"dur:auto:{asset.key}")
     await handlers.cb_duration_mode(callback)
     text = callback.message.edits[-1][0]
-    assert "NO TRADE" in text
+    assert "لا توجد فرصة تداول" in text
     assert "SIGNAL ID" not in text
 
 

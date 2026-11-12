@@ -18,30 +18,29 @@ def _asset(market=Market.SMARTY, bridge_id=240, name="SMRTY"):
 def test_buy_template_exact():
     text = fmt.signal_card_text("smarty", "SMRTY", "UP", 30, 73.0)
     assert text == (
-        "📊 MARKET: <b>SMARTY</b>\n"
-        "💹 ASSET: <b>SMRTY</b>\n\n"
-        "🟢 SIGNAL: <b>BUY 🟢</b>\n\n"
-        "⏱️ TRADE TIME: <b>30 SEC</b>\n\n"
-        "🎯 TRADE CONFIDENCE: <b>73%</b>"
+        "📊 السوق: <b>SMARTY</b>\n"
+        "💹 الأصل: <b>SMRTY</b>\n"
+        "🟢 الإشارة: <b>شراء</b>\n"
+        "⏱️ مدة الصفقة: <b>30 ثانية</b>\n"
+        "🎯 قوة الإشارة: <b>73%</b>"
     )
 
 
 def test_sell_template_exact():
     text = fmt.signal_card_text("football", "Football Index", "DOWN", 60, 81.0)
     assert text == (
-        "📊 MARKET: <b>FOOTBALL INDEX</b>\n"
-        "💹 ASSET: <b>Football Index</b>\n\n"
-        "🔴 SIGNAL: <b>SELL 🛑</b>\n\n"
-        "⏱️ TRADE TIME: <b>1 MIN</b>\n\n"
-        "🎯 TRADE CONFIDENCE: <b>81%</b>"
+        "📊 السوق: <b>FOOTBALL INDEX</b>\n"
+        "💹 الأصل: <b>Football Index</b>\n"
+        "🔴 الإشارة: <b>بيع</b>\n"
+        "⏱️ مدة الصفقة: <b>دقيقة واحدة</b>\n"
+        "🎯 قوة الإشارة: <b>81%</b>"
     )
 
 
 def test_no_trade_template_hides_duration_and_confidence():
     text = fmt.signal_card_text("luxury", "Luxury Index", "NO TRADE", 300, 64.0)
-    assert "⚪ SIGNAL: <b>NO TRADE</b>" in text
-    assert "REASON: <b>INSUFFICIENT CONFIRMATION</b>" in text
-    assert "TRADE TIME" not in text and "TRADE CONFIDENCE" not in text
+    assert "⚪ الإشارة: <b>لا توجد فرصة تداول</b>" in text
+    assert "⏱️ مدة الصفقة: —" in text and "🎯 قوة الإشارة: —" in text
     assert "300" not in text and "64%" not in text
 
 
@@ -53,9 +52,9 @@ def test_confidence_is_not_fixed():
 
 def test_welcome_has_three_sections_and_no_removed_sections():
     text = fmt.welcome_text(SimpleNamespace(min_confidence=65.0, mistral_api_key="x"), ai_online=True)
-    assert "WELCOME BACK" in text
+    assert "مرحباً بعودتك" in text
     assert "The bot by lo and Q8" in text
-    assert "API: 🟢 ONLINE" in text
+    assert "API: 🟢 متصل" in text
     assert "OTC" not in text
     assert "GOLD" not in text
 

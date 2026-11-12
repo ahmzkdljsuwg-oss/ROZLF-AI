@@ -99,6 +99,14 @@ TRIGGER_STRATEGIES = {
     "ICT Displacement",
     "Reversal Confirmation",
     "Candlestick Pattern",
+    "Parabolic SAR",
+    "Alligator",
+    "Aroon",
+    "Fractals",
+    "Tweezers",
+    "Three Methods",
+    "V-Bounce",
+    "RSI + MACD Reversal",
 }
 
 
@@ -253,7 +261,12 @@ def evaluate_evidence(
     if mtf.get("aligned") and mtf.get("direction") == direction:
         components["trend"] += 8
     elif higher_opposes:
-        blockers.append(f"{profile.name}: medium and higher timeframes disagree with the setup")
+        # A 30-60s expiry is decided on the base frame; higher timeframes are
+        # context and cannot veto a fresh short-term trigger on their own.
+        if (duration_seconds is not None and duration_seconds <= 60) or trigger_names:
+            warnings.append("Higher timeframes disagree; the short-term trigger carries the entry")
+        else:
+            blockers.append(f"{profile.name}: medium and higher timeframes disagree with the setup")
     elif mtf.get("direction") == "MIXED":
         higher_supports = mtf_medium == direction and mtf_long == direction
         if higher_supports:
@@ -326,7 +339,8 @@ def evaluate_evidence(
     breakout_confirmed = bool({"Breakout & Retest", "Momentum Breakout"} & confirmed_names)
     if nearest_level is not None:
         distance_atr = abs(nearest_level - price) / atr
-        if distance_atr <= profile.level_distance_atr * 0.35 and not breakout_confirmed:
+        pressed_limit = max(0.08, profile.level_distance_atr * 0.25)
+        if distance_atr <= pressed_limit and not breakout_confirmed:
             blockers.append(
                 f"{profile.name}: price is pressed against the opposing level "
                 f"({distance_atr:.2f} ATR) without a breakout"

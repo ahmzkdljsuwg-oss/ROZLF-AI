@@ -58,7 +58,7 @@ def test_market_menu_lists_all_assets():
 
 def test_signal_text_contains_required_fields():
     text = fmt.signal_text(_record())
-    for fragment in ("📊 MARKET:", "💹 ASSET:", "SIGNAL:", "⏱️ TRADE TIME:", "🎯 TRADE CONFIDENCE:"):
+    for fragment in ("📊 السوق:", "💹 الأصل:", "الإشارة:", "⏱️ مدة الصفقة:", "🎯 قوة الإشارة:", "🧠 سبب الإشارة:"):
         assert fragment in text
 
 
@@ -89,10 +89,10 @@ def test_analysis_text_says_data_unavailable_when_needed():
 
 def test_welcome_text_shows_only_requested_lines(settings):
     text = fmt.welcome_text(settings, ai_online=True)
-    assert "WELCOME BACK" in text
+    assert "مرحباً بعودتك" in text
     assert "ROZLF AI" in text
     assert "The bot by lo and Q8" in text
-    assert "API: 🟢 ONLINE" in text
+    assert "API: 🟢 متصل" in text
     assert "OTC" not in text
     assert "GOLD" not in text
     assert "DISCLAIMER" not in text.upper()
