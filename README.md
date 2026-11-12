@@ -26,7 +26,7 @@ ROZLF AI بوت Telegram مستقل للتحليل الفني وإشارات ا�
 | SMARTY و FOOTBALL/LUXURY/AI/CRICKET | ✅ محرك مستقل لكل سوق؛ تتطلب جسر ExpertOption موثّقاً (`EO_BRIDGE_URL`/`EO_BRIDGE_KEY`)، وبدونه تظهر `DATA UNAVAILABLE` |
 | OTC | ❌ خارج المشروع بالكامل (لا أزرار، لا ماسح، لا إشارات) |
 | قائمة رئيسية: كل سوق بزر مستقل + SMART/MANUAL DURATION | ✅ يعمل |
-| 🚀 ROZLF MINI APP داخل Telegram (6 أسواق، نفس المحرك) | ✅ يعمل عبر `/mini-app/` مع تحقق initData |
+| 🚀 Open Mini App داخل Telegram (6 أسواق، نفس المحرك) | ✅ زر WebApp + زر القائمة الدائم عبر setChatMenuButton |
 | تنفيذ صفقات تلقائي | ❌ غير موجود بالتصميم |
 
 ## 2. هيكل المشروع

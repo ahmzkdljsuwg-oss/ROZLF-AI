@@ -15,7 +15,7 @@
 | `tests/test_mini_app.py` | اختبارات Auth + API + تطابق محرك البوت + زر القائمة |
 
 القائمة الرئيسية للبوت تحتفظ بـ ANALYSIS / SETTINGS / RECOMMENDATIONS وتضيف زراً واحداً:
-`🚀 ROZLF MINI APP` عبر `WebAppInfo`، ولا يظهر الزر إلا عند وجود رابط HTTPS عام.
+`🚀 Open Mini App` عبر `WebAppInfo`، ويُثبَّت أيضاً كزر قائمة أسفل المحادثة باسم `Open Mini App` عند بدء البوت (`setChatMenuButton`). الرابط الافتراضي: `https://web-production-b044b.up.railway.app/mini-app/`.
 
 ## 2. تدفق التحليل (محرك واحد)
 
@@ -55,7 +55,7 @@ python main.py
    `TWELVE_DATA_API_KEY`, `MISTRAL_API_KEY` (استخدم Shared Variable / Reference ولا تنسخ القيم إلى GitHub).
 2. أضف إلى خدمة الويب: `ROZLF_ROLE=web-only` — تبني المحرك وتخدم Mini App لكنها لا تشغّل Polling ولا تصطدم بالـ worker.
 3. أضف إلى خدمة الـ worker: `MINI_APP_URL=https://web-production-b044b.up.railway.app` (أو اتركه فارغاً إذا كان للعامل نطاق عام).
-4. Redeploy للخدمتين. زر `🚀 ROZLF MINI APP` يظهر فقط عندما يكون `MINI_APP_URL` معروفاً،
+4. Redeploy للخدمتين. زر `🚀 Open Mini App` وزر القائمة الدائمان يستخدمان `MINI_APP_URL` أو الرابط الافتراضي،
    ويفتح نفس المسار `/mini-app/` داخل Telegram.
 
 المسارات `/mini-app/` و`/api/mini/*` تُركّب على تطبيق aiohttp الموجود لـ `/health`.
