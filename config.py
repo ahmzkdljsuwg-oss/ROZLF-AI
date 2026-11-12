@@ -37,11 +37,14 @@ def _flag(name: str, default: bool) -> bool:
     return raw.lower() in {"1", "true", "yes", "on"}
 
 
+DEFAULT_MINI_APP_URL = "https://web-production-b044b.up.railway.app"
+
+
 def _mini_app_url() -> str | None:
     raw = _text("MINI_APP_URL") or _text("PUBLIC_BASE_URL")
     if not raw:
         domain = _text("RAILWAY_PUBLIC_DOMAIN")
-        raw = f"https://{domain}" if domain else None
+        raw = f"https://{domain}" if domain else DEFAULT_MINI_APP_URL
     if not raw:
         return None
     url = raw.strip().rstrip("/")

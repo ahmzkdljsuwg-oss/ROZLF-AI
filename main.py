@@ -10,7 +10,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramConflictError
-from aiogram.types import BotCommand
+from aiogram.types import BotCommand, MenuButtonWebApp, WebAppInfo
 from aiohttp import web
 
 from ai.mistral import MistralClient
@@ -239,6 +239,17 @@ async def _run_bot(state: dict) -> None:
             )
         except Exception:
             logger.exception("could not publish bot commands; continuing")
+        if settings.mini_app_url:
+            try:
+                await bot.set_chat_menu_button(
+                    menu_button=MenuButtonWebApp(
+                        text="Open Mini App",
+                        web_app=WebAppInfo(url=settings.mini_app_url),
+                    )
+                )
+                logger.info("chat menu button set: %s", settings.mini_app_url)
+            except Exception:
+                logger.exception("could not set chat menu button; continuing")
         if settings.scanner_enabled:
             await scanner.start()
         logger.info("ROZLF AI started: %s", settings.describe())

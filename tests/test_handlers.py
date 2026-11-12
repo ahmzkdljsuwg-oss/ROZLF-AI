@@ -74,7 +74,7 @@ async def test_market_callback_lists_assets(monkeypatch):
     assert callback.answered
 
 
-REQUIRED_MENU = ["📉 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS"]
+REQUIRED_MENU = ["📉 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS", "🚀 Open Mini App"]
 
 
 async def test_start_renders_exact_new_menu(monkeypatch, settings):

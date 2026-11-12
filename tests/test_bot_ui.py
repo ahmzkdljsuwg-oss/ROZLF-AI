@@ -34,8 +34,8 @@ def test_main_menu_has_real_callbacks():
     markup = menus.main_menu()
     data = [button.callback_data for row in markup.inline_keyboard for button in row]
     texts = [button.text for row in markup.inline_keyboard for button in row]
-    assert texts == ["📉 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS"]
-    assert data == ["analysis", "settings", "recs"]
+    assert texts == ["📉 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS", "🚀 Open Mini App"]
+    assert data == ["analysis", "settings", "recs", None]
     market_data = [b.callback_data for row in menus.markets_menu().inline_keyboard for b in row]
     assert market_data == [
         "mkt:SMARTY", "mkt:FOOTBALL", "mkt:LUXURY", "mkt:AI", "mkt:CRICKET", "mkt:FOREX",
@@ -43,9 +43,10 @@ def test_main_menu_has_real_callbacks():
     ]
     market_texts = [b.text for row in menus.markets_menu().inline_keyboard for b in row]
     assert "🧠 SMARTY MARKET" in market_texts
-    assert not any("OTC" in item for item in data + texts + market_texts)
-    assert not any("GOLD" in item for item in data + texts + market_texts)
-    for item in data + market_data:
+    labels = [item for item in data + texts + market_texts if item]
+    assert not any("OTC" in item for item in labels)
+    assert not any("GOLD" in item for item in labels)
+    for item in data[:-1] + market_data:
         assert item
 
 

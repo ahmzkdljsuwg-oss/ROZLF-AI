@@ -49,7 +49,7 @@ def main_menu(mini_app_url: str | None = None) -> InlineKeyboardMarkup:
     builder.row(_button("⚙️ SETTINGS", "settings"), _button("🏆 RECOMMENDATIONS", "recs"))
     url = mini_app_url if mini_app_url is not None else settings.mini_app_url
     if url:
-        builder.row(InlineKeyboardButton(text="🚀 ROZLF MINI APP", web_app=WebAppInfo(url=url)))
+        builder.row(InlineKeyboardButton(text="🚀 Open Mini App", web_app=WebAppInfo(url=url)))
     return builder.as_markup()
 
 

@@ -53,13 +53,15 @@ def _ids(markup):
     return [b.callback_data for row in markup.inline_keyboard for b in row]
 
 
-def test_home_has_exactly_three_buttons():
+def test_home_has_three_bot_buttons_and_mini_app():
     markup = menus.main_menu()
-    assert len(markup.inline_keyboard) == 2
+    assert len(markup.inline_keyboard) == 3
     assert [b.text for row in markup.inline_keyboard for b in row] == [
-        "📉 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS",
+        "📉 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS", "🚀 Open Mini App",
     ]
-    assert [b.callback_data for row in markup.inline_keyboard for b in row] == ["analysis", "settings", "recs"]
+    assert [b.callback_data for row in markup.inline_keyboard for b in row] == [
+        "analysis", "settings", "recs", None,
+    ]
 
 
 def test_analysis_lists_six_full_market_names_without_home_clutter():

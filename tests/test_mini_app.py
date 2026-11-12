@@ -173,13 +173,15 @@ def test_main_menu_has_mini_app_webapp_and_keeps_bot_entries():
     assert "📉 ANALYSIS" in texts and "⚙️ SETTINGS" in texts and "🏆 RECOMMENDATIONS" in texts
     web = [button for row in keyboard.inline_keyboard for button in row if button.web_app]
     assert len(web) == 1
-    assert web[0].text == "🚀 ROZLF MINI APP"
+    assert web[0].text == "🚀 Open Mini App"
     assert web[0].web_app.url == "https://example.test/mini-app/"
 
 
-def test_main_menu_has_no_dead_mini_app_button_without_url():
+def test_main_menu_always_has_default_mini_app_url():
     keyboard = main_menu(None)
-    assert not [button for row in keyboard.inline_keyboard for button in row if button.web_app]
+    web = [button for row in keyboard.inline_keyboard for button in row if button.web_app]
+    assert len(web) == 1
+    assert web[0].web_app.url == "https://web-production-b044b.up.railway.app/mini-app/"
 
 
 async def test_api_requires_valid_init_data(client):
