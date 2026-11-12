@@ -121,18 +121,6 @@ async def _run_bot(state: dict) -> None:
     setup_logging()
     runner = await _health_server(None, state)
 
-    if settings.web_only:
-        if not settings.port:
-            logger.error("web role requires PORT; exiting")
-            sys.exit(1)
-        logger.info("ROZLF AI started: web health role (no Telegram polling)")
-        try:
-            await asyncio.Event().wait()
-        finally:
-            if runner is not None:
-                await runner.cleanup()
-        return
-
     problems = settings.startup_problems()
     for problem in problems:
         logger.warning("startup: %s", problem)
@@ -170,6 +158,22 @@ async def _run_bot(state: dict) -> None:
         health=health,
     )
 
+    state["ctx"] = ctx
+    set_context(ctx)
+
+    if settings.web_only:
+        logger.info("ROZLF AI started: web-only role (Mini App + health, no Telegram polling)")
+        try:
+            await asyncio.Event().wait()
+        finally:
+            await repo.close()
+            await registry.close()
+            await mistral.close()
+            await bot.session.close()
+            if runner is not None:
+                await runner.cleanup()
+        return
+
     async def notify_signal(record) -> None:
         chat_id = settings.telegram_chat_id or record.user_id
         if not chat_id:
@@ -192,7 +196,6 @@ async def _run_bot(state: dict) -> None:
     scanner = AutoScanner(generator, repo, registry, settings, notifier=notify_signal, inventory=inventory)
     ctx.tracker = tracker
     ctx.scanner = scanner
-    set_context(ctx)
     access = AccessMiddleware(settings)
     dp.message.outer_middleware(access)
     dp.callback_query.outer_middleware(access)

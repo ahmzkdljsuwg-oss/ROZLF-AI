@@ -34,6 +34,7 @@
 | `MINI_APP_URL` | رابط HTTPS العام للخدمة، مثال `https://web-production-b044b.up.railway.app` |
 | `PUBLIC_BASE_URL` | بديل مقبول لنفس الرابط |
 | `RAILWAY_PUBLIC_DOMAIN` | يُستخدم تلقائياً إن لم يُضبط أي رابط |
+| `ROZLF_ROLE` | يجب ضبطه `web-only` على خدمة الويب حتى تبني المحرك بدون Polling |
 
 التطبيق يُبنى دائماً كـ `<base>/mini-app/`. يجب أن يكون الرابط HTTPS حتى يقبله Telegram.
 
@@ -47,9 +48,17 @@ python main.py
 # http://127.0.0.1:8080/mini-app/
 ```
 
-على Railway: أضف `MINI_APP_URL` إلى **نفس خدمة البوت/الويب** ثم Redeploy. لا حاجة لخدمة جديدة:
+على Railway لدينا خدمة الويب `web-production-b044b.up.railway.app` وخدمة العامل (worker) التي تشغّل Polling.
+
+1. خدمة الويب تحتاج نفس متغيرات التشغيل كـ worker، وليس التوكن فقط:
+   `TELEGRAM_BOT_TOKEN`, `DATABASE_URL`, `EO_BRIDGE_URL`, `EO_BRIDGE_KEY`,
+   `TWELVE_DATA_API_KEY`, `MISTRAL_API_KEY` (استخدم Shared Variable / Reference ولا تنسخ القيم إلى GitHub).
+2. أضف إلى خدمة الويب: `ROZLF_ROLE=web-only` — تبني المحرك وتخدم Mini App لكنها لا تشغّل Polling ولا تصطدم بالـ worker.
+3. أضف إلى خدمة الـ worker: `MINI_APP_URL=https://web-production-b044b.up.railway.app` (أو اتركه فارغاً إذا كان للعامل نطاق عام).
+4. Redeploy للخدمتين. زر `🚀 ROZLF MINI APP` يظهر فقط عندما يكون `MINI_APP_URL` معروفاً،
+   ويفتح نفس المسار `/mini-app/` داخل Telegram.
+
 المسارات `/mini-app/` و`/api/mini/*` تُركّب على تطبيق aiohttp الموجود لـ `/health`.
-إن أردت رابطاً افتراضياً فاترك `MINI_APP_URL` فارغاً وسيُشتق من `RAILWAY_PUBLIC_DOMAIN`.
 
 ## 5. الأمان
 
