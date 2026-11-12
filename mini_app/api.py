@@ -3,13 +3,15 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Callable
 
 from aiohttp import web
 
 from mini_app import service
-from mini_app.auth import AuthError, authenticate
+from mini_app.auth import AuthError, authenticate, init_data_from_request
+from mini_app.engine_client import EngineClient, EngineUnavailable
 from providers.base import DataUnavailable
 
 try:
@@ -87,6 +89,19 @@ def _origin_allowed(origin: str) -> bool:
     return False
 
 
+def _local_ready(provider: ContextProvider) -> bool:
+    ctx = provider()
+    return ctx is not None and bool(getattr(ctx.settings, "telegram_bot_token", ""))
+
+
+def _engine_client(engine: EngineClient | None) -> EngineClient | None:
+    if engine is not None:
+        return engine
+    if settings is not None and getattr(settings, "engine_api_url", None):
+        return EngineClient(settings.engine_api_url)
+    return None
+
+
 def _user(request: web.Request, ctx):
     try:
         return authenticate(request, ctx.settings.telegram_bot_token)
@@ -97,8 +112,16 @@ def _user(request: web.Request, ctx):
         ) from exc
 
 
-def install(app: web.Application, context_provider: ContextProvider) -> None:
-    """Register API and static assets on the existing aiohttp application."""
+def install(app: web.Application, context_provider: ContextProvider, engine: EngineClient | None = None) -> None:
+    """Register API and static assets on the existing aiohttp application.
+
+    When the local engine is not initialized (web-only service), authenticated
+    API calls are proxied to the bot service that owns the real engine.
+    """
+
+    engine = _engine_client(engine)
+    if engine is not None:
+        app.on_cleanup.append(lambda _app: engine.close())
 
     @web.middleware
     async def cors(request: web.Request, handler):
@@ -115,20 +138,91 @@ def install(app: web.Application, context_provider: ContextProvider) -> None:
             response.headers["Access-Control-Max-Age"] = "86400"
         return response
 
+    @web.middleware
+    async def engine_proxy(request: web.Request, handler):
+        if (
+            engine is not None
+            and request.path.startswith("/api/mini/")
+            and request.path != "/api/mini/health"
+            and not _local_ready(context_provider)
+        ):
+            body = await request.read() if request.method in {"POST", "PUT", "PATCH"} else None
+            try:
+                upstream = await engine.request(
+                    request.method,
+                    request.path,
+                    init_data=init_data_from_request(request),
+                    query=request.query_string,
+                    body=body,
+                )
+            except EngineUnavailable as exc:
+                return _json(
+                    {
+                        "error": exc.code,
+                        "message": exc.message,
+                        "engine_api": "unreachable",
+                    },
+                    503,
+                )
+            return web.Response(
+                body=upstream.body,
+                status=upstream.status,
+                content_type=upstream.content_type.split(";", 1)[0],
+                charset="utf-8",
+                headers={**upstream.headers, "Cache-Control": "no-store"},
+            )
+        return await handler(request)
+
     app.middlewares.append(cors)
+    app.middlewares.append(engine_proxy)
 
     async def health(request: web.Request) -> web.Response:
         ctx = context_provider()
-        payload = {
-            "engine_ready": ctx is not None and bool(getattr(ctx.settings, "telegram_bot_token", "")),
-            "telegram_configured": bool(ctx and getattr(ctx.settings, "telegram_bot_token", "")),
-            "bridge_configured": bool(
-                ctx and getattr(ctx.settings, "eo_bridge_url", "") and getattr(ctx.settings, "eo_bridge_key", "")
-            ),
-            "ai": bool(ctx and getattr(getattr(ctx, "mistral", None), "configured", False)),
-            "build": __import__("os").getenv("RAILWAY_GIT_COMMIT_SHA", ""),
-        }
-        return _json(payload, 200 if payload["engine_ready"] else 503)
+        if _local_ready(context_provider):
+            payload = {
+                "engine_ready": True,
+                "mode": "local",
+                "telegram_configured": bool(getattr(ctx.settings, "telegram_bot_token", "")),
+                "bridge_configured": bool(
+                    getattr(ctx.settings, "eo_bridge_url", "") and getattr(ctx.settings, "eo_bridge_key", "")
+                ),
+                "ai": bool(getattr(getattr(ctx, "mistral", None), "configured", False)),
+                "build": os.getenv("RAILWAY_GIT_COMMIT_SHA", ""),
+            }
+            return _json(payload, 200)
+        if engine is not None:
+            try:
+                remote = await engine.health()
+            except EngineUnavailable as exc:
+                return _json(
+                    {
+                        "engine_ready": False,
+                        "mode": "proxy",
+                        "engine_api": "unreachable",
+                        "error": exc.code,
+                        "message": exc.message,
+                        "build": os.getenv("RAILWAY_GIT_COMMIT_SHA", ""),
+                    },
+                    503,
+                )
+            payload = dict(remote)
+            payload["mode"] = "proxy"
+            payload["engine_api"] = "reachable"
+            payload["web_build"] = os.getenv("RAILWAY_GIT_COMMIT_SHA", "")
+            return _json(payload, 200 if payload.get("engine_ready") else 503)
+        return _json(
+            {
+                "engine_ready": False,
+                "mode": "unconfigured",
+                "telegram_configured": bool(ctx and getattr(ctx.settings, "telegram_bot_token", "")),
+                "bridge_configured": bool(
+                    ctx and getattr(ctx.settings, "eo_bridge_url", "") and getattr(ctx.settings, "eo_bridge_key", "")
+                ),
+                "ai": bool(ctx and getattr(getattr(ctx, "mistral", None), "configured", False)),
+                "build": os.getenv("RAILWAY_GIT_COMMIT_SHA", ""),
+            },
+            503,
+        )
 
     async def bootstrap(request: web.Request) -> web.Response:
         ctx = _context(context_provider)

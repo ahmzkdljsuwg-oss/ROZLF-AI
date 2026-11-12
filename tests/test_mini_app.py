@@ -298,3 +298,85 @@ async def test_static_assets_and_redirect(client):
     redirect = await http.get("/mini-app", allow_redirects=False)
     assert redirect.status == 302
     assert redirect.headers["Location"] == "/mini-app/"
+
+
+async def _engine_app():
+    seen = {"init_data": None, "analyse": None}
+
+    async def health(_request):
+        return web.json_response(
+            {
+                "engine_ready": True,
+                "telegram_configured": True,
+                "bridge_configured": True,
+                "ai": True,
+                "build": "engine-sha",
+            }
+        )
+
+    async def bootstrap(request):
+        seen["init_data"] = request.headers.get("X-Telegram-Init-Data")
+        return web.json_response({"user": {"id": 7}, "market_count": 6, "engine": "real"})
+
+    async def markets(request):
+        seen["init_data"] = request.headers.get("X-Telegram-Init-Data")
+        return web.json_response({"markets": [{"key": "SMARTY"}, {"key": "FOREX"}]})
+
+    async def analyse(request):
+        seen["analyse"] = await request.json()
+        return web.json_response({"direction": "UP", "confidence": 71.0, "price": 1.10123})
+
+    app = web.Application()
+    app.router.add_get("/api/mini/health", health)
+    app.router.add_get("/api/mini/bootstrap", bootstrap)
+    app.router.add_get("/api/mini/markets", markets)
+    app.router.add_post("/api/mini/analyse", analyse)
+    return app, seen
+
+
+async def test_web_service_proxies_to_real_engine_when_local_ctx_missing():
+    from mini_app.engine_client import EngineClient
+
+    engine_app, seen = await _engine_app()
+    async with TestServer(engine_app) as engine_server:
+        app = web.Application()
+        mini_api.install(app, lambda: None, engine=EngineClient(str(engine_server.make_url("")).rstrip("/")))
+        async with TestClient(TestServer(app)) as web_client:
+            health = await web_client.get("/api/mini/health")
+            assert health.status == 200
+            body = await health.json()
+            assert body["engine_ready"] is True
+            assert body["mode"] == "proxy"
+            assert body["engine_api"] == "reachable"
+
+            headers = {"X-Telegram-Init-Data": make_init_data(7), "Origin": "https://web.telegram.org"}
+            bootstrap = await web_client.get("/api/mini/bootstrap", headers=headers)
+            assert bootstrap.status == 200
+            assert (await bootstrap.json())["engine"] == "real"
+            assert seen["init_data"] == make_init_data(7)
+            assert bootstrap.headers.get("Access-Control-Allow-Origin") == "https://web.telegram.org"
+
+            analyse = await web_client.post(
+                "/api/mini/analyse",
+                json={"market": "SMARTY", "duration": 60},
+                headers=headers,
+            )
+            assert analyse.status == 200
+            assert seen["analyse"] == {"market": "SMARTY", "duration": 60}
+            assert (await analyse.json())["confidence"] == 71.0
+
+
+async def test_proxy_reports_unreachable_engine_without_fake_success():
+    from mini_app.engine_client import EngineClient
+
+    app = web.Application()
+    mini_api.install(app, lambda: None, engine=EngineClient("http://127.0.0.1:9", timeout_seconds=0.4))
+    async with TestClient(TestServer(app)) as web_client:
+        health = await web_client.get("/api/mini/health")
+        assert health.status == 503
+        assert (await health.json())["engine_api"] == "unreachable"
+        bootstrap = await web_client.get(
+            "/api/mini/bootstrap", headers={"X-Telegram-Init-Data": make_init_data(7)}
+        )
+        assert bootstrap.status == 503
+        assert (await bootstrap.json())["error"] == "ENGINE_UNREACHABLE"

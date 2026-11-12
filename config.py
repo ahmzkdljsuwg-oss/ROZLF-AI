@@ -57,6 +57,16 @@ def _mini_app_url() -> str | None:
     return url + "/mini-app/"
 
 
+def _http_url(name: str) -> str | None:
+    raw = _text(name)
+    if not raw:
+        return None
+    url = raw.strip().rstrip("/")
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    return url
+
+
 def normalise_database_url(url: str) -> str:
     """SQLAlchemy needs an explicit async driver."""
     if url.startswith("postgres://"):
@@ -88,6 +98,7 @@ class Settings:
     max_scan_signals: int
     role: str
     mini_app_url: str | None = None
+    engine_api_url: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -110,6 +121,7 @@ class Settings:
             max_scan_signals=max(1, _number("MAX_SCAN_SIGNALS", 3, int)),
             role=(_text("ROZLF_ROLE") or "bot").lower(),
             mini_app_url=_mini_app_url(),
+            engine_api_url=_http_url("ENGINE_API_URL"),
         )
 
     @property
@@ -175,6 +187,7 @@ class Settings:
             "scanner_enabled": self.scanner_enabled,
             "min_confidence": self.min_confidence,
             "mini_app": bool(self.mini_app_url),
+            "engine_api": bool(self.engine_api_url),
         }
 
 

@@ -75,6 +75,7 @@ PYTHONPATH=. python scripts/live_smoke.py
 | `TWELVE_DATA_API_KEY` | اختياري لكنه مهم | بدونه demo mode يدعم EUR/USD و USD/JPY فقط |
 | `EO_BRIDGE_URL` / `EO_BRIDGE_KEY` | اختياري | جسر SMARTY ومؤشرات ExpertOption |
 | `SCANNER_ENABLED`, `SCAN_MARKETS`, `MAX_SCAN_SIGNALS`, `MIN_CONFIDENCE` | اختياري | إعدادات الماسح |
+| `ENGINE_API_URL` | مطلوب لخدمة الويب فقط | رابط خدمة البوت التي تملك المحرك الحقيقي؛ توجّه خدمة الويب طلبات Mini App الموثقة إليه (initData يُتحقق منه في خدمة البوت) |
 | `LOG_LEVEL` | اختياري | INFO افتراضياً |
 
 ## 5. النشر على Railway
