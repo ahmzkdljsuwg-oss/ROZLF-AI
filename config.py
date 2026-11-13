@@ -117,6 +117,8 @@ class Settings:
     role: str
     mini_app_url: str | None = None
     engine_api_url: str | None = None
+    mt5_bridge_url: str | None = None
+    mt5_bridge_key: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -142,6 +144,8 @@ class Settings:
             role=role,
             mini_app_url=mini_app_url,
             engine_api_url=_engine_api_url(role, mini_app_url),
+            mt5_bridge_url=_http_url("MT5_BRIDGE_URL"),
+            mt5_bridge_key=_text("MT5_BRIDGE_KEY"),
         )
 
     @property
@@ -203,6 +207,7 @@ class Settings:
             "mistral_model": self.mistral_model,
             "twelve_data": bool(self.twelve_data_api_key),
             "eo_bridge": bool(self.eo_bridge_url and self.eo_bridge_key),
+            "mt5_bridge": bool(self.mt5_bridge_url and self.mt5_bridge_key),
             "database": "postgresql" if "postgresql" in self.async_database_url else "sqlite",
             "scanner_enabled": self.scanner_enabled,
             "min_confidence": self.min_confidence,

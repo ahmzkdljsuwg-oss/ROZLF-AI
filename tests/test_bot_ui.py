@@ -34,8 +34,8 @@ def test_main_menu_has_real_callbacks():
     markup = menus.main_menu()
     data = [button.callback_data for row in markup.inline_keyboard for button in row]
     texts = [button.text for row in markup.inline_keyboard for button in row]
-    assert texts == ["📉 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS", "🚀 Open Mini App"]
-    assert data == ["analysis", "settings", "recs", None]
+    assert texts == ["📉 ANALYSIS", "📊 MT5 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS", "🚀 Open Mini App"]
+    assert data == ["analysis", "mt5:list", "settings", "recs", None]
     market_data = [b.callback_data for row in menus.markets_menu().inline_keyboard for b in row]
     assert market_data == [
         "mkt:SMARTY", "mkt:FOOTBALL", "mkt:LUXURY", "mkt:AI", "mkt:CRICKET", "mkt:FOREX",

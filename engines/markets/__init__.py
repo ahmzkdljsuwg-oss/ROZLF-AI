@@ -7,6 +7,7 @@ from engines.markets.cricket import PROFILE as CRICKET_PROFILE
 from engines.markets.football import PROFILE as FOOTBALL_PROFILE
 from engines.markets.forex import PROFILE as FOREX_PROFILE
 from engines.markets.luxury import PROFILE as LUXURY_PROFILE
+from engines.markets.mt5 import PROFILE as MT5_PROFILE
 from engines.markets.smarty import PROFILE as SMARTY_PROFILE
 from providers.catalog import Market
 
@@ -19,6 +20,7 @@ _PROFILES: dict[Market, MarketProfile] = {
         AI_PROFILE,
         CRICKET_PROFILE,
         FOREX_PROFILE,
+        MT5_PROFILE,
     )
 }
 

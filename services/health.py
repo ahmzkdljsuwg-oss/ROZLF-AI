@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 PROBE_PLAN: dict[Market, tuple[str | None, str]] = {
     Market.FOREX: ("EUR_USD_FOREX", "5min"),
+    Market.MT5: ("MT5_AUDCAD", "5min"),
     Market.GOLD: ("XAU_USD_GOLD", "15min"),
     Market.SMARTY: (None, "1min"),
     Market.AI: (None, "1min"),

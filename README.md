@@ -74,6 +74,7 @@ PYTHONPATH=. python scripts/live_smoke.py
 | `MISTRAL_VISION_MODEL` | اختياري | افتراضياً `pixtral-12b-2409` |
 | `TWELVE_DATA_API_KEY` | اختياري لكنه مهم | بدونه demo mode يدعم EUR/USD و USD/JPY فقط |
 | `EO_BRIDGE_URL` / `EO_BRIDGE_KEY` | اختياري | جسر SMARTY ومؤشرات ExpertOption |
+| `MT5_BRIDGE_URL` / `MT5_BRIDGE_KEY` | اختياري | جسر قراءة MetaTrader 5 يعمل على جهاز/VPS متصل بالمنصة |
 | `SCANNER_ENABLED`, `SCAN_MARKETS`, `MAX_SCAN_SIGNALS`, `MIN_CONFIDENCE` | اختياري | إعدادات الماسح |
 | `ENGINE_API_URL` | مطلوب لخدمة الويب فقط | رابط خدمة البوت التي تملك المحرك الحقيقي؛ توجّه خدمة الويب طلبات Mini App الموثقة إليه (initData يُتحقق منه في خدمة البوت) |
 | `LOG_LEVEL` | اختياري | INFO افتراضياً |
@@ -99,7 +100,20 @@ PYTHONPATH=. python scripts/live_smoke.py
 الرابط العام يُؤخذ من `MINI_APP_URL` أو `PUBLIC_BASE_URL` أو `RAILWAY_PUBLIC_DOMAIN`.
 التفاصيل الكاملة: `docs/MINI-APP.md`.
 
-## 7. ملاحظات الصدق والبيانات
+## 7. MT5 MARKET ANALYSIS
+
+قائمة البوت الرئيسية تحتوي على **📊 MT5 ANALYSIS**:
+اختر الزوج → اختر المدة (1/5/15/30/60 دقيقة) → تحليل حقيقي من MT5.
+
+- لا يستطيع Railway تشغيل منصة MT5. لذلك يعمل جسر `mt5_bridge/` على Windows/VPS
+  بجانب Terminal مسجل الدخول، ويكون **قراءة فقط** (لا توجد أي أوامر تداول).
+- الأزواج المعروضة هي التي يعرضها الوسيط فعلاً، مع دعم اللاحقات مثل `AUDCAD.a`.
+- التحليل: Williams Alligator 13/8/5 + EMA 200 + الاتجاه وقوته + S/R + الشموع + ATR.
+- عند انقطاع الاتصال أو قدم البيانات: **MT5 OFFLINE** ولا تُصدر أي إشارة.
+- لا تُستخدم بيانات Yahoo/Twelve Data كبيانات MT5.
+- التثبيت والتشغيل: `mt5_bridge/README.md` و`docs/MT5-ANALYSIS.md`.
+
+## 8. ملاحظات الصدق والبيانات
 
 - لا تُستخدم أسعار Forex بدلاً من SMARTY أو أي سوق مؤشرات مطلقاً. OTC غير مدعوم في هذه المرحلة.
 - كل إشارة تعرض مصدر بياناتها، وكل تحقق يعرض مصدر سعر الإغلاق.

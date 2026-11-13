@@ -55,12 +55,12 @@ def _ids(markup):
 
 def test_home_has_three_bot_buttons_and_mini_app():
     markup = menus.main_menu()
-    assert len(markup.inline_keyboard) == 3
+    assert len(markup.inline_keyboard) == 4
     assert [b.text for row in markup.inline_keyboard for b in row] == [
-        "📉 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS", "🚀 Open Mini App",
+        "📉 ANALYSIS", "📊 MT5 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS", "🚀 Open Mini App",
     ]
     assert [b.callback_data for row in markup.inline_keyboard for b in row] == [
-        "analysis", "settings", "recs", None,
+        "analysis", "mt5:list", "settings", "recs", None,
     ]
 
 

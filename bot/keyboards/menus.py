@@ -24,6 +24,18 @@ INDEX_MARKETS: tuple[Market, ...] = (
 )
 
 
+MT5_DURATIONS: tuple[int, ...] = (60, 300, 900, 1800, 3600)
+
+
+MT5_DURATION_LABELS: dict[int, str] = {
+    60: "⏱️ 1 MINUTE",
+    300: "⏱️ 5 MINUTES",
+    900: "⏱️ 15 MINUTES",
+    1800: "⏱️ 30 MINUTES",
+    3600: "⏱️ 1 HOUR",
+}
+
+
 MARKET_BUTTONS: tuple[tuple[str, str], ...] = (
     ("🧠 SMARTY MARKET", "mkt:SMARTY"),
     ("⚽ FOOTBALL INDEX", "mkt:FOOTBALL"),
@@ -46,6 +58,7 @@ TRADE_DURATION_LABELS: dict[int, str] = {
 def main_menu(mini_app_url: str | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(_button("📉 ANALYSIS", "analysis"))
+    builder.row(_button("📊 MT5 ANALYSIS", "mt5:list"))
     builder.row(_button("⚙️ SETTINGS", "settings"), _button("🏆 RECOMMENDATIONS", "recs"))
     url = mini_app_url if mini_app_url is not None else settings.mini_app_url
     if url:
@@ -281,4 +294,49 @@ def settings_menu(min_confidence: float, scanner_enabled: bool = False) -> Inlin
 def back_only(target: str = "menu:main", label: str = "🏠 MAIN MENU") -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(_button(label, target))
+    return builder.as_markup()
+
+
+def mt5_pairs_menu(assets: list[Asset], page: int = 0, per_page: int = 20) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    pages = max(1, (len(assets) + per_page - 1) // per_page)
+    page = max(0, min(page, pages - 1))
+    start = page * per_page
+    for asset in assets[start:start + per_page]:
+        builder.button(text=f"🎯 {asset.symbol}", callback_data=f"mt5p:{asset.key}")
+    builder.adjust(2)
+    if pages > 1:
+        nav = []
+        if page > 0:
+            nav.append(_button("⬅️ PREV", f"mt5:page:{page - 1}"))
+        nav.append(_button(f"{page + 1}/{pages}", "mt5:noop"))
+        if page + 1 < pages:
+            nav.append(_button("NEXT ➡️", f"mt5:page:{page + 1}"))
+        builder.row(*nav)
+    builder.row(
+        _button("🔄 REFRESH", "mt5:list"),
+        _button("🏠 MAIN", "menu:main"),
+    )
+    return builder.as_markup()
+
+
+def mt5_duration_menu(asset: Asset) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for seconds in MT5_DURATIONS:
+        builder.button(text=MT5_DURATION_LABELS[seconds], callback_data=f"mt5d:{asset.key}:{seconds}")
+    builder.adjust(2)
+    builder.row(
+        _button("🔙 BACK", "mt5:list"),
+        _button("🏠 MAIN", "menu:main"),
+    )
+    return builder.as_markup()
+
+
+def mt5_result_menu(asset: Asset) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(_button("🔄 RE-ANALYSE", f"mt5p:{asset.key}"))
+    builder.row(
+        _button("🔙 PAIRS", "mt5:list"),
+        _button("🏠 MAIN", "menu:main"),
+    )
     return builder.as_markup()

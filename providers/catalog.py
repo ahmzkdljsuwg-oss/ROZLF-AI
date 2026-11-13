@@ -7,6 +7,7 @@ from enum import Enum
 
 class Market(str, Enum):
     FOREX = "forex"
+    MT5 = "mt5"
     GOLD = "gold"
     OTC = "otc"
     SMARTY = "smarty"
@@ -19,6 +20,7 @@ class Market(str, Enum):
     def label(self) -> str:
         return {
             Market.FOREX: "FOREX",
+            Market.MT5: "MT5",
             Market.GOLD: "GOLD",
             Market.OTC: "OTC",
             Market.SMARTY: "SMARTY",
@@ -176,6 +178,35 @@ FOREX_ASSETS: tuple[Asset, ...] = tuple(
     _asset(symbol, Market.FOREX, precision, td=symbol) for symbol, precision in _FOREX_SPECS
 )
 GOLD_ASSETS: tuple[Asset, ...] = (_asset("XAU/USD", Market.GOLD, 2, td="XAU/USD"),)
+
+# Canonical MT5 FX pairs the broker normally exposes. The live bridge is the
+# authority: it resolves broker suffixes (AUDCAD.a) and may add more pairs.
+_MT5_SYMBOLS: tuple[str, ...] = (
+    "AUDCAD", "AUDCHF", "AUDJPY", "AUDNZD", "AUDUSD", "CADCHF", "CADJPY",
+    "CHFJPY", "EURAUD", "EURCAD", "EURCHF", "EURGBP", "EURJPY", "EURNZD",
+    "EURUSD", "GBPAUD", "GBPCAD", "GBPCHF", "GBPJPY", "GBPNZD", "GBPUSD",
+    "NZDCAD", "NZDCHF", "NZDJPY", "NZDUSD", "USDCAD", "USDCHF", "USDJPY",
+)
+
+
+def mt5_precision(symbol: str) -> int:
+    return 3 if symbol.upper().endswith("JPY") else 5
+
+
+def mt5_asset(symbol: str, broker_symbol: str | None = None, name: str | None = None) -> Asset:
+    canonical = symbol.upper().replace("/", "").replace("-", "")
+    display = f"{canonical[:3]}/{canonical[3:]}" if len(canonical) == 6 else canonical
+    return Asset(
+        key=f"MT5_{canonical}",
+        symbol=display,
+        market=Market.MT5,
+        price_precision=mt5_precision(canonical),
+        bridge_symbol=broker_symbol or canonical,
+        name=name,
+    )
+
+
+MT5_ASSETS: tuple[Asset, ...] = tuple(mt5_asset(symbol) for symbol in _MT5_SYMBOLS)
 # SMARTY is a single ExpertOption instrument (id 240), never a currency list.
 SMARTY_ASSET: Asset = _asset(
     "SMRTY", Market.SMARTY, 2, bridge="SMRTY", bridge_id=240, name="SMARTY SMRTY #240"
@@ -196,7 +227,8 @@ LUXURY_ASSETS: tuple[Asset, ...] = (
 OTC_ASSETS: tuple[Asset, ...] = ()
 
 ASSETS: tuple[Asset, ...] = (
-    FOREX_ASSETS + GOLD_ASSETS + SMARTY_ASSETS + AI_ASSETS + FOOTBALL_ASSETS + LUXURY_ASSETS
+    FOREX_ASSETS + MT5_ASSETS + GOLD_ASSETS + SMARTY_ASSETS + AI_ASSETS
+    + FOOTBALL_ASSETS + LUXURY_ASSETS
 )
 _BY_KEY: dict[str, Asset] = {asset.key: asset for asset in ASSETS}
 _BY_SYMBOL: dict[tuple[str, Market], Asset] = {(a.symbol, a.market): a for a in ASSETS}
@@ -208,7 +240,7 @@ def register_dynamic(assets: list[Asset]) -> None:
         _DYNAMIC[asset.key] = asset
 
 MARKET_ORDER: tuple[Market, ...] = (
-    Market.FOREX, Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY,
+    Market.FOREX, Market.MT5, Market.SMARTY, Market.AI, Market.FOOTBALL, Market.LUXURY,
     Market.CRICKET, Market.OTC, Market.GOLD,
 )
 
@@ -225,7 +257,7 @@ def find_by_symbol(symbol: str, market: Market | None = None) -> Asset | None:
     symbol = symbol.upper().replace("-", "/")
     if market is not None:
         return _BY_SYMBOL.get((symbol, market))
-    matches = [asset for asset in ASSETS if asset.symbol == symbol]
+    matches = [asset for asset in (*ASSETS, *_DYNAMIC.values()) if asset.symbol == symbol]
     return matches[0] if matches else None
 
 

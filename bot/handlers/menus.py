@@ -18,7 +18,10 @@ from engines.signals.duration import auto_frames, choose_auto_duration
 from engines.markets import profile_for
 from engines.signals.generator import DURATION_LABELS, supported_durations
 from providers.base import DataUnavailable
-from providers.catalog import SMARTY_ASSET, TIMEFRAMES, Asset, Market, assets_for, get_asset, timeframe
+from providers.catalog import (
+    SMARTY_ASSET, TIMEFRAMES, Asset, Market, assets_for, get_asset, register_dynamic, timeframe,
+)
+from providers.mt5 import discovered_assets
 
 logger = logging.getLogger(__name__)
 router = Router(name="menus")
@@ -29,7 +32,9 @@ _ANALYSIS_LOCKS: dict[int, asyncio.Lock] = {}
 _LAST_ANALYSIS: dict[tuple[int, str], tuple] = {}
 _PENDING_MIN: dict[int, float] = {}
 _RECS_CACHE: dict[int, tuple[float, str]] = {}
+_MT5_CACHE: dict[str, tuple[float, list[Asset]]] = {}
 TRADE_DURATION_CHOICES: tuple[int, ...] = (30, 60, 120, 180, 300)
+MT5_DURATIONS: tuple[int, ...] = (60, 300, 900, 1800, 3600)
 
 
 def _analysis_lock(user_id: int) -> asyncio.Lock:
@@ -273,6 +278,108 @@ async def cb_analysis(callback: CallbackQuery) -> None:
     await _edit(callback, fmt.markets_selector_text(), menus.markets_menu())
 
 
+def _mt5_provider(ctx):
+    for provider in ctx.registry.providers:
+        if provider.id == "mt5":
+            return provider
+    return None
+
+
+async def _mt5_assets(ctx, force: bool = False) -> list[Asset]:
+    cached = _MT5_CACHE.get("assets")
+    if not force and cached and time.monotonic() - cached[0] < 30:
+        return cached[1]
+    provider = _mt5_provider(ctx)
+    if provider is None or not provider.configured:
+        raise DataUnavailable("MT5_OFFLINE", "MT5 bridge is not configured")
+    rows = await provider.list_fx_symbols()
+    assets = discovered_assets(rows)
+    deduped: dict[str, Asset] = {}
+    for asset in assets:
+        deduped.setdefault(asset.key, asset)
+    ordered = sorted(deduped.values(), key=lambda item: item.symbol)
+    register_dynamic(ordered)
+    _MT5_CACHE["assets"] = (time.monotonic(), ordered)
+    return ordered
+
+
+@router.callback_query(F.data == "mt5:noop")
+async def cb_mt5_noop(callback: CallbackQuery) -> None:
+    await callback.answer()
+
+
+@router.callback_query(F.data == "mt5:list")
+async def cb_mt5_list(callback: CallbackQuery) -> None:
+    await callback.answer("⏳ فحص اتصال MT5...")
+    ctx = get_context()
+    try:
+        assets = await _mt5_assets(ctx, force=True)
+    except DataUnavailable as exc:
+        await _edit(callback, fmt.mt5_offline_text(exc.detail or exc.message), menus.back_to_main())
+        return
+    await _edit(callback, fmt.mt5_pairs_text(assets), menus.mt5_pairs_menu(assets, page=0))
+
+
+@router.callback_query(F.data.startswith("mt5:page:"))
+async def cb_mt5_page(callback: CallbackQuery) -> None:
+    try:
+        page = max(0, int(callback.data.rsplit(":", 1)[1]))
+    except ValueError:
+        page = 0
+    await callback.answer()
+    ctx = get_context()
+    try:
+        assets = await _mt5_assets(ctx)
+    except DataUnavailable as exc:
+        await _edit(callback, fmt.mt5_offline_text(exc.detail or exc.message), menus.back_to_main())
+        return
+    await _edit(callback, fmt.mt5_pairs_text(assets, page=page), menus.mt5_pairs_menu(assets, page=page))
+
+
+@router.callback_query(F.data.startswith("mt5p:"))
+async def cb_mt5_pair(callback: CallbackQuery) -> None:
+    await callback.answer()
+    asset = get_asset(callback.data.split(":", 1)[1])
+    if asset is None or asset.market is not Market.MT5:
+        await _edit(callback, fmt.mt5_offline_text("PAIR_NOT_AVAILABLE"), menus.back_to_main())
+        return
+    await _edit(callback, fmt.mt5_duration_text(asset, "MetaTrader 5"), menus.mt5_duration_menu(asset))
+
+
+@router.callback_query(F.data.startswith("mt5d:"))
+async def cb_mt5_analyse(callback: CallbackQuery) -> None:
+    _, asset_key, raw = callback.data.split(":", 2)
+    try:
+        duration = int(raw)
+    except ValueError:
+        duration = 0
+    asset = get_asset(asset_key)
+    if asset is None or asset.market is not Market.MT5 or duration not in MT5_DURATIONS:
+        await callback.answer("طلب MT5 غير صالح", show_alert=True)
+        return
+    lock = _analysis_lock(callback.from_user.id)
+    if lock.locked():
+        await callback.answer("التحليل قيد التنفيذ بالفعل", show_alert=True)
+        return
+    await callback.answer("⏳ تحليل MT5...")
+    async with lock:
+        ctx = get_context()
+        frame_code = analysis_frame_for_duration(asset, duration)
+        await _edit(callback, f"⏳ MT5 ANALYSIS — {asset.symbol}...", None)
+        try:
+            market_data, result = await ctx.generator.fetch_and_analyse(
+                asset, frame_code, duration_seconds=duration
+            )
+        except DataUnavailable as exc:
+            await _edit(
+                callback,
+                fmt.mt5_offline_text(exc.detail or exc.message),
+                menus.mt5_duration_menu(asset),
+            )
+            return
+        await _edit(callback, fmt.mt5_analysis_text(result, market_data, duration), menus.mt5_result_menu(asset))
+
+
 @router.callback_query(F.data.startswith("td:"))
 async def cb_trade_duration(callback: CallbackQuery) -> None:
     _, first, second = callback.data.split(":", 2)
@@ -485,6 +592,8 @@ def analysis_frame_for_duration(asset: Asset, duration_seconds: int) -> str:
         return "5min"
     if duration_seconds <= 900:
         return "15min"
+    if duration_seconds <= 1800:
+        return "30min"
     return "1h"
 
 

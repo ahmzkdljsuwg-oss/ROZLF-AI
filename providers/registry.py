@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 QUOTE_PREFERENCE: dict[Market, tuple[str, ...]] = {
     Market.FOREX: ("swissquote", "twelvedata"),
+    Market.MT5: ("mt5",),
     Market.GOLD: ("swissquote", "twelvedata"),
     Market.OTC: ("eo_bridge",),
     Market.SMARTY: ("eo_bridge",),
@@ -202,6 +203,7 @@ class DataSourceRegistry:
 def build_registry(config, bridge=None) -> DataSourceRegistry:
     """Wire every provider that has credentials configured."""
     from providers.eobridge import ExpertOptionBridgeProvider
+    from providers.mt5 import MT5BridgeProvider
     from providers.swissquote import SwissquoteProvider
     from providers.yahoo import YahooForexProvider
     from providers.twelvedata import TwelveDataProvider
@@ -212,6 +214,7 @@ def build_registry(config, bridge=None) -> DataSourceRegistry:
     )
     return DataSourceRegistry(
         [
+            MT5BridgeProvider(config.mt5_bridge_url, config.mt5_bridge_key),
             TwelveDataProvider(config.twelve_data_api_key),
             YahooForexProvider(),
             SwissquoteProvider(),

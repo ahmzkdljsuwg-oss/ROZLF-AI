@@ -36,6 +36,7 @@ def local_time(value: datetime | None) -> str:
 def market_label(market: str) -> str:
     labels = {
         Market.FOREX.value: "FOREX",
+        Market.MT5.value: "MT5",
         Market.GOLD.value: "GOLD",
         Market.OTC.value: "OTC",
         Market.SMARTY.value: "SMARTY",
@@ -822,9 +823,115 @@ def analysis_details_text(result: AnalysisResult, record: SignalRecord | None = 
     return "\n".join(lines)
 
 
+MT5_DURATION_NAMES = {
+    60: "1 MINUTE", 300: "5 MINUTES", 900: "15 MINUTES",
+    1800: "30 MINUTES", 3600: "1 HOUR",
+}
+
+
+def mt5_pairs_text(assets: list[Asset], total: int | None = None, page: int = 0, per_page: int = 20) -> str:
+    pages = max(1, ((total if total is not None else len(assets)) + per_page - 1) // per_page)
+    return (
+        "📊 <b>ROZLF AI — MT5 ANALYSIS</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "📡 SOURCE: <b>MetaTrader 5</b>\n"
+        f"💱 PAIRS AVAILABLE: <b>{total if total is not None else len(assets)}</b>\n"
+        f"📄 PAGE: <b>{max(0, page) + 1}/{pages}</b>\n\n"
+        "اختر زوج الفوركس لعرض المدد المتاحة:\n"
+        "⏱️ 1 MIN · 5 MIN · 15 MIN · 30 MIN · 1 HOUR\n\n"
+        "<i>تظهر فقط الأزواج التي يعرضها وسيط MT5 فعلياً. التحليل فقط ولا تنفيذ صفقات.</i>"
+    )
+
+
+def mt5_duration_text(asset: Asset, source: str) -> str:
+    return (
+        "📊 <b>MT5 ANALYSIS</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"💹 PAIR: <b>{asset.symbol}</b>\n"
+        "🏦 MARKET: <b>MT5</b>\n"
+        f"📡 DATA: <b>{source}</b>\n\n"
+        "<b>اختر مدة التحليل:</b>\n"
+        "⏱️ 1 MINUTE\n⏱️ 5 MINUTES\n⏱️ 15 MINUTES\n⏱️ 30 MINUTES\n⏱️ 1 HOUR\n\n"
+        "<i>التحليل يستخدم Williams Alligator + MA 200 مع الاتجاه والفوليوم و S/R والشموع.</i>"
+    )
+
+
+def mt5_analysis_text(result: AnalysisResult, market_data, duration_seconds: int) -> str:
+    alligator = getattr(result, "alligator_ma", None) or {}
+    direction = result.direction
+    icon = "🟢" if direction == "BUY" else "🔴" if direction == "SELL" else "⚪"
+    quote = getattr(market_data, "quote", None)
+    price = quote.mid if quote is not None else result.price
+    stamp = quote.time if quote is not None else None
+    if stamp is None:
+        raw = result.indicators.get("last_candle_at")
+        if raw:
+            try:
+                stamp = datetime.fromisoformat(str(raw))
+            except ValueError:
+                stamp = None
+    invalidation = list(alligator.get("invalidation") or []) or list(getattr(result, "invalidation", []) or [])
+    if not invalidation:
+        invalidation = ["Close of the active candle against the signal direction invalidates the setup."]
+    volatility = str(result.indicators.get("volatility") or "NORMAL").upper()
+    risk = "HIGH" if volatility == "HIGH" or result.data_quality_score < 5 else "LOW" if volatility == "LOW" else "MEDIUM"
+    reasons = list(dict.fromkeys([*(alligator.get("reasons") or []), *result.reasons]))
+    lines = [
+        "📊 <b>ROZLF AI — MT5 MARKET ANALYSIS</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        f"💹 PAIR: <b>{result.asset_display}</b>",
+        "🏦 MARKET: <b>MT5</b>",
+        f"⏱️ TIMEFRAME: <b>{MT5_DURATION_NAMES.get(duration_seconds, duration_label(duration_seconds))}</b>",
+        f"⚡ SIGNAL: {icon} <b>{direction}</b>",
+        f"💵 CURRENT PRICE: <b>{format_price(price, 'MT5')}</b>",
+        f"🕒 LAST UPDATE: {local_time(stamp)}",
+        f"📡 DATA SOURCE: <b>{market_data.source}</b>",
+        f"🎯 SIGNAL STRENGTH: <b>{result.confidence:.0f}%</b>",
+        f"📈 TREND: <b>{result.trend_summary or 'NEUTRAL'}</b>",
+    ]
+    if alligator:
+        lines += [
+            f"🐊 ALLIGATOR: <b>{alligator.get('alligator_state', 'UNKNOWN')}</b> · {alligator.get('alligator_direction', 'UNKNOWN')}",
+            f"📏 {alligator.get('ma_type', 'EMA 200')}: <b>{alligator.get('ma_direction', 'UNKNOWN')}</b> · position {alligator.get('price_position', 'UNKNOWN')}",
+            f"💪 TREND STRENGTH: <b>{alligator.get('trend_strength', 'UNKNOWN')}</b> (ADX {alligator.get('adx', '—')})",
+        ]
+    else:
+        lines.append("🐊 ALLIGATOR: <b>DATA INCOMPLETE</b>")
+    rsi = result.indicators.get("rsi")
+    atr_pct = result.indicators.get("atr_pct")
+    if isinstance(rsi, (int, float)):
+        lines.append(f"📊 RSI: {rsi:.1f} · ATR: {float(atr_pct or 0):.3f}%")
+    if reasons:
+        lines += ["", "<b>TECHNICAL REASONS</b>"]
+        lines += [f"• {reason}" for reason in reasons[:6]]
+    if direction == "NO TRADE":
+        lines += ["", "<b>NO TRADE REASON</b>", f"• {no_trade_reason(result)}"]
+    lines += ["", "<b>INVALIDATION / CANCELLATION</b>"]
+    lines += [f"• {item}" for item in invalidation[:3]]
+    if result.blockers:
+        lines += [f"• {item}" for item in result.blockers[:3] if item not in invalidation]
+    lines += [
+        f"\n⚠️ RISK LEVEL: <b>{risk}</b>",
+        "🔒 STATUS: <b>ANALYSIS ONLY — NO AUTO TRADE</b>",
+        f"<i>{DISCLAIMER}</i>",
+    ]
+    return "\n".join(lines)
+
+
+def mt5_offline_text(detail: str) -> str:
+    return (
+        "📊 <b>ROZLF AI — MT5 ANALYSIS</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "🔴 <b>MT5 OFFLINE</b>\n\n"
+        "لا يمكن إصدار تحليل أو إشارة حتى يعود اتصال MT5 وتصل شموع حقيقية حديثة.\n"
+        f"<i>{detail[:300]}</i>"
+    )
+
+
 def markets_text(market: str, assets: list[Asset], tfs: list[str]) -> str:
     title = {
         Market.FOREX.value: "💱 FOREX MARKET",
+        Market.MT5.value: "📊 MT5 MARKET",
         Market.SMARTY.value: "🧠 SMARTY MARKET",
         Market.AI.value: "🤖 AI INDEX",
         Market.FOOTBALL.value: "⚽ FOOTBALL INDEX",
