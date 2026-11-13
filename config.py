@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 try:  # optional at import time so tests can run without a .env
     from dotenv import load_dotenv
@@ -38,6 +39,7 @@ def _flag(name: str, default: bool) -> bool:
 
 
 DEFAULT_MINI_APP_URL = "https://web-production-b044b.up.railway.app"
+DEFAULT_BOT_API_URL = "https://rozlf-ai-production.up.railway.app"
 
 
 def _mini_app_url() -> str | None:
@@ -64,6 +66,22 @@ def _http_url(name: str) -> str | None:
     url = raw.strip().rstrip("/")
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
+    return url
+
+
+def _engine_api_url(role: str, mini_app_url: str | None) -> str | None:
+    """Upstream bot URL for the web-only proxy.
+
+    A self-reference (the web service pointing at its own host) is the known
+    cause of recursive 30s timeouts, so it is ignored. The production bot
+    domain is used only as the last resort for the web-only role.
+    """
+    url = _http_url("ENGINE_API_URL")
+    own = _http_url("RAILWAY_PUBLIC_DOMAIN") or mini_app_url
+    if url and own and urlsplit(url).hostname == urlsplit(own).hostname:
+        url = None
+    if not url and role.startswith("web"):
+        return DEFAULT_BOT_API_URL
     return url
 
 
@@ -102,6 +120,8 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        role = (_text("ROZLF_ROLE") or "bot").lower()
+        mini_app_url = _mini_app_url()
         return cls(
             telegram_bot_token=_text("TELEGRAM_BOT_TOKEN", "") or "",
             telegram_chat_id=_number("TELEGRAM_CHAT_ID", None, int),
@@ -119,9 +139,9 @@ class Settings:
             scanner_enabled=_flag("SCANNER_ENABLED", True),
             scan_markets=_text("SCAN_MARKETS", "FOREX,SMARTY,AI,FOOTBALL,LUXURY,CRICKET") or "FOREX,SMARTY,AI,FOOTBALL,LUXURY,CRICKET",
             max_scan_signals=max(1, _number("MAX_SCAN_SIGNALS", 3, int)),
-            role=(_text("ROZLF_ROLE") or "bot").lower(),
-            mini_app_url=_mini_app_url(),
-            engine_api_url=_http_url("ENGINE_API_URL"),
+            role=role,
+            mini_app_url=mini_app_url,
+            engine_api_url=_engine_api_url(role, mini_app_url),
         )
 
     @property

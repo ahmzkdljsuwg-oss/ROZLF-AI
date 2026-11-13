@@ -84,3 +84,32 @@ def test_explicit_health_role_is_web_only():
         settings = Settings.from_env()
     assert settings.role == "health"
     assert settings.web_only is True
+
+
+def test_engine_url_ignores_self_reference_and_uses_bot():
+    env = {
+        "ROZLF_ROLE": "web-only",
+        "RAILWAY_PUBLIC_DOMAIN": "web-production-b044b.up.railway.app",
+        "ENGINE_API_URL": "https://web-production-b044b.up.railway.app",
+    }
+    with patch.dict(os.environ, env, clear=True):
+        settings = Settings.from_env()
+    assert settings.engine_api_url == "https://rozlf-ai-production.up.railway.app"
+
+
+def test_engine_url_keeps_explicit_bot_url():
+    env = {
+        "ROZLF_ROLE": "web-only",
+        "RAILWAY_PUBLIC_DOMAIN": "web-production-b044b.up.railway.app",
+        "ENGINE_API_URL": "https://rozlf-ai-production.up.railway.app",
+    }
+    with patch.dict(os.environ, env, clear=True):
+        settings = Settings.from_env()
+    assert settings.engine_api_url == "https://rozlf-ai-production.up.railway.app"
+
+
+def test_worker_does_not_get_a_remote_engine_url():
+    env = {"ROZLF_ROLE": "worker"}
+    with patch.dict(os.environ, env, clear=True):
+        settings = Settings.from_env()
+    assert settings.engine_api_url is None
