@@ -64,7 +64,9 @@ class MistralClient:
                     "model": self.model,
                     "messages": [{"role": "user", "content": "Reply with OK"}],
                     "max_tokens": 1,
-                }
+                },
+                timeout=3.5,
+                attempts=1,
             )
             self._online = True
             self.last_error = None
@@ -87,27 +89,35 @@ class MistralClient:
             "last_error": self.last_error,
         }
 
-    async def _post(self, payload: dict) -> str:
+    async def _post(self, payload: dict, timeout: float | None = None, attempts: int = 3) -> str:
         if not self.configured:
             raise MistralUnavailable("MISTRAL_API_KEY is not configured")
         if self._client is None:
             self._client = httpx.AsyncClient(timeout=httpx.Timeout(self._timeout, connect=10.0))
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
         last_error: str | None = None
-        for attempt in range(3):
+        for attempt in range(max(1, attempts)):
             try:
-                response = await self._client.post(API_URL, json=payload, headers=headers)
+                response = await self._client.post(
+                    API_URL,
+                    json=payload,
+                    headers=headers,
+                    timeout=timeout if timeout is not None else self._timeout,
+                )
             except httpx.HTTPError as exc:
                 last_error = f"network error: {exc}"
-                await asyncio.sleep(1.5 * (attempt + 1))
+                if attempt + 1 < attempts:
+                    await asyncio.sleep(1.5 * (attempt + 1))
                 continue
             if response.status_code == 429:
                 last_error = "rate limited (429)"
-                await asyncio.sleep(2.0 * (attempt + 1))
+                if attempt + 1 < attempts:
+                    await asyncio.sleep(2.0 * (attempt + 1))
                 continue
             if response.status_code >= 500:
                 last_error = f"server error ({response.status_code})"
-                await asyncio.sleep(1.5 * (attempt + 1))
+                if attempt + 1 < attempts:
+                    await asyncio.sleep(1.5 * (attempt + 1))
                 continue
             if response.status_code != 200:
                 self.last_error = f"HTTP {response.status_code}: {response.text[:200]}"

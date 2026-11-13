@@ -9,7 +9,7 @@ from typing import Any
 from bot import formatting as fmt
 from engines.signals.duration import auto_frames, choose_auto_duration
 from engines.signals.generator import supported_durations
-from engines.technical.analyzer import AnalysisResult
+from engines.technical.analyzer import AnalysisResult, analyze_market_data
 from providers.base import DataUnavailable, utc_now
 from providers.catalog import Asset, Market, assets_for, get_asset, timeframe
 
@@ -161,10 +161,16 @@ async def analyse_smart(ctx, user_id: int, market: Market, asset: Asset, allowed
     settings = await ctx.repo.get_user_settings(user_id, defaults={"min_confidence": ctx.settings.min_confidence})
     threshold = float(settings["min_confidence"])
     best: tuple[tuple[float, float, float], int, AnalysisResult] | None = None
+    data_by_frame: dict[str, Any] = {}
     errors: list[str] = []
     for duration in allowed:
+        frame = analysis_frame(asset, duration)
         try:
-            _, result = await ctx.generator.fetch_and_analyse(asset, analysis_frame(asset, duration), duration)
+            data = data_by_frame.get(frame)
+            if data is None:
+                data = await ctx.registry.fetch(asset, frame)
+                data_by_frame[frame] = data
+            result = analyze_market_data(data, duration_seconds=duration)
         except DataUnavailable as exc:
             errors.append(f"{fmt.duration_label(duration)}: {exc.message}")
             continue
@@ -238,7 +244,7 @@ async def market_snapshot(ctx, market: Market, include_candles: bool = True) -> 
         payload["available"] = bool(payload["durations"])
         return payload
     try:
-        data = await ctx.registry.fetch(asset, chart_frame(asset), limit=120)
+        data = await ctx.registry.fetch(asset, chart_frame(asset))
     except DataUnavailable as exc:
         payload["error"] = exc.message
         payload["source"] = ctx.registry.source_summary(asset)

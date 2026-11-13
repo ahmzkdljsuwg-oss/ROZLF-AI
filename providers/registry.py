@@ -1,7 +1,9 @@
 """Provider registry: one market cannot silently borrow another market's data."""
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from typing import Iterable
 
 from engines.validation import validate_candles
@@ -23,9 +25,12 @@ QUOTE_PREFERENCE: dict[Market, tuple[str, ...]] = {
 
 
 class DataSourceRegistry:
-    def __init__(self, providers: Iterable[BaseProvider], clock=utc_now) -> None:
+    def __init__(self, providers: Iterable[BaseProvider], clock=utc_now, cache_ttl: float = 6.0) -> None:
         self._providers = list(providers)
         self._clock = clock
+        self._cache_ttl = max(0.0, cache_ttl)
+        self._cache: dict[tuple[str, str, int], tuple[float, MarketData]] = {}
+        self._inflight: dict[tuple[str, str, int], asyncio.Task] = {}
 
     @property
     def providers(self) -> list[BaseProvider]:
@@ -52,6 +57,27 @@ class DataSourceRegistry:
 
     async def fetch(self, asset: Asset, tf: Timeframe | str = "5min", limit: int = 300) -> MarketData:
         tf = timeframe(tf) if isinstance(tf, str) else tf
+        key = (asset.key, tf.code, int(limit))
+        if self._cache_ttl <= 0:
+            return await self._fetch_uncached(asset, tf, limit)
+
+        cached = self._cache.get(key)
+        if cached is not None and cached[0] > time.monotonic():
+            return cached[1]
+        pending = self._inflight.get(key)
+        if pending is not None:
+            return await pending
+
+        task = asyncio.ensure_future(self._fetch_uncached(asset, tf, limit))
+        self._inflight[key] = task
+        try:
+            data = await task
+        finally:
+            self._inflight.pop(key, None)
+        self._cache[key] = (time.monotonic() + self._cache_ttl, data)
+        return data
+
+    async def _fetch_uncached(self, asset: Asset, tf: Timeframe, limit: int) -> MarketData:
         min_bars = TIMEFRAME_MIN_BARS[tf.code]
         attempts: list[str] = []
 
@@ -77,7 +103,7 @@ class DataSourceRegistry:
                 attempts.append(f"{provider.name}: stale data ({report.age_seconds}s old)")
                 continue
 
-            quote = await self._quote_with_fallback(asset, None)
+            quote = await self._quote_with_fallback(asset, None, timeout=4.0)
             return MarketData(
                 asset=asset,
                 timeframe=tf,
@@ -94,19 +120,28 @@ class DataSourceRegistry:
             detail,
         )
 
-    async def _quote_with_fallback(self, asset: Asset, skip_id: str | None) -> Quote | None:
-        for provider in self._ordered_for_quote(asset):
-            if provider.id == skip_id:
-                continue
-            if not provider.configured:
-                continue
-            try:
-                return await provider.fetch_quote(asset)
-            except DataUnavailable:
-                continue
-            except Exception:
-                logger.exception("provider %s crashed while quoting %s", provider.id, asset.key)
-        return None
+    async def _quote_with_fallback(self, asset: Asset, skip_id: str | None, timeout: float | None = None) -> Quote | None:
+        async def lookup() -> Quote | None:
+            for provider in self._ordered_for_quote(asset):
+                if provider.id == skip_id:
+                    continue
+                if not provider.configured:
+                    continue
+                try:
+                    return await provider.fetch_quote(asset)
+                except DataUnavailable:
+                    continue
+                except Exception:
+                    logger.exception("provider %s crashed while quoting %s", provider.id, asset.key)
+            return None
+
+        if timeout is None:
+            return await lookup()
+        try:
+            return await asyncio.wait_for(lookup(), timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.warning("quote lookup for %s exceeded %.1fs", asset.key, timeout)
+            return None
 
     async def fetch_quote(self, asset: Asset) -> Quote:
         quote = await self._quote_with_fallback(asset, None)

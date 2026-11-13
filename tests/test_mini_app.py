@@ -506,6 +506,25 @@ def test_frontend_shell_has_bilingual_toggle_and_five_tabs():
     assert "initDataUnsafe" not in app
 
 
+def test_stylesheet_covers_every_class_the_app_renders():
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "mini_app/static"
+    css = (root / "styles.css").read_text()
+    app = (root / "app.js").read_text()
+    index = (root / "index.html").read_text()
+    defined = set(re.findall(r"\.([a-zA-Z][a-zA-Z0-9_-]*)", css))
+    used = set()
+    for source in (app, index):
+        for value in re.findall(r"class=[\"']([^\"']+)[\"']", source):
+            used.update(value.split())
+    missing = sorted(used - defined)
+    assert not missing, f"classes rendered without styles: {missing}"
+    for selector in (".topbar", ".app-view", ".hero", ".market-card", ".tabbar", ".result-card", ".sheet"):
+        assert selector in css
+
+
 def test_confidence_calibration_keeps_quality_setups_above_default_threshold():
     from engines.technical.evidence import _clamp
 

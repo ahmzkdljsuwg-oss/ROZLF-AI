@@ -152,7 +152,11 @@ async def cmd_status(message: Message) -> None:
 async def _send_status(message: Message) -> None:
     ctx = get_context()
     scanner = ctx.scanner
-    health = await ctx.market_health(force=True)
+    health = {}
+    try:
+        health = await asyncio.wait_for(ctx.market_health(), timeout=8.0)
+    except Exception as exc:
+        logger.info("status probe skipped: %s", type(exc).__name__)
     text = fmt.status_text(
         ctx.settings,
         ctx.registry.statuses(),
