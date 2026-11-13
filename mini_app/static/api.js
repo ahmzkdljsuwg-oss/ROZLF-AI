@@ -152,6 +152,7 @@
       return request("/api/mini/settings", { method: "POST", body: JSON.stringify(payload) });
     },
     get status() { return request("/api/mini/status"); },
+    once(path, options) { return request(path, options); },
     esc,
     fmtPrice,
     fmtTime,

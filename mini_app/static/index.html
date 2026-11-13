@@ -1,68 +1,61 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#05080b">
-  <meta name="color-scheme" content="dark">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+  <meta name="theme-color" content="#04070c">
   <meta name="rzlf-api-base" content="">
-  <title>ROZLF AI — Trading Intelligence</title>
+  <title>ROZLF AI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/mini-app/static/styles.css?v=20261113-auth1">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="static/styles.css?v=20261114-premium1">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <div class="aurora" aria-hidden="true">
-    <span class="beam beam-a"></span>
-    <span class="beam beam-b"></span>
-    <span class="grid"></span>
-    <span class="grain"></span>
-  </div>
-
-  <div class="app-shell">
-    <header class="top-dock">
-      <div class="brand-lockup">
-        <div class="monogram" aria-hidden="true"><span></span><i></i></div>
-        <div class="brand-text">
-          <strong>ROZLF <em>AI</em></strong>
-          <small>THE BOT BY LO AND Q8</small>
-        </div>
-      </div>
-      <div class="dock-actions">
-        <button class="signal-pill" id="connection-pill" type="button" aria-live="polite"><i></i><span>CHECKING</span></button>
-        <button class="round-btn" id="settings-btn" type="button" aria-label="الإعدادات">⚙</button>
-      </div>
-    </header>
-
-    <main id="view" class="screen" aria-live="polite">
-      <section class="skeleton">
-        <div class="sk-block sk-hero"></div>
-        <div class="sk-row"><span class="sk-block sk-gem"></span><span class="sk-block sk-gem"></span><span class="sk-block sk-gem"></span></div>
-        <div class="sk-block sk-card"></div>
-        <div class="sk-block sk-card"></div>
-      </section>
-    </main>
-
-    <nav class="dock" id="tabbar" aria-label="التنقل">
-      <button data-route="home" class="active"><b>⌂</b><small>الرئيسية</small></button>
-      <button data-route="markets"><b>◈</b><small>الأسواق</small></button>
-      <button data-route="analysis" class="dock-primary"><b>◎</b><small>تحليل</small></button>
-      <button data-route="recommendations"><b>✦</b><small>فرص</small></button>
-      <button data-route="history"><b>≣</b><small>السجل</small></button>
-    </nav>
-  </div>
-
-  <div class="sheet-backdrop" id="sheet-backdrop"></div>
-  <section class="sheet" id="sheet" aria-hidden="true" role="dialog" aria-modal="true">
-    <div class="sheet-grip"></div>
-    <div id="sheet-body"></div>
-  </section>
-  <div class="toast" id="toast" role="status"></div>
-
-  <script src="/mini-app/static/charts.js?v=20261113-auth1"></script>
-  <script src="/mini-app/static/api.js?v=20261113-auth1"></script>
-  <script src="/mini-app/static/app.js?v=20261113-auth1"></script>
+  <div class="aurora" aria-hidden="true"></div>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">R</span>
+      <div><strong>ROZLF <span>AI</span></strong><small data-i18n="brand.tagline">THE BOT BY LO AND Q8</small></div>
+    </div>
+    <div class="top-actions">
+      <div id="connection-pill" class="signal-pill connecting"><i></i><span data-i18n="state.connecting">CONNECTING</span></div>
+      <button id="lang-btn" class="icon-btn" aria-label="Language">ع</button>
+      <button class="icon-btn" data-route="settings" aria-label="Settings">⚙</button>
+    </div>
+  </header>
+  <main id="view" class="app-view" aria-live="polite"></main>
+  <nav id="tabbar" class="tabbar" aria-label="Primary">
+    <div class="tab-shell">
+      <button class="tab" data-route="home" aria-label="Home">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>
+        <span data-i18n="nav.home">Home</span>
+      </button>
+      <button class="tab" data-route="markets" aria-label="Markets">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5m0 14h16M7 16l3-5 3 3 4-7 3 4"/></svg>
+        <span data-i18n="nav.markets">Markets</span>
+      </button>
+      <button class="tab tab-primary" data-route="analysis" aria-label="Analyze">
+        <span class="tab-orb"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z"/></svg></span>
+        <span data-i18n="nav.analysis">Analyze</span>
+      </button>
+      <button class="tab" data-route="opportunities" aria-label="Signals">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>
+        <span data-i18n="nav.opportunities">Signals</span>
+      </button>
+      <button class="tab" data-route="history" aria-label="History">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 9h8M8 13h8M8 17h5"/></svg>
+        <span data-i18n="nav.history">History</span>
+      </button>
+    </div>
+  </nav>
+  <div id="sheet-backdrop" class="sheet-backdrop"></div>
+  <aside id="sheet" class="sheet" aria-hidden="true"><div id="sheet-body"></div></aside>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="static/api.js?v=20261114-premium1"></script>
+  <script src="static/i18n.js?v=20261114-premium1"></script>
+  <script src="static/charts.js?v=20261114-premium1"></script>
+  <script src="static/app.js?v=20261114-premium1"></script>
 </body>
 </html>

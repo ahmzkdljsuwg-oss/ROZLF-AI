@@ -44,6 +44,6 @@ class UserSettings(Base):
 
     user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     markets: Mapped[str] = mapped_column(Text, default='["FOREX"]')
-    min_confidence: Mapped[float] = mapped_column(Float, default=65.0)
+    min_confidence: Mapped[float] = mapped_column(Float, default=60.0)
     scanner_enabled: Mapped[int] = mapped_column(Integer, default=1)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

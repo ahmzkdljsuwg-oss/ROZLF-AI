@@ -244,7 +244,7 @@ class Repository:
         }
 
     async def get_user_settings(self, user_id: int, defaults: dict | None = None) -> dict:
-        defaults = defaults or {"markets": ["FOREX"], "min_confidence": 65.0, "scanner_enabled": True}
+        defaults = defaults or {"markets": ["FOREX"], "min_confidence": 60.0, "scanner_enabled": True}
         async with self._session() as session:
             row = await session.get(UserSettings, user_id)
             if row is None:
@@ -266,7 +266,7 @@ class Repository:
                 row = UserSettings(user_id=user_id, updated_at=datetime.now(timezone.utc))
                 session.add(row)
             row.markets = json.dumps(settings.get("markets", ["FOREX"]))
-            row.min_confidence = float(settings.get("min_confidence", 65.0))
+            row.min_confidence = float(settings.get("min_confidence", 60.0))
             row.scanner_enabled = 1 if settings.get("scanner_enabled", True) else 0
             row.updated_at = datetime.now(timezone.utc)
             await session.commit()

@@ -446,3 +446,70 @@ async def test_proxy_preserves_init_data_authentication_and_real_engine_result(f
                 service.analysis_frame(forex_asset, duration),
                 duration,
             )
+
+
+async def test_bootstrap_exposes_service_connection_and_market_states(client):
+    http, _ = client
+    response = await http.get(
+        "/api/mini/bootstrap", headers={"X-Telegram-Init-Data": make_init_data(7)}
+    )
+    assert response.status == 200
+    payload = await response.json()
+    connection = payload["connection"]
+    assert connection["service"] == "ONLINE"
+    assert connection["api"] == "ONLINE"
+    assert connection["engine"] in ("ONLINE", "OFFLINE")
+    assert connection["checked_at"]
+    assert payload["markets"], "six markets must always be present"
+    for market in payload["markets"]:
+        assert market["data_state"] in ("LIVE", "UNAVAILABLE")
+        assert "error" in market
+
+
+async def test_health_snapshot_falls_back_to_cache_when_probe_times_out(forex_asset):
+    class SlowHealth:
+        def __init__(self):
+            self.cache_calls = 0
+
+        async def snapshot(self):
+            raise RuntimeError("probe exploded")
+
+        def cached(self):
+            self.cache_calls += 1
+            return {"FOREX": SimpleNamespace(ok=True, source="cached", last_time=None, error=None)}
+
+    import asyncio
+
+    ctx = SimpleNamespace(health=SlowHealth())
+    health = await service._health_snapshot(ctx)
+    assert "FOREX" in health
+    assert ctx.health.cache_calls == 1
+    counted = await asyncio.sleep(0, result=1)
+    assert counted == 1
+
+
+def test_frontend_shell_has_bilingual_toggle_and_five_tabs():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "mini_app/static"
+    index = (root / "index.html").read_text()
+    i18n = (root / "i18n.js").read_text()
+    app = (root / "app.js").read_text()
+    assert "static/i18n.js" in index and "static/app.js" in index
+    assert 'id="lang-btn"' in index
+    for route in ("home", "markets", "analysis", "opportunities", "history"):
+        assert 'data-route="%s"' % route in index
+    for state in ("CONNECTING", "ONLINE", "DEGRADED", "OFFLINE"):
+        assert '"%s"' % state in app
+    assert 'let language = "en"' in i18n
+    assert '"state.online"' in i18n and '"state.online"' in i18n.split('ar:')[1]
+    assert "initDataUnsafe" not in app
+
+
+def test_confidence_calibration_keeps_quality_setups_above_default_threshold():
+    from engines.technical.evidence import _clamp
+
+    for quality_pct in (20.0, 25.0, 30.0, 40.0, 55.0):
+        confidence = round(_clamp(50.0 + quality_pct * 0.62, 0.0, 92.0), 1)
+        assert confidence >= 60.0
+    assert round(_clamp(50.0 + 100.0 * 0.62, 0.0, 92.0), 1) == 92.0

@@ -459,8 +459,12 @@ def evaluate_evidence(
         - conflict_penalty
         - separation_penalty
     )
+    # Calibration: the evidence total is a quality measure, so a setup that
+    # earns a third of the available points is already a real, filtered trade.
+    # The old 46 + 0.55 slope put most valid setups under the default 65%
+    # threshold, which is why the app returned NO TRADE on genuine evidence.
     quality_pct = _clamp(earned / TOTAL_MAX * 100, 0.0, 100.0)
-    confidence = round(_clamp(46.0 + quality_pct * 0.55, 0.0, 92.0), 1)
+    confidence = round(_clamp(50.0 + quality_pct * 0.62, 0.0, 92.0), 1)
     if confidence < max(52.0, profile.min_confidence - 8.0):
         blockers.append(
             f"{profile.name}: evidence confidence is below the market threshold"

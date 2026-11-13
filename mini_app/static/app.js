@@ -1,6 +1,8 @@
-/* ROZLF AI Mini App controller — cached navigation, real engine data only. */
+/* ROZLF AI Mini App controller — real engine data, four-state connection, EN/AR. */
 (function () {
   const api = window.RozlfApi;
+  const i18n = window.RozlfI18n;
+  const t = (key, params) => i18n.t(key, params);
   const tg = api.tg;
   const view = document.getElementById("view");
   const pill = document.getElementById("connection-pill");
@@ -18,14 +20,15 @@
     selectedAsset: null,
     selectedDuration: null,
     analyzing: false,
+    connection: "CONNECTING",
   };
 
   if (tg) {
     tg.ready();
     tg.expand();
-    if (tg.setHeaderColor) tg.setHeaderColor("#05080b");
-    if (tg.setBackgroundColor) tg.setBackgroundColor("#05080b");
-    if (tg.setBottomBarColor) tg.setBottomBarColor("#05080b");
+    if (tg.setHeaderColor) tg.setHeaderColor("#04070c");
+    if (tg.setBackgroundColor) tg.setBackgroundColor("#04070c");
+    if (tg.setBottomBarColor) tg.setBottomBarColor("#04070c");
     if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
   }
 
@@ -36,17 +39,23 @@
     toastEl.textContent = text;
     toastEl.classList.add("show");
     clearTimeout(toast._t);
-    toast._t = setTimeout(() => toastEl.classList.remove("show"), 2600);
+    toast._t = setTimeout(() => toastEl.classList.remove("show"), 2800);
   }
-  function setPill(mode, text) {
-    pill.className = "signal-pill " + (mode || "");
-    pill.querySelector("span").textContent = text;
+  function setConnection(mode) {
+    state.connection = mode;
+    const key = "state." + mode.toLowerCase();
+    pill.className = "signal-pill " + mode.toLowerCase();
+    pill.querySelector("span").textContent = t(key);
+    pill.setAttribute("aria-label", t(key));
   }
   function setActiveTab(route) {
-    const map = { market: "markets", status: "home" };
+    const map = { market: "markets" };
     const active = map[route] || route;
     document.querySelectorAll("#tabbar button").forEach((button) => {
-      button.classList.toggle("active", button.dataset.route === active);
+      const on = button.dataset.route === active;
+      button.classList.toggle("active", on);
+      if (on) button.setAttribute("aria-current", "page");
+      else button.removeAttribute("aria-current");
     });
   }
   function openSheet(html) {
@@ -85,8 +94,15 @@
   function liveMarkets(data) {
     return (data && data.markets ? data.markets : []).filter((market) => market.status === "LIVE").length;
   }
-  function engineLive(data, liveCount) {
-    return Boolean(data && data.api && data.api.telegram && liveCount > 0);
+  function connectionFor(data) {
+    if (!data) return "OFFLINE";
+    const conn = data.connection || {};
+    if (conn.service === "OFFLINE" || conn.api === "OFFLINE") return "OFFLINE";
+    const live = liveMarkets(data);
+    const total = Number(data.total_markets || (data.markets || []).length || 0);
+    if (live === 0) return "OFFLINE";
+    if (conn.engine === "OFFLINE") return "DEGRADED";
+    return live === total ? "ONLINE" : "DEGRADED";
   }
   function skeleton(type) {
     if (type === "market") {
@@ -97,13 +113,14 @@
 
   function errorView(error) {
     const noAuth = error && error.code === "NO_TELEGRAM_INIT_DATA";
-    setPill("down", noAuth ? "TELEGRAM ONLY" : "API OFFLINE");
+    setConnection(noAuth ? "DEGRADED" : "OFFLINE");
+    const heading = noAuth ? t("common.telegram_only") : t("common.engine_down");
     view.innerHTML =
-      '<section class="error-card"><div class="eyebrow">ROZLF AI · SECURE ACCESS</div>' +
-      "<h1>" + (noAuth ? "افتح التطبيق<br><span>من داخل Telegram</span>" : "المحرك غير متاح<br><span>مؤقتاً</span>") + "</h1>" +
-      "<p>" + api.esc((error && error.message) || "تعذر الوصول إلى خادم ROZLF AI.") + "</p>" +
-      '<button class="btn block" data-retry="1">إعادة المحاولة</button></section>';
-    view.querySelector("[data-retry]").addEventListener("click", () => navigate(state.route, true));
+      '<section class="error-card"><div class="eyebrow">' + api.esc(t("common.secure")) + "</div>" +
+      "<h1>" + api.esc(heading) + "</h1>" +
+      "<p>" + api.esc((error && error.message) || t("common.network")) + "</p>" +
+      '<button class="btn block" data-retry="1">' + api.esc(t("common.retry")) + "</button></section>";
+    view.querySelector("[data-retry]").addEventListener("click", () => navigate(state.route, true, state.marketKey));
   }
 
   function empty(text, sub) {
@@ -118,41 +135,40 @@
   function marketCard(market) {
     const live = market.status === "LIVE";
     return (
-      '<button class="market-card ' + (market.key === "LUXURY" ? "is-gold" : "") + (live ? " is-live" : "") + '" data-market="' + api.esc(market.key) + '">' +
-      '<span class="card-top"><span class="market-icon">' + api.esc(market.icon) + '</span><span class="status-dot ' + (live ? "live" : "down") + '">' + (live ? "LIVE" : "OFFLINE") + "</span></span>" +
+      '<button class="market-card ' + (market.key === "LUXURY" ? "is-gold " : "") + (live ? "is-live" : "") + '" data-market="' + api.esc(market.key) + '">' +
+      '<span class="card-top"><span class="market-icon">' + api.esc(market.icon) + '</span><span class="status-dot ' + (live ? "live" : "down") + '">' + (live ? "LIVE" : "UNAVAILABLE") + "</span></span>" +
       "<h3>" + api.esc(market.label) + "</h3>" +
-      "<small>" + assetCount(market) + " أصول · " + api.esc(market.source || "لا يوجد مصدر متاح") + "</small>" +
-      '<span class="card-cta">' + (live ? "افتح السوق" : "عرض الحالة") + " ‹</span></button>"
+      "<small>" + assetCount(market) + " · " + api.esc(market.source || t("market.no_assets_sub")) + "</small>" +
+      '<span class="card-cta">' + api.esc(live ? t("market.open") : t("market.view_status")) + ' <span class="chev">›</span></span></button>'
     );
   }
 
   function metric(label, value) {
-    return '<div class="metric"><small>' + label + "</small><strong>" + api.esc(value) + "</strong></div>";
+    return '<div class="metric"><small>' + api.esc(label) + "</small><strong>" + api.esc(value) + "</strong></div>";
   }
 
   function resultHtml(result) {
     const tradeable = result.direction === "UP" || result.direction === "DOWN";
-    const name = result.direction === "UP" ? "شراء · UP" : result.direction === "DOWN" ? "بيع · DOWN" : "لا توجد فرصة";
+    const name = result.direction === "UP" ? t("result.buy") : result.direction === "DOWN" ? t("result.sell") : t("result.no_trade");
     const nameClass = result.direction === "UP" ? "up" : result.direction === "DOWN" ? "down" : "wait";
     const confidence = result.confidence == null ? "—" : Math.round(result.confidence) + "%";
     const pct = result.confidence == null ? 0 : Math.max(0, Math.min(100, result.confidence));
     const reasons = (result.reasons || []).map((reason) => "<li>" + api.esc(reason) + "</li>").join("");
     return (
       '<div class="result-card' + (tradeable ? "" : " no-trade") + '">' +
-      '<div class="result-top"><div><div class="eyebrow">ROZLF AI SIGNAL</div><div class="signal-name ' + nameClass + '">' + api.esc(name) + "</div></div>" +
+      '<div class="result-top"><div><div class="eyebrow">' + api.esc(t("result.eyebrow")) + '</div><div class="signal-name ' + nameClass + '">' + api.esc(name) + "</div></div>" +
       (tradeable ? '<div class="conf-ring" style="--pct:' + pct + '%"><span>' + confidence + "</span></div>" : "") + "</div>" +
       '<div class="result-grid">' +
-      metric("السوق", result.market_label || "—") + metric("الأصل", result.asset || "—") +
-      metric("المدة", result.duration_label || "—") + metric("السعر", result.price_display || "—") +
-      metric("الاتجاه", result.trend || "—") + metric("الزخم", result.momentum || "—") +
-      metric("المصدر", result.source || "—") + metric("الفريم", result.timeframe || "—") +
+      metric(t("result.market"), result.market_label || "—") + metric(t("result.asset"), result.asset || "—") +
+      metric(t("result.duration"), result.duration_label || "—") + metric(t("result.price"), result.price_display || "—") +
+      metric(t("result.trend"), result.trend || "—") + metric(t("result.momentum"), result.momentum || "—") +
+      metric(t("result.source"), result.source || "—") + metric(t("result.frame"), result.timeframe || "—") +
       "</div>" +
-      (reasons ? '<div class="eyebrow">أسباب الإشارة</div><ul class="reasons">' + reasons + "</ul>" : "") +
-      (result.direction === "NO TRADE" ? '<div class="note">' + api.esc(result.note || result.no_trade_reason || "لا توجد أدلة كافية، ولم تُفرض إشارة.") + "</div>" : "") +
+      (reasons ? '<div class="eyebrow">' + api.esc(t("result.reasons")) + '</div><ul class="reasons">' + reasons + "</ul>" : "") +
+      (result.direction === "NO TRADE" ? '<div class="note">' + api.esc(result.note || result.no_trade_reason || t("result.no_evidence")) + "</div>" : "") +
       "</div>"
     );
   }
-
   function bind(root) {
     root.querySelectorAll("[data-route]").forEach((element) => {
       element.addEventListener("click", () => navigate(element.dataset.route));
@@ -179,398 +195,405 @@
 
   function paintHome(data, recs, history) {
     const liveCount = liveMarkets(data);
-    const live = engineLive(data, liveCount);
-    setPill(liveCount ? "live" : "down", liveCount ? "DATA LIVE" : "API OFFLINE");
-    const aiOnline = data.api && data.api.ai;
+    const total = Number(data.total_markets || 6);
+    const engine = (data.connection && data.connection.engine) || (data.api && data.api.telegram ? "ONLINE" : "OFFLINE");
     const opportunities = recs && recs.items && recs.items.length
-      ? recs.items.map((item) => (
+      ? recs.items.slice(0, 4).map((item) => (
           '<div class="feed-row"><div class="feed-main"><strong>' + api.esc(item.icon + " " + item.asset) + "</strong><small>" +
           api.esc(item.market_label + " · " + item.duration_label) + '</small></div><span class="feed-tag ' +
           (item.direction === "UP" ? "live" : "down") + '">' + api.esc(item.direction) + " · " + Math.round(item.confidence) + "%</span></div>"
         )).join("")
-      : empty("NO VALID RECOMMENDATIONS RIGHT NOW.", "لن تظهر إشارة بدون أدلة حقيقية.");
+      : empty(api.esc(t("home.no_recs")), api.esc(t("home.no_recs_sub")));
     const latest = history && history.signals && history.signals.length
       ? history.signals.slice(0, 4).map((signal) => (
           '<div class="feed-row"><div class="feed-main"><strong>' + api.esc(signal.asset) + "</strong><small>" +
           api.esc(signal.market_label + " · " + signal.duration_label + " · " + signal.status) + '</small></div><span class="feed-tag gold">' +
           Math.round(signal.confidence) + "%</span></div>"
         )).join("")
-      : empty("لا توجد إشارات مسجلة بعد.", "ستظهر النتائج المتحققة هنا فقط.");
+      : empty(api.esc(t("home.no_signals")), api.esc(t("home.no_signals_sub")));
 
     view.innerHTML =
-      '<section class="hero-deck">' +
-      '<div class="hero-orbit" aria-hidden="true"><span></span><i></i></div>' +
-      '<div class="eyebrow">ADVANCED TRADING INTELLIGENCE</div>' +
-      '<h1>ROZLF <span>AI</span></h1>' +
-      '<p class="hero-line">ستة أسواق مستقلة · محرك تحليل واحد · بيانات حقيقية فقط</p>' +
-      '<div class="metric-rail">' +
-      '<div class="rail-item"><small>ENGINE</small><strong class="' + (live ? "up" : "wait") + '">' + (live ? "LIVE" : "OFFLINE") + "</strong></div>" +
-      '<div class="rail-item"><small>MARKETS</small><strong>' + liveCount + "<span>/" + (data.total_markets || 6) + "</span></strong></div>" +
-      '<div class="rail-item"><small>UPDATED</small><strong>' + api.fmtTime(data.last_update) + "</strong></div>" +
+      '<section class="hero">' +
+      '<div class="hero-top"><div><div class="eyebrow">' + api.esc(t("home.eyebrow")) + '</div><h1 class="wordmark">ROZLF <span>AI</span></h1><p class="tagline">' + api.esc(t("brand.tagline")) + "</p></div>" +
+      '<div class="hero-orb" aria-hidden="true"><span></span></div></div>' +
+      '<p class="hero-copy">' + api.esc(t("home.subtitle")) + "</p>" +
+      '<div class="rail">' +
+      '<div class="rail-cell"><small>' + api.esc(t("home.engine")) + '</small><strong class="' + (engine === "ONLINE" ? "ok" : "warn") + '">' + api.esc(engine) + "</strong></div>" +
+      '<div class="rail-cell"><small>' + api.esc(t("home.markets")) + '</small><strong>' + liveCount + " / " + total + "</strong></div>" +
+      '<div class="rail-cell"><small>' + api.esc(t("home.updated")) + '</small><strong class="time">' + api.esc(api.fmtTime(data.last_update)) + "</strong></div>" +
       "</div>" +
-      '<div class="hero-actions"><button class="btn primary" data-route="analysis">◎ ابدأ التحليل</button><button class="btn ghost" data-route="recommendations">✦ الفرص</button></div>' +
+      '<div class="hero-actions"><button class="btn" data-route="analysis">◎ ' + api.esc(t("home.start")) + '</button>' +
+      '<button class="btn ghost" data-route="opportunities">✦ ' + api.esc(t("home.opportunities")) + "</button></div>" +
       "</section>" +
-      '<section class="strip"><span class="strip-label">SYSTEM</span>' +
-      '<span class="strip-item"><i class="' + (live ? "on" : "") + '"></i>ENGINE ' + (live ? "CONNECTED" : "OFFLINE") + "</span>" +
-      '<span class="strip-item"><i class="' + (aiOnline ? "on" : "") + '"></i>MISTRAL ' + (aiOnline ? "ONLINE" : "OFFLINE") + "</span>" +
-      "</section>" +
-      '<section class="block"><div class="block-head"><h2>الأسواق</h2><span class="count">' + liveCount + "/" + (data.total_markets || 6) + ' LIVE</span></div><div class="market-grid">' +
-      (data.markets || []).map(marketCard).join("") + "</div></section>" +
-      '<section class="block"><div class="block-head"><h2>أفضل الفرص</h2><button class="link-btn" data-route="recommendations">الكل ‹</button></div><div class="feed">' + opportunities + "</div></section>" +
-      '<section class="block"><div class="block-head"><h2>آخر التحليلات</h2><button class="link-btn" data-route="history">السجل ‹</button></div><div class="feed">' + latest + "</div></section>";
+      '<section class="section"><div class="section-head"><h2>' + api.esc(t("home.markets_title")) + '</h2><button class="link" data-route="markets">' + api.esc(t("home.all")) + " ›</button></div>" +
+      '<div class="market-grid">' + (data.markets || []).map(marketCard).join("") + "</div></section>" +
+      '<section class="section"><div class="section-head"><h2>' + api.esc(t("home.top_opportunities")) + '</h2><button class="link" data-route="opportunities">' + api.esc(t("home.all")) + " ›</button></div>" +
+      '<div class="glass-list">' + opportunities + "</div></section>" +
+      '<section class="section"><div class="section-head"><h2>' + api.esc(t("home.recent")) + '</h2><button class="link" data-route="history">' + api.esc(t("home.log")) + " ›</button></div>" +
+      '<div class="glass-list">' + latest + "</div></section>";
     bind(view);
   }
 
-  async function loadFeed(key, loader, force) {
+  async function drawHome(force) {
+    setActiveTab("home");
+    if (!cache.bootstrap || force) view.innerHTML = skeleton("home");
     try {
-      return await cached(key, loader, force ? 0 : 45000);
+      const data = await cached("bootstrap", () => api.once("/api/mini/bootstrap"), force ? 0 : 45000);
+      setConnection(connectionFor(data));
+      let recs = cache.recommendations;
+      let history = cache.history;
+      const [recsResult, historyResult] = await Promise.allSettled([
+        cached("recommendations", () => api.once("/api/mini/recommendations"), force ? 0 : 60000),
+        cached("history", () => api.once("/api/mini/history?limit=8"), force ? 0 : 45000),
+      ]);
+      if (recsResult.status === "fulfilled") recs = recsResult.value;
+      if (historyResult.status === "fulfilled") history = historyResult.value;
+      if (state.route !== "home") return;
+      paintHome(data, recs, history);
     } catch (error) {
-      return cache[key] || null;
+      if (state.route === "home") errorView(error);
     }
   }
 
-  async function renderHome(force) {
-    const hadData = Boolean(cache.bootstrap);
-    if (!hadData) view.innerHTML = skeleton();
-    const boot = await cached("bootstrap", () => api.bootstrap, force ? 0 : 45000).catch((error) => {
-      if (!hadData) errorView(error);
-      return null;
-    });
-    if (!boot) {
-      if (hadData) paintHome(cache.bootstrap, cache.recommendations, cache.history);
-      return;
-    }
-    paintHome(boot, cache.recommendations, cache.history);
-    const [recs, history] = await Promise.all([
-      loadFeed("recommendations", () => api.recommendations, force),
-      loadFeed("history", () => api.history, force),
-    ]);
-    if (state.route === "home") paintHome(cache.bootstrap || boot, recs, history);
-  }
-
-  async function renderMarkets(force) {
-    const hadData = Boolean(cache.markets);
-    if (!hadData) view.innerHTML = skeleton();
-    const data = await cached("markets", () => api.markets, force ? 0 : 45000).catch((error) => {
-      if (!hadData) errorView(error);
-      return null;
-    });
-    if (!data) {
-      if (hadData) renderMarketsFrom(cache.markets);
-      return;
-    }
-    renderMarketsFrom(data);
-  }
-
-  function renderMarketsFrom(data) {
-    const count = liveMarkets(data);
-    const cards = (data.markets || []).map(marketCard).join("");
-    setPill(count ? "live" : "down", count ? "DATA LIVE" : "API OFFLINE");
-    view.innerHTML =
-      '<div class="page-head"><div class="eyebrow">SIX INDEPENDENT MARKETS</div><h1>الأسواق</h1>' +
-      "<p>" + count + " من " + (data.total_markets || 6) + " أسواق متصلة بمصادر بيانات حقيقية.</p></div>" +
-      '<div class="market-grid wide">' + cards + "</div>" +
-      '<div class="info-card"><strong>كل سوق بمحركه الخاص</strong><span>لا تُستخدم مؤشرات سوق على سوق آخر، وعند غياب البيانات يتوقف التحليل بدل اختلاق نتيجة.</span></div>';
-    bind(view);
-  }
-
-  async function renderAnalysisPicker() {
-    if (!cache.markets) {
-      view.innerHTML = skeleton();
-      await cached("markets", () => api.markets, 45000).catch((error) => {
-        errorView(error);
-        return null;
-      });
-    }
-    const data = cache.markets;
-    if (!data) return;
-    view.innerHTML =
-      '<div class="page-head"><div class="eyebrow">ANALYSE INDEPENDENTLY</div><h1>تحليل سوق</h1>' +
-      "<p>اختر السوق، ثم الأصل ومدة الصفقة. القرار يعتمد على الأدلة الحقيقية فقط.</p></div>" +
-      '<div class="market-grid">' + (data.markets || []).map(marketCard).join("") + "</div>" +
-      '<div class="info-card gold"><strong>NO TRADE قرار صحيح</strong><span>عند نقص البيانات أو تعارض الأدلة لن تُفرض إشارة.</span></div>';
-    bind(view);
-  }
-
-  async function renderMarket(key, force) {
-    state.marketKey = key;
-    const saved = cache.market.get(key);
-    if (saved) {
-      drawMarket(saved);
-    } else {
-      view.innerHTML = skeleton("market");
-    }
+  async function drawMarkets() {
+    setActiveTab("markets");
+    if (!cache.bootstrap) view.innerHTML = skeleton();
     try {
-      const market = await cached("m:" + key, () => api.market(key), force ? 0 : 30000);
-      cache.market.set(key, market);
-      if (!saved) {
-        state.selectedAsset = market.assets && market.assets.length ? market.assets[0].key : null;
-        state.selectedDuration = market.durations && market.durations.length ? market.durations[0] : null;
-      }
-      if (state.route === "market" && state.marketKey === key) drawMarket(market);
+      const data = await cached("bootstrap", () => api.once("/api/mini/bootstrap"), 45000);
+      setConnection(connectionFor(data));
+      if (state.route !== "markets") return;
+      view.innerHTML =
+        '<section class="page-head"><div class="eyebrow">' + api.esc(t("markets.eyebrow")) + '</div><h1>' + api.esc(t("markets.title")) + "</h1>" +
+        "<p>" + api.esc(t("markets.subtitle", { live: liveMarkets(data), total: data.total_markets || 6 })) + "</p></section>" +
+        '<div class="market-grid wide">' + (data.markets || []).map(marketCard).join("") + "</div>" +
+        '<section class="glass note-card"><strong>' + api.esc(t("markets.footer_title")) + "</strong><p>" + api.esc(t("markets.footer_text")) + "</p></section>";
+      bind(view);
     } catch (error) {
-      if (!saved) {
-        view.innerHTML = '<div class="error-card"><h1>تعذر فتح السوق</h1><p>' + api.esc(error.message) +
-          '</p><button class="btn block" data-route="markets">رجوع للأسواق</button></div>';
-        bind(view);
-      } else {
-        toast("تعذر تحديث بيانات السوق — تُعرض آخر بيانات متاحة");
-      }
+      if (state.route === "markets") errorView(error);
     }
   }
 
+  async function drawAnalysis() {
+    setActiveTab("analysis");
+    view.innerHTML = skeleton();
+    try {
+      const data = await cached("bootstrap", () => api.once("/api/mini/bootstrap"), 45000);
+      setConnection(connectionFor(data));
+      if (state.route !== "analysis") return;
+      view.innerHTML =
+        '<section class="page-head"><div class="eyebrow">' + api.esc(t("analysis.eyebrow")) + '</div><h1>' + api.esc(t("analysis.title")) + "</h1><p>" + api.esc(t("analysis.subtitle")) + "</p></section>" +
+        '<div class="market-grid wide">' + (data.markets || []).map(marketCard).join("") + "</div>" +
+        '<section class="glass note-card"><strong>' + api.esc(t("analysis.no_trade_title")) + "</strong><p>" + api.esc(t("analysis.no_trade_text")) + "</p></section>";
+      bind(view);
+    } catch (error) {
+      if (state.route === "analysis") errorView(error);
+    }
+  }
   function durationLabel(seconds) {
-    const map = { 30: "30 SEC", 60: "1 MIN", 120: "2 MIN", 180: "3 MIN", 300: "5 MIN" };
-    return map[seconds] || seconds + " SEC";
+    if (seconds == null) return "—";
+    if (seconds < 60) return seconds + " SEC";
+    return Math.round(seconds / 60) + " MIN";
   }
 
-  function drawMarket(market) {
-    if (!market) return;
+  function drawChart(market) {
+    const canvas = view.querySelector("#price-chart");
+    if (!canvas || !window.RozlfChart) return;
+    if (Array.isArray(market.candles) && market.candles.length > 1) {
+      window.RozlfChart.draw(canvas, market.candles);
+    }
+  }
+
+  function paintMarket(market) {
+    const live = market.available && market.status === "LIVE";
+    if (state.selectedDuration && !(market.durations || []).includes(state.selectedDuration)) {
+      state.selectedDuration = null;
+    }
     const assets = market.assets || [];
-    const durations = market.durations || [];
-    const live = market.status === "LIVE";
-    const assetChips = assets.slice(0, 16).map((asset) => (
-      '<button class="chip ' + (asset.key === state.selectedAsset ? "active" : "") + '" data-asset="' + api.esc(asset.key) + '">' + api.esc(asset.display) + "</button>"
+    if (!state.selectedAsset || !assets.some((asset) => asset.key === state.selectedAsset)) {
+      state.selectedAsset = assets.length ? assets[0].key : null;
+    }
+    if (!state.selectedDuration && market.durations && market.durations.length) {
+      state.selectedDuration = market.durations.includes(60) ? 60 : market.durations[0];
+    }
+    const assetChips = assets.length
+      ? assets.map((asset) => (
+          '<button class="chip ' + (asset.key === state.selectedAsset ? "active" : "") + '" data-asset="' + api.esc(asset.key) + '">' +
+          api.esc(asset.display) + "</button>"
+        )).join("")
+      : empty(api.esc(t("market.no_assets")), api.esc(t("market.no_assets_sub")));
+    const durationChips = (market.durations || []).map((seconds) => (
+      '<button class="chip gold ' + (Number(seconds) === state.selectedDuration ? "active" : "") + '" data-duration="' + seconds + '">' +
+      api.esc(durationLabel(seconds)) + "</button>"
     )).join("");
-    const durationChips = durations.map((seconds) => (
-      '<button class="chip gold ' + (seconds === state.selectedDuration ? "active" : "") + '" data-duration="' + seconds + '">' + durationLabel(seconds) + "</button>"
-    )).join("");
+    const price = market.price_display || t("market.unavailable_price");
     view.innerHTML =
-      '<section class="market-head">' +
-      '<div class="market-head-top"><div><div class="eyebrow">' + api.esc(market.icon + " " + market.label) + "</div>" +
-      '<h1 class="price-hero">' + api.esc(market.price_display || "—") + "</h1>" +
-      '<div class="price-meta">' + api.esc(live ? (market.source || "LIVE SOURCE") : "DATA UNAVAILABLE") +
-      " · " + api.fmtTime(market.last_time) + '</div></div><span class="status-dot ' + (live ? "live" : "down") + '">' + (live ? "LIVE" : "OFFLINE") + "</span></div>" +
-      '<div class="chart-frame"><canvas id="market-chart"></canvas><span class="chart-tag">' + (market.bars || 0) + " BARS · " + api.esc(market.timeframe || "—") + "</span></div>" +
+      '<section class="page-head market-head"><button class="back" data-route="markets" aria-label="' + api.esc(t("common.back_markets")) + '">‹</button>' +
+      '<div><div class="eyebrow">' + api.esc(market.label) + '</div><h1><span class="market-icon">' + api.esc(market.icon) + "</span> " + api.esc(market.label) + "</h1>" +
+      '<p><span class="status-dot ' + (live ? "live" : "down") + '">' + (live ? "LIVE" : "DATA UNAVAILABLE") + "</span> " +
+      api.esc(market.source || "—") + " · " + api.esc(api.fmtTime(market.last_time)) + "</p></div></section>" +
+      '<section class="price-card ' + (live ? "" : "is-down") + '"><small>' + api.esc(t("result.price")) + '</small><strong class="price">' + api.esc(price) + '</strong>' +
+      '<span class="price-meta">' + (market.bars ? market.bars + " " + api.esc(t("market.chart_tag")) + " · " + api.esc(market.timeframe || "—") : "—") + "</span>" +
+      (live ? '<canvas id="price-chart" class="chart" aria-label="Price chart"></canvas>' : '<div class="note">' + api.esc(market.error || t("market.unavailable")) + "</div>") +
       "</section>" +
-      (!live ? '<div class="notice">هذا السوق غير متصل بمصدر بيانات موثوق. التحليل معطّل حتى تعود البيانات، ولا تُعرض أي إشارة تجريبية.</div>' : "") +
-      '<section class="block"><div class="block-head"><h2>الأصول</h2><span class="count">' + assets.length + "</span></div>" +
-      (assetChips ? '<div class="chip-row">' + assetChips + "</div>" : empty("لا توجد أصول حقيقية متاحة.", "سيظهر السوق عند توفر مصدره.")) + "</section>" +
-      '<section class="block"><div class="block-head"><h2>مدة الصفقة</h2><span class="count">EXPIRY</span></div>' +
-      (durationChips ? '<div class="chip-row">' + durationChips + "</div>" : "") +
-      '<div class="action-stack"><button class="btn primary" id="analyse-btn"' + (live && assets.length && durations.length ? "" : " disabled") + ">◎ بدء التحليل</button>" +
-      '<button class="btn ghost" id="smart-btn"' + (live && assets.length ? "" : " disabled") + ">🧠 ANALYZE TRADE TIME</button></div></section>" +
-      '<section id="result-zone"></section>';
+      (live ? '<section class="section"><div class="section-head"><h2>' + api.esc(t("market.assets")) + '</h2></div><div class="chips">' + assetChips + "</div></section>" +
+      '<section class="section"><div class="section-head"><h2>' + api.esc(t("market.expiry")) + '</h2></div><div class="chips">' + durationChips + "</div></section>" +
+      '<div class="action-stack"><button class="btn block" id="analyse-btn">◎ ' + api.esc(t("market.start")) + '</button>' +
+      '<button class="btn ghost block" id="smart-btn">' + api.esc(t("market.smart")) + "</button></div>" : "") +
+      '<div id="result-slot"></div>';
     bind(view);
-    const canvas = document.getElementById("market-chart");
-    if (canvas) window.RozlfChart.draw(canvas, market.candles || []);
-    const analyse = document.getElementById("analyse-btn");
-    if (analyse) analyse.addEventListener("click", () => runAnalysis(false, analyse));
-    const smart = document.getElementById("smart-btn");
-    if (smart) smart.addEventListener("click", () => runAnalysis(true, smart));
+    if (live) {
+      drawChart(market);
+      view.querySelector("#analyse-btn").addEventListener("click", () => runAnalysis(market, false));
+      view.querySelector("#smart-btn").addEventListener("click", () => runAnalysis(market, true));
+    }
   }
 
-  function loadingButton(button, text) {
-    if (!button) return;
-    button.dataset.label = button.textContent;
-    button.textContent = text;
-    button.classList.add("is-loading");
-    button.disabled = true;
-  }
-  function restoreButton(button) {
-    if (!button) return;
-    button.textContent = button.dataset.label || button.textContent;
-    button.classList.remove("is-loading");
-    button.disabled = false;
+  async function drawMarket(key) {
+    setActiveTab("market");
+    state.selectedAsset = null;
+    view.innerHTML = skeleton("market");
+    try {
+      const market = await api.once("/api/mini/market/" + encodeURIComponent(key));
+      cache.market.set(key, market);
+      setConnection(connectionFor(cache.bootstrap));
+      if (state.route !== "market" || state.marketKey !== key) return;
+      paintMarket(market);
+    } catch (error) {
+      if (state.route === "market") errorView(error);
+    }
   }
 
-  async function runAnalysis(smart, button) {
+  async function runAnalysis(market, smart) {
     if (state.analyzing) return;
-    const market = cache.market.get(state.marketKey);
-    if (!market) return;
-    const duration = smart ? null : state.selectedDuration;
-    if (!smart && !duration) {
-      toast("اختر مدة صفقة مدعومة أولاً");
+    if (!smart && !state.selectedDuration) {
+      toast(t("common.select_duration"));
       return;
     }
+    const slot = view.querySelector("#result-slot");
+    const buttons = view.querySelectorAll("#analyse-btn, #smart-btn");
     state.analyzing = true;
-    loadingButton(button, smart ? "يختار أفضل مدة…" : "جارٍ التحليل…");
-    const zone = document.getElementById("result-zone");
-    zone.innerHTML = '<div class="result-skeleton"><span></span><span></span><span></span><span></span></div>';
+    buttons.forEach((button) => { button.disabled = true; });
+    slot.innerHTML = '<div class="glass loading-card"><span class="spinner"></span><strong>' + api.esc(smart ? t("result.choosing") : t("result.analyzing")) + "</strong></div>";
     try {
-      const result = await api.analyse({ market: market.key, asset: state.selectedAsset, duration: duration });
-      if (result.error) {
-        zone.innerHTML = '<div class="notice red">' + api.esc(result.message || result.error) + '</div><button class="btn ghost block" id="retry-analysis">إعادة المحاولة</button>';
-        const retry = document.getElementById("retry-analysis");
-        if (retry) retry.addEventListener("click", () => runAnalysis(smart, button));
+      const payload = await api.once("/api/mini/analyse", {
+        method: "POST",
+        body: JSON.stringify({
+          market: market.key,
+          asset: state.selectedAsset,
+          duration: smart ? null : state.selectedDuration,
+        }),
+      });
+      if (payload && payload.status === "UNAVAILABLE") {
+        slot.innerHTML = '<div class="glass note-card"><strong>DATA UNAVAILABLE</strong><p>' + api.esc(payload.message || payload.error || t("market.unavailable")) + "</p></div>";
       } else {
-        zone.innerHTML = '<div class="block-head"><h2>نتيجة التحليل</h2><span class="count">' + api.esc(result.direction) + "</span></div>" + resultHtml(result);
-        haptic();
-        zone.scrollIntoView({ behavior: "smooth", block: "start" });
+        slot.innerHTML = resultHtml(payload);
       }
+      haptic();
     } catch (error) {
-      zone.innerHTML = '<div class="notice red">' + api.esc(error.message) + '</div><button class="btn ghost block" id="retry-analysis">إعادة المحاولة</button>';
-      const retry = document.getElementById("retry-analysis");
-      if (retry) retry.addEventListener("click", () => runAnalysis(smart, button));
-      toast(error.message);
+      slot.innerHTML = '<div class="glass note-card"><strong>' + api.esc(t("common.engine_down")) + '</strong><p>' + api.esc(error.message || "") + "</p></div>";
+      setConnection("DEGRADED");
     } finally {
       state.analyzing = false;
-      restoreButton(button);
+      buttons.forEach((button) => { button.disabled = false; });
     }
   }
-
-  async function renderRecommendations(force) {
-    const hadData = Boolean(cache.recommendations);
-    if (!hadData) view.innerHTML = skeleton();
-    const data = await loadFeed("recommendations", () => api.recommendations, force);
-    if (!data) {
-      if (!hadData) {
-        view.innerHTML = '<div class="error-card"><h1>تعذر فحص الفرص</h1><p>المحرك غير متاح حالياً.</p><button class="btn block" data-retry="1">إعادة المحاولة</button></div>';
-        bind(view);
-      }
-      return;
-    }
-    const items = data.items || [];
-    setPill(items.length ? "live" : "", items.length ? "OPPORTUNITIES" : "SCANNED");
-    view.innerHTML =
-      '<div class="page-head"><div class="eyebrow">EVIDENCE-RANKED ONLY</div><h1>أفضل الفرص</h1>' +
-      "<p>مرتبة حسب جودة الأدلة. الحد الأدنى للثقة " + api.esc(data.threshold) + "%.</p></div>" +
-      (items.length ? '<div class="opportunity-list">' + items.map((item) => (
-        '<article class="opportunity"><div class="opp-top"><span class="opp-icon">' + api.esc(item.icon) + "</span><div><strong>" + api.esc(item.asset) +
-        "</strong><small>" + api.esc(item.market_label + " · " + item.duration_label) + '</small></div><span class="opp-dir ' +
-        (item.direction === "UP" ? "up" : "down") + '">' + api.esc(item.direction) + "</span></div>" +
-        '<p>' + api.esc(item.reason) + "</p>" +
-        '<div class="opp-foot"><span>' + api.esc(item.source) + "</span><strong>" + Math.round(item.confidence) + "%</strong></div></article>"
-      )).join("") + "</div>" : '<div class="feed">' + empty("NO VALID RECOMMENDATIONS RIGHT NOW.", "لا توجد فرصة مستوفية للأدلة والثقة حالياً.") + "</div>");
-  }
-
-  async function renderHistory(force) {
-    const hadData = Boolean(cache.history);
-    if (!hadData) view.innerHTML = skeleton();
-    const data = await loadFeed("history", () => api.history, force);
-    if (!data) {
-      if (!hadData) {
-        view.innerHTML = '<div class="error-card"><h1>تعذر تحميل السجل</h1><p>قاعدة البيانات غير متاحة حالياً.</p><button class="btn block" data-retry="1">إعادة المحاولة</button></div>';
-        bind(view);
-      }
-      return;
-    }
-    const stats = data.stats || {};
-    const rows = (data.signals || []).map((signal) => (
-      '<div class="feed-row"><div class="feed-main"><strong>' + api.esc(signal.asset) + "</strong><small>" +
-      api.esc(signal.market_label + " · " + signal.duration_label + " · " + api.fmtTime(signal.created_at)) + '</small></div><span class="feed-tag ' +
-      (signal.status === "LOSS" ? "down" : signal.status === "WIN" ? "live" : "gold") + '">' + api.esc(signal.status) + "</span></div>"
-    )).join("");
-    view.innerHTML =
-      '<div class="page-head"><div class="eyebrow">VERIFIED OUTCOMES ONLY</div><h1>السجل والأداء</h1><p>الإحصائيات من الإشارات المتحققة فقط.</p></div>' +
-      '<div class="stat-grid">' +
-      statBox("WIN RATE", stats.accuracy == null ? "—" : stats.accuracy + "%") + statBox("VERIFIED", stats.verified || 0) +
-      statBox("WINS", stats.wins || 0) + statBox("LOSSES", stats.losses || 0) +
-      statBox("PROFIT FACTOR", stats.profit_factor == null ? "—" : stats.profit_factor) + statBox("ACTIVE", stats.active || 0) +
-      "</div>" +
-      '<section class="block"><div class="block-head"><h2>آخر الإشارات</h2><span class="count">' + (data.signals || []).length + "</span></div><div class=\"feed\">" +
-      (rows || empty("لا توجد إشارات مسجلة بعد.", "لن تُضاف نتيجة غير متحققة.")) + "</div></section>";
-  }
-
-  function statBox(label, value) {
-    return '<div class="stat-box"><small>' + label + "</small><strong>" + api.esc(value) + "</strong></div>";
-  }
-
-  async function renderSettings(force) {
-    const hadData = Boolean(cache.settings);
-    if (!hadData) view.innerHTML = skeleton();
-    const data = await loadFeed("settings", () => api.settings, force);
-    if (!data) {
-      view.innerHTML = '<div class="error-card"><h1>تعذر تحميل الإعدادات</h1><p>أعد المحاولة بعد قليل.</p><button class="btn block" data-retry="1">إعادة المحاولة</button></div>';
+  async function drawOpportunities(force) {
+    setActiveTab("opportunities");
+    view.innerHTML = skeleton();
+    try {
+      const data = await cached("recommendations", () => api.once("/api/mini/recommendations"), force ? 0 : 60000);
+      if (state.route !== "opportunities") return;
+      const items = data.items || [];
+      const rows = items.length
+        ? items.map((item) => (
+            '<button class="opp-card" data-market="' + api.esc(item.market) + '">' +
+            '<span class="opp-left"><span class="market-icon">' + api.esc(item.icon) + "</span><span><strong>" + api.esc(item.asset) + "</strong><small>" +
+            api.esc(item.market_label + " · " + item.duration_label) + "</small></span></span>" +
+            '<span class="opp-right"><span class="feed-tag ' + (item.direction === "UP" ? "live" : "down") + '">' +
+            api.esc(item.direction) + '</span><strong class="gold-text">' + Math.round(item.confidence) + "%</strong></span></button>"
+          )).join("")
+        : empty(api.esc(t("recs.empty")), api.esc(t("recs.empty_sub")));
+      view.innerHTML =
+        '<section class="page-head"><div class="eyebrow">' + api.esc(t("recs.eyebrow")) + '</div><h1>' + api.esc(t("recs.title")) + "</h1>" +
+        "<p>" + api.esc(t("recs.subtitle", { threshold: Math.round(data.threshold || 60) })) + "</p></section>" +
+        '<div class="glass-list">' + rows + "</div>" +
+        '<button class="btn ghost block wide-action" data-retry="1">↻ ' + api.esc(t("common.retry")) + "</button>";
       bind(view);
-      return;
+    } catch (error) {
+      if (state.route !== "opportunities") return;
+      view.innerHTML = '<section class="error-card"><div class="eyebrow">' + api.esc(t("recs.eyebrow")) + '</div><h1>' + api.esc(t("recs.error")) + "</h1><p>" +
+        api.esc(t("recs.error_sub")) + '</p><button class="btn block" data-retry="1">' + api.esc(t("common.retry")) + "</button></section>";
+      bind(view);
     }
-    const current = Number(data.settings.min_confidence || 0);
-    const chips = (data.allowed || [50, 60, 70, 80, 90]).map((value) => (
-      '<button class="chip gold ' + (value === current ? "active" : "") + '" data-min="' + value + '">' + value + "%</button>"
+  }
+
+  async function drawHistory(force) {
+    setActiveTab("history");
+    view.innerHTML = skeleton();
+    try {
+      const data = await cached("history", () => api.once("/api/mini/history?limit=50"), force ? 0 : 45000);
+      if (state.route !== "history") return;
+      const stats = data.stats || {};
+      const rate = stats.accuracy == null ? "—" : stats.accuracy + "%";
+      const rows = data.signals && data.signals.length
+        ? data.signals.map((signal) => (
+            '<div class="feed-row"><div class="feed-main"><strong>' + api.esc(signal.asset) + "</strong><small>" +
+            api.esc(signal.market_label + " · " + signal.duration_label + " · " + api.fmtTime(signal.created_at)) + '</small></div>' +
+            '<span class="feed-tag ' + (signal.status === "WIN" ? "live" : signal.status === "LOSS" ? "down" : "gold") + '">' +
+            api.esc(signal.status) + "</span></div>"
+          )).join("")
+        : empty(api.esc(t("history.empty")), api.esc(t("history.empty_sub")));
+      view.innerHTML =
+        '<section class="page-head"><div class="eyebrow">' + api.esc(t("history.eyebrow")) + '</div><h1>' + api.esc(t("history.title")) + "</h1><p>" + api.esc(t("history.subtitle")) + "</p></section>" +
+        '<div class="stat-grid">' +
+        '<div class="stat"><small>' + api.esc(t("history.win_rate")) + '</small><strong class="gold-text">' + api.esc(rate) + "</strong></div>" +
+        '<div class="stat"><small>' + api.esc(t("history.verified")) + "</small><strong>" + api.esc(String(stats.verified || 0)) + "</strong></div>" +
+        '<div class="stat"><small>' + api.esc(t("history.wins")) + "</small><strong>" + api.esc(String(stats.wins || 0)) + "</strong></div>" +
+        '<div class="stat"><small>' + api.esc(t("history.losses")) + "</small><strong>" + api.esc(String(stats.losses || 0)) + "</strong></div>" +
+        '<div class="stat"><small>' + api.esc(t("history.profit_factor")) + "</small><strong>" + api.esc(stats.profit_factor == null ? "—" : String(stats.profit_factor)) + "</strong></div>" +
+        '<div class="stat"><small>' + api.esc(t("history.active")) + "</small><strong>" + api.esc(String(stats.active || 0)) + "</strong></div>" +
+        "</div>" +
+        '<section class="section"><div class="section-head"><h2>' + api.esc(t("history.latest")) + "</h2></div><div class=\"glass-list\">" + rows + "</div></section>";
+      bind(view);
+    } catch (error) {
+      if (state.route !== "history") return;
+      view.innerHTML = '<section class="error-card"><h1>' + api.esc(t("history.error")) + '</h1><p>' + api.esc(t("error.history")) +
+        '</p><button class="btn block" data-retry="1">' + api.esc(t("common.retry")) + "</button></section>";
+      bind(view);
+    }
+  }
+
+  function paintSettings(settings, allowed, status) {
+    const current = Number(settings.min_confidence || 60);
+    const values = Array.from(new Set([...(allowed || [50, 60, 70, 80, 90]), current])).sort((a, b) => a - b);
+    const chips = values.map((value) => (
+      '<button class="chip gold ' + (value === current ? "active" : "") + '" data-confidence="' + value + '">' + value + "%</button>"
     )).join("");
+    const sources = status && status.sources && status.sources.length
+      ? status.sources.map((source) => (
+          '<div class="source-row"><span><strong>' + api.esc(source.name || source.id || "source") + "</strong><small>" +
+          api.esc(source.id || "") + '</small></span><span class="feed-tag ' + (source.configured ? "live" : "gold") + '">' +
+          api.esc(source.configured ? t("status.ready") : t("status.missing")) + "</span></div>"
+        )).join("")
+      : empty(api.esc(t("status.no_sources")), api.esc(t("status.no_sources_sub")));
     view.innerHTML =
-      '<div class="page-head"><div class="eyebrow">ACCOUNT SETTINGS</div><h1>الإعدادات</h1><p>محفوظة في قاعدة البيانات ويستخدمها البوت والتطبيق معاً.</p></div>' +
-      '<div class="panel"><div class="setting-row"><div><strong>الحد الأدنى لثقة الإشارة</strong><small>لا تُرفع الثقة قسراً ولا تظهر إشارة أقل من الحد.</small></div><span class="badge">' + current + "%</span></div>" +
-      '<div class="chip-row">' + chips + '</div><button class="btn primary block" id="save-settings">حفظ الإعدادات</button></div>' +
-      '<div class="panel"><div class="setting-row"><div><strong>محرك التحليل</strong><small>نفس محرك البوت ونفس المصادر.</small></div><span class="badge live">SHARED</span></div>' +
-      '<div class="setting-row"><div><strong>الأسواق</strong><small>SMARTY · FOOTBALL · LUXURY · AI · CRICKET · FOREX</small></div><span class="badge">6</span></div></div>' +
-      '<button class="btn ghost block" id="open-status">🖥️ حالة النظام والمصادر</button>';
-    let selected = current;
-    view.querySelectorAll("[data-min]").forEach((button) => {
+      '<section class="page-head"><div class="eyebrow">' + api.esc(t("settings.eyebrow")) + '</div><h1>' + api.esc(t("settings.title")) + "</h1><p>" + api.esc(t("settings.subtitle")) + "</p></section>" +
+      '<section class="glass settings-block"><div class="settings-head"><h2>' + api.esc(t("settings.language")) + '</h2><span class="mini-tag">EN · AR</span></div>' +
+      '<p class="muted">' + api.esc(t("settings.language_note")) + '</p><div class="chips">' +
+      '<button class="chip ' + (i18n.language === "en" ? "active" : "") + '" data-lang="en">' + api.esc(t("settings.english")) + "</button>" +
+      '<button class="chip ' + (i18n.language === "ar" ? "active" : "") + '" data-lang="ar">' + api.esc(t("settings.arabic")) + "</button></div></section>" +
+      '<section class="glass settings-block"><div class="settings-head"><h2>' + api.esc(t("settings.min_conf")) + '</h2><span class="mini-tag gold-text">' + current + '%</span></div>' +
+      '<div class="chips" id="confidence-chips">' + chips + '</div><p class="muted">' + api.esc(t("settings.min_conf_note")) + "</p>" +
+      '<button class="btn block" id="save-settings">' + api.esc(t("settings.save")) + "</button></section>" +
+      '<section class="glass settings-block"><div class="settings-head"><h2>' + api.esc(t("settings.engine")) + '</h2><span class="mini-tag">' + api.esc(t("settings.shared")) + "</span></div>" +
+      '<p class="muted">' + api.esc(t("settings.engine_note")) + " · " + api.esc(t("settings.markets_note")) + "</p></section>" +
+      '<section class="glass settings-block"><div class="settings-head"><h2>' + api.esc(t("status.sources")) + '</h2><span class="mini-tag">' +
+      (status && status.database ? api.esc(String(status.database)) : "—") + '</span></div><div class="source-list">' + sources + "</div></section>" +
+      '<button class="btn ghost block wide-action" data-route="status">◎ ' + api.esc(t("settings.status")) + "</button>";
+    bind(view);
+    view.querySelectorAll("[data-lang]").forEach((button) => {
       button.addEventListener("click", () => {
-        selected = Number(button.dataset.min);
-        view.querySelectorAll("[data-min]").forEach((item) => item.classList.toggle("active", item === button));
+        i18n.setLanguage(button.dataset.lang);
+        drawSettings(true);
       });
     });
-    document.getElementById("save-settings").addEventListener("click", async (event) => {
-      const button = event.currentTarget;
-      loadingButton(button, "جارٍ الحفظ…");
+    view.querySelectorAll("[data-confidence]").forEach((button) => {
+      button.addEventListener("click", () => {
+        view.querySelectorAll("[data-confidence]").forEach((chip) => chip.classList.toggle("active", chip === button));
+        view.querySelector("#save-settings").dataset.confidence = button.dataset.confidence;
+      });
+    });
+    const save = view.querySelector("#save-settings");
+    save.dataset.confidence = String(current);
+    save.addEventListener("click", async () => {
+      save.disabled = true;
       try {
-        await api.saveSettings({ min_confidence: selected });
-        cache.settings.settings.min_confidence = selected;
-        toast("تم حفظ الإعدادات");
-        haptic();
+        const payload = await api.once("/api/mini/settings", {
+          method: "POST",
+          body: JSON.stringify({ min_confidence: Number(save.dataset.confidence) }),
+        });
+        cache.settings = payload.settings;
+        cache.bootstrap = null;
+        toast(t("settings.saved"));
       } catch (error) {
-        toast(error.message);
+        toast(t("error.settings"));
       } finally {
-        restoreButton(button);
+        save.disabled = false;
       }
     });
-    document.getElementById("open-status").addEventListener("click", showStatus);
   }
 
-  async function showStatus() {
-    openSheet('<div class="sheet-head"><div><div class="eyebrow">SYSTEM HEALTH</div><h2>حالة النظام</h2></div><button class="icon-btn" data-close="1">✕</button></div>' + skeleton());
-    let data;
+  async function drawSettings(force) {
+    setActiveTab("status");
+    if (!cache.settings || force) view.innerHTML = skeleton();
     try {
-      data = await api.status;
+      const [settingsResult, statusResult] = await Promise.allSettled([
+        cached("settings", () => api.once("/api/mini/settings"), force ? 0 : 45000),
+        api.once("/api/mini/status"),
+      ]);
+      if (state.route !== "status") return;
+      const settingsPayload = settingsResult.status === "fulfilled" ? settingsResult.value : { settings: { min_confidence: 60 }, allowed: [50, 60, 70, 80, 90] };
+      const status = statusResult.status === "fulfilled" ? statusResult.value : null;
+      paintSettings(settingsPayload.settings, settingsPayload.allowed, status);
     } catch (error) {
-      sheetBody.innerHTML = '<div class="sheet-head"><div><div class="eyebrow">SYSTEM HEALTH</div><h2>حالة النظام</h2></div><button class="icon-btn" data-close="1">✕</button></div>' +
-        '<div class="notice red">' + api.esc(error.message) + "</div>";
-      return;
+      if (state.route === "status") errorView(error);
     }
-    const ai = data.ai || {};
-    const sources = data.sources || {};
-    const rows = Object.keys(sources).map((name) => {
-      const source = sources[name] || {};
-      const ok = source.ok === true || source.state === "ok" || source.status === "ok" || source.connected === true;
-      return '<div class="feed-row"><div class="feed-main"><strong>' + api.esc(name) + "</strong><small>" +
-        api.esc(source.detail || source.note || source.error || (ok ? "متصل" : "غير متاح")) + '</small></div><span class="feed-tag ' +
-        (ok ? "live" : "down") + '">' + (ok ? "ONLINE" : "OFFLINE") + "</span></div>";
-    }).join("");
-    sheetBody.innerHTML =
-      '<div class="sheet-head"><div><div class="eyebrow">SYSTEM HEALTH</div><h2>حالة النظام</h2></div><button class="icon-btn" data-close="1">✕</button></div>' +
-      '<div class="stat-grid">' +
-      statBox("TELEGRAM", data.telegram_configured ? "READY" : "MISSING") +
-      statBox("AI ENGINE", ai.ok || ai.configured ? "ONLINE" : "OFFLINE") +
-      statBox("BRIDGE", data.bridge_configured ? "READY" : "MISSING") +
-      statBox("DATABASE", data.database || "—") +
-      "</div>" +
-      '<div class="eyebrow">DATA SOURCES</div>' +
-      '<div class="feed">' + (rows || empty("لا توجد مصادر مسجلة.", "ستظهر هنا عند تهيئة المحرك.")) + "</div>";
-    sheetBody.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", closeSheet));
   }
 
   function navigate(route, force, marketKey) {
-    const allowed = { home: 1, markets: 1, analysis: 1, recommendations: 1, history: 1, settings: 1, market: 1 };
-    if (!allowed[route]) route = "home";
-    const changed = state.route !== route || (route === "market" && state.marketKey !== marketKey);
-    state.route = route;
-    setActiveTab(route);
-    haptic();
-    if (route === "home") return renderHome(force);
-    if (route === "markets") return renderMarkets(force);
-    if (route === "analysis") return renderAnalysisPicker();
-    if (route === "recommendations") return renderRecommendations(force);
-    if (route === "history") return renderHistory(force);
-    if (route === "settings") return renderSettings(force);
-    if (route === "market") return renderMarket(marketKey || state.marketKey, force || changed);
+    const next = route === "status" ? "settings" : route;
+    state.route = next;
+    if (next === "market") state.marketKey = marketKey || state.marketKey;
+    closeSheet();
+    setActiveTab(next);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (next === "home") drawHome(force);
+    else if (next === "markets") drawMarkets();
+    else if (next === "analysis") drawAnalysis();
+    else if (next === "opportunities") drawOpportunities(force);
+    else if (next === "history") drawHistory(force);
+    else if (next === "settings") drawSettings(force);
+    else if (next === "market") drawMarket(state.marketKey);
   }
 
-  document.querySelectorAll("#tabbar button").forEach((button) => {
+  document.querySelectorAll("#tabbar button, [data-nav]").forEach((button) => {
     button.addEventListener("click", () => navigate(button.dataset.route));
   });
-  const settingsBtn = document.getElementById("settings-btn");
-  if (settingsBtn) settingsBtn.addEventListener("click", () => navigate("settings"));
+  const langButton = document.getElementById("lang-btn");
+  if (langButton) {
+    langButton.addEventListener("click", () => {
+      i18n.setLanguage(i18n.language === "en" ? "ar" : "en");
+      navigate(state.route, false, state.marketKey);
+    });
+  }
+  if (tg && tg.onEvent) {
+    tg.onEvent("themeChanged", () => i18n.apply());
+  }
+  setConnection("CONNECTING");
+  i18n.apply();
+  navigate("home", true);
 
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "visible") return;
-    if (state.route === "home" && cache.bootstrap && Date.now() - (seenAt.bootstrap || 0) > 60000) {
-      renderHome(false);
+  let refreshing = false;
+  async function refreshStatus() {
+    if (refreshing || document.hidden) return;
+    refreshing = true;
+    try {
+      const data = await api.once("/api/mini/bootstrap");
+      cache.bootstrap = data;
+      seenAt.bootstrap = Date.now();
+      setConnection(connectionFor(data));
+      if (state.route === "home" || state.route === "markets") {
+        if (state.route === "home") drawHome(false);
+        else drawMarkets();
+      }
+    } catch (error) {
+      setConnection("OFFLINE");
+    } finally {
+      refreshing = false;
     }
+  }
+  setInterval(refreshStatus, 30000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshStatus();
   });
-
-  const startRoute = (location.hash || "").replace("#", "");
-  navigate(["markets", "recommendations", "history", "settings"].indexOf(startRoute) >= 0 ? startRoute : "home");
 })();

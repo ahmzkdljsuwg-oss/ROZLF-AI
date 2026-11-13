@@ -273,10 +273,18 @@ async def market_snapshot(ctx, market: Market, include_candles: bool = True) -> 
     return payload
 
 
+async def _health_snapshot(ctx) -> dict[str, Any]:
+    """Probe each market for real. The scanner cache alone is not evidence."""
+    if ctx.health is None:
+        return {}
+    try:
+        return await asyncio.wait_for(ctx.health.snapshot(), timeout=12.0)
+    except Exception:  # noqa: BLE001 - status must render even when probing fails
+        return ctx.health.cached()
+
+
 async def markets_overview(ctx) -> dict[str, Any]:
-    health: dict[str, Any] = {}
-    if ctx.health is not None:
-        health = ctx.health.cached()
+    health = await _health_snapshot(ctx)
     rows: list[dict[str, Any]] = []
     for market in MARKET_ORDER:
         entry = health.get(market.value)
@@ -285,8 +293,10 @@ async def markets_overview(ctx) -> dict[str, Any]:
             "label": MINI_LABELS.get(market, market.label),
             "icon": MARKET_ICONS[market],
             "status": "LIVE" if entry is not None and entry.ok else "UNAVAILABLE",
+            "data_state": "LIVE" if entry is not None and entry.ok else "UNAVAILABLE",
             "source": entry.source if entry is not None and entry.ok else None,
             "last_time": iso(entry.last_time) if entry is not None and entry.ok else None,
+            "error": None if entry is None or entry.ok else (entry.error or "source unavailable"),
         }
         try:
             assets = await market_assets(ctx, market)
@@ -422,4 +432,10 @@ async def bootstrap(ctx, user) -> dict[str, Any]:
         "last_update": overview.get("last_update"),
         "settings": settings,
         "durations": list(MINI_DURATIONS),
+        "connection": {
+            "service": "ONLINE",
+            "engine": "ONLINE" if ctx.generator is not None else "OFFLINE",
+            "api": "ONLINE",
+            "checked_at": iso(utc_now()),
+        },
     }
