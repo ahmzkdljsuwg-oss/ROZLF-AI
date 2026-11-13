@@ -523,6 +523,50 @@ def _smc_lines(result: AnalysisResult) -> list[str]:
     return lines
 
 
+def _alligator_ma_lines(result: AnalysisResult) -> list[str]:
+    a = getattr(result, "alligator_ma", None) or {}
+    if not a:
+        return []
+    decision = a.get("decision", "NO TRADE")
+    icon = "🟢" if decision == "BUY" else "🔴" if decision == "SELL" else "⚪"
+    lines = ["", "<b>🐊 ALLIGATOR + MA 200</b>"]
+    lines.append(f"STRATEGY SIGNAL: {icon} <b>{decision}</b>")
+    lines.append(
+        f"MA 200: <b>{a.get('ma_type', 'EMA 200')}</b> · "
+        f"{a.get('ma_direction', 'UNKNOWN')} ({format_price(a.get('ma_value'), result.market)})"
+    )
+    lines.append(f"ALLIGATOR: <b>{a.get('alligator_state', 'UNKNOWN')}</b> · {a.get('alligator_direction', 'UNKNOWN')}")
+    lines.append(
+        f"TREND STRENGTH: <b>{a.get('trend_strength', 'UNKNOWN')}</b> "
+        f"(ADX {a.get('adx', '—')})"
+    )
+    price = a.get("price")
+    if price is not None:
+        stamp = ""
+        raw = a.get("price_time")
+        if raw:
+            try:
+                stamp = f" @ {local_time(datetime.fromisoformat(str(raw)))}"
+            except ValueError:
+                stamp = f" @ {str(raw)[:19]}"
+        lines.append(f"LAST UPDATE: {format_price(price, result.market)}{stamp}")
+    reasons = a.get("reasons") or []
+    if reasons:
+        lines.append("")
+        lines.append("<b>SIGNAL REASONS</b>")
+        lines.extend(f"• {item}" for item in reasons[:5])
+    blockers = a.get("blockers") or []
+    if blockers:
+        lines.append("")
+        lines.append("<b>CANCELLATION CONDITIONS</b>")
+        lines.extend(f"• {item}" for item in blockers[:5])
+    invalidation = a.get("invalidation") or []
+    if invalidation:
+        lines.append("<b>INVALIDATION</b>")
+        lines.extend(f"• {item}" for item in invalidation[:3])
+    return lines
+
+
 def smarty_result_text(result: AnalysisResult, record: SignalRecord | None) -> str:
     ind = result.indicators or {}
     lines = [
@@ -580,6 +624,7 @@ def smarty_result_text(result: AnalysisResult, record: SignalRecord | None) -> s
         if resistance:
             lines.append(f"RESISTANCE: {format_price(resistance[0], result.market)}")
     lines.extend(_smc_lines(result))
+    lines.extend(_alligator_ma_lines(result))
     if record is not None:
         lines.append("")
         lines.append(f"ENTRY TIME: {local_time(record.created_at)}")
@@ -726,7 +771,7 @@ def unified_result_text(
     confidence = getattr(record, "confidence", None)
     if confidence is None:
         confidence = getattr(result, "confidence", None)
-    return signal_card_text(
+    card = signal_card_text(
         getattr(result, "market", ""),
         getattr(result, "asset_display", ""),
         direction,
@@ -735,6 +780,8 @@ def unified_result_text(
         no_trade_reason(result),
         signal_reasons(result, direction) if direction in ("UP", "DOWN") else [],
     )
+    alligator_lines = _alligator_ma_lines(result)
+    return card + ("\n" + "\n".join(alligator_lines) if alligator_lines else "")
 
 
 def analysis_details_text(result: AnalysisResult, record: SignalRecord | None = None) -> str:
@@ -755,6 +802,7 @@ def analysis_details_text(result: AnalysisResult, record: SignalRecord | None = 
         lines.append("<b>TECHNICAL REASONS</b>")
         lines.extend(f"• {reason}" for reason in result.reasons[:6])
     lines.extend(_smc_lines(result))
+    lines.extend(_alligator_ma_lines(result))
     if result.warnings:
         lines.append("")
         lines.extend(f"⚠️ {warning}" for warning in result.warnings[:4])

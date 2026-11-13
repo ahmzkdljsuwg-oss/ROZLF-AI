@@ -9,6 +9,7 @@ from engines.markets import profile_for
 from engines.technical.evidence import evaluate_evidence
 from engines.technical.indicators import compute_indicators, frame_from_candles
 from engines.technical.smc import analyze_smc
+from engines.strategies.alligator_ma import assess_alligator_ma
 from engines.strategies.engine import evaluate_strategies
 from engines.validation import closed_candles
 from providers.base import DataUnavailable, MarketData, utc_now
@@ -51,6 +52,7 @@ class AnalysisResult:
     win_probability: float | None = None
     strategy_labels: list[str] = field(default_factory=list)
     market_profile: str = ""
+    alligator_ma: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
         data = asdict(self)
@@ -99,6 +101,15 @@ def analyze_market_data(
     report = evaluate_strategies(
         frame, ind, smc, market_data.asset.market, market_data.timeframe.seconds, now, profile
     )
+    alligator_ma = assess_alligator_ma(
+        frame,
+        asset_key=market_data.asset.key,
+        timeframe=market_data.timeframe.code,
+        now=now,
+    )
+    alligator_signal = alligator_ma.as_signal()
+    if alligator_signal is not None:
+        report.signals.append(alligator_signal)
     price = ind["price"]
     atr = ind["atr"] or price * 1e-5
 
@@ -237,6 +248,7 @@ def analyze_market_data(
         win_probability=evidence.win_probability,
         strategy_labels=evidence.strategy_labels,
         market_profile=profile.name,
+        alligator_ma=alligator_ma.as_dict(),
     )
     LOG.info(
         "ROZLF DECISION market=%s asset=%s tf=%s duration=%s direction=%s confidence=%.1f "

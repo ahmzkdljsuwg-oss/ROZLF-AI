@@ -101,6 +101,7 @@ TRIGGER_STRATEGIES = {
     "Candlestick Pattern",
     "Parabolic SAR",
     "Alligator",
+    "Alligator + EMA 200",
     "Aroon",
     "Fractals",
     "Tweezers",

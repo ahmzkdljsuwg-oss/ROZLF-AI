@@ -154,6 +154,19 @@
     const confidence = result.confidence == null ? "—" : Math.round(result.confidence) + "%";
     const pct = result.confidence == null ? 0 : Math.max(0, Math.min(100, result.confidence));
     const reasons = (result.reasons || []).map((reason) => "<li>" + api.esc(reason) + "</li>").join("");
+    const alli = result.alligator_ma || {};
+    const alliBlock = (alli.decision || alli.ma_direction) ? (
+      '<div class="eyebrow">ALLIGATOR + MA 200</div>' +
+      '<div class="result-grid">' +
+      metric("STRATEGY", alli.decision || "NO TRADE") +
+      metric("MA 200", (alli.ma_type || "EMA 200") + " · " + (alli.ma_direction || "—")) +
+      metric("ALLIGATOR", (alli.alligator_state || "—") + " · " + (alli.alligator_direction || "—")) +
+      metric("STRENGTH", (alli.trend_strength || "—") + " · ADX " + (alli.adx == null ? "—" : alli.adx)) +
+      metric("LAST PRICE", (alli.price == null ? "—" : String(alli.price)) + (alli.price_time ? " · " + api.fmtTime(alli.price_time) : "")) +
+      "</div>" +
+      ((alli.reasons || []).length ? '<ul class="reasons">' + alli.reasons.map((x) => "<li>" + api.esc(x) + "</li>").join("") + "</ul>" : "") +
+      ((alli.blockers || []).length ? '<div class="note">' + alli.blockers.map(api.esc).join("<br>") + "</div>" : "")
+    ) : "";
     return (
       '<div class="result-card' + (tradeable ? "" : " no-trade") + '">' +
       '<div class="result-top"><div><div class="eyebrow">' + api.esc(t("result.eyebrow")) + '</div><div class="signal-name ' + nameClass + '">' + api.esc(name) + "</div></div>" +
