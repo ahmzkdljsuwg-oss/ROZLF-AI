@@ -46,6 +46,7 @@ class SignalRecord:
     verified_at: datetime | None = None
     verification_source: str | None = None
     result_reason: str | None = None
+    entry_at: datetime | None = None
 
 
 class Repository:
@@ -64,6 +65,13 @@ class Repository:
             )
             if "result_reason" not in columns:
                 await connection.execute(text("ALTER TABLE signals ADD COLUMN result_reason TEXT"))
+            if "entry_at" not in columns:
+                ddl = (
+                    "ALTER TABLE signals ADD COLUMN entry_at TIMESTAMP"
+                    if connection.dialect.name == "sqlite"
+                    else "ALTER TABLE signals ADD COLUMN entry_at TIMESTAMP WITH TIME ZONE"
+                )
+                await connection.execute(text(ddl))
 
     async def close(self) -> None:
         if self._engine is not None:
@@ -90,8 +98,10 @@ class Repository:
         warnings: list[str],
         expiry_seconds: int,
         created_at: datetime,
+        entry_at: datetime | None = None,
     ) -> SignalRecord:
-        expires_at = created_at + timedelta(seconds=expiry_seconds)
+        entry_at = entry_at or created_at
+        expires_at = entry_at + timedelta(seconds=expiry_seconds)
         async with self._session() as session:
             row = Signal(
                 user_id=user_id,
@@ -107,6 +117,7 @@ class Repository:
                 warnings=json.dumps(warnings, ensure_ascii=False),
                 expiry_seconds=expiry_seconds,
                 created_at=created_at,
+                entry_at=entry_at,
                 expires_at=expires_at,
                 status=STATUS_ACTIVE,
             )
@@ -298,6 +309,7 @@ class Repository:
             created_at=_aware(row.created_at),
             expires_at=_aware(row.expires_at),
             status=row.status,
+            entry_at=_aware(getattr(row, "entry_at", None)) or _aware(row.created_at),
             close_price=row.close_price,
             verified_at=_aware(row.verified_at),
             verification_source=row.verification_source,

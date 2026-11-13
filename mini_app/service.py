@@ -128,6 +128,13 @@ def _result_payload(result: AnalysisResult, record, duration: int | None, thresh
         "signal_id": record.id if record is not None else None,
         "recorded": record is not None,
         "generated_at": iso(result.generated_at),
+        "analysis_mode": result.analysis_mode,
+        "five_min": result.five_min,
+        "signal_at": iso(result.signal_at) if result.signal_at else None,
+        "entry_at": iso(result.entry_at) if result.entry_at else None,
+        "expiry_at": iso(result.expiry_at) if result.expiry_at else None,
+        "trade_duration_seconds": result.trade_duration_seconds,
+        "mode_blockers": (result.five_min or {}).get("blockers", []) if result.analysis_mode == "5M TREND" else [],
     }
 
 
@@ -405,6 +412,7 @@ async def history(ctx, user_id: int) -> dict[str, Any]:
                 "entry": record.entry_price,
                 "entry_display": fmt.format_price(record.entry_price, record.market),
                 "created_at": iso(record.created_at),
+                "entry_at": iso(getattr(record, "entry_at", None) or record.created_at),
                 "expires_at": iso(record.expires_at),
                 "status": record.status,
                 "close_price": record.close_price,

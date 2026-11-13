@@ -523,6 +523,45 @@ def _smc_lines(result: AnalysisResult) -> list[str]:
     return lines
 
 
+
+def _five_min_lines(result: AnalysisResult) -> list[str]:
+    if getattr(result, "analysis_mode", "") != "5M TREND":
+        return []
+    five = getattr(result, "five_min", None) or {}
+    lines = ["", "<b>5-MINUTE TREND MODE</b>"]
+    lines.append(f"TREND: <b>{five.get('trend', '—')}</b> · STRENGTH: <b>{five.get('trend_strength', '—')}</b>")
+    lines.append(f"STRUCTURE: {five.get('structure', '—')}")
+    lines.append(f"VOLATILITY: {five.get('volatility', '—')} ({five.get('volatility_state', '—')})")
+    candle = five.get("candle") or {}
+    if candle:
+        lines.append(
+            f"CANDLE CONFIRMATION: {candle.get('name', '—')} "
+            f"(body {candle.get('body_ratio', 0):.2f})"
+        )
+    checks = five.get("checks") or {}
+    if checks:
+        lines.append(
+            "CHECKS: "
+            f"EMA {'OK' if checks.get('ema_aligned') else 'FAIL'} · "
+            f"ADX {checks.get('adx', '—')} · "
+            f"DI {'OK' if checks.get('di_match') else 'FAIL'} · "
+            f"RSI {'OK' if checks.get('rsi_confirmation') else 'FAIL'} · "
+            f"CANDLE {'OK' if checks.get('candle_confirmed') else 'FAIL'}"
+        )
+    if result.signal_at:
+        lines.append(f"SIGNAL CANDLE CLOSED: {local_time(result.signal_at)}")
+    if result.entry_at:
+        lines.append(f"ENTRY TIME: {local_time(result.entry_at)}")
+    if result.expiry_at:
+        lines.append(f"FIXED DURATION: {duration_label(300)} · EXPIRY: {local_time(result.expiry_at)}")
+    blockers = five.get("blockers") or []
+    if blockers:
+        lines.append("")
+        lines.append("<b>CANCELLATION REASONS</b>")
+        lines.extend(f"• {item}" for item in blockers[:4])
+    return lines
+
+
 def smarty_result_text(result: AnalysisResult, record: SignalRecord | None) -> str:
     ind = result.indicators or {}
     lines = [
@@ -580,9 +619,10 @@ def smarty_result_text(result: AnalysisResult, record: SignalRecord | None) -> s
         if resistance:
             lines.append(f"RESISTANCE: {format_price(resistance[0], result.market)}")
     lines.extend(_smc_lines(result))
+    lines.extend(_five_min_lines(result))
     if record is not None:
         lines.append("")
-        lines.append(f"ENTRY TIME: {local_time(record.created_at)}")
+        lines.append(f"SIGNAL TIME: {local_time(record.created_at)}")
         lines.append(f"TRADE DURATION: {duration_label(record.expiry_seconds)}")
         lines.append(f"EXPIRY: {local_time(record.expires_at)}")
         lines.append(f"SIGNAL ID: #{record.id}")
@@ -726,7 +766,7 @@ def unified_result_text(
     confidence = getattr(record, "confidence", None)
     if confidence is None:
         confidence = getattr(result, "confidence", None)
-    return signal_card_text(
+    card = signal_card_text(
         getattr(result, "market", ""),
         getattr(result, "asset_display", ""),
         direction,
@@ -735,6 +775,10 @@ def unified_result_text(
         no_trade_reason(result),
         signal_reasons(result, direction) if direction in ("UP", "DOWN") else [],
     )
+    five_lines = _five_min_lines(result)
+    if five_lines:
+        card = card + "\n" + "\n".join(five_lines)
+    return card
 
 
 def analysis_details_text(result: AnalysisResult, record: SignalRecord | None = None) -> str:
@@ -769,6 +813,7 @@ def analysis_details_text(result: AnalysisResult, record: SignalRecord | None = 
                 lines.append(f"SIGNAL TIME: {local_time(created)}")
             if expires:
                 lines.append(f"EXPIRY: {local_time(expires)} · ID #{getattr(record, 'id', '—')}")
+    lines.extend(_five_min_lines(result))
     lines.append("")
     lines.append("<i>Confidence Score يقيس جودة الأدلة، وليس نسبة ربح مضمونة.</i>")
     return "\n".join(lines)

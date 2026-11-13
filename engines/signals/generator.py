@@ -76,6 +76,8 @@ class SignalGenerator:
         if duration_seconds not in allowed:
             raise ValueError(f"Duration {duration_seconds}s is not supported for {result.timeframe}")
         now = now or utc_now()
+        signal_time = getattr(result, "signal_at", None) or now
+        entry_time = getattr(result, "entry_at", None) or now
         return await self.repo.add_signal(
             user_id=user_id,
             asset_key=result.asset_key,
@@ -89,7 +91,8 @@ class SignalGenerator:
             reasons=result.reasons,
             warnings=result.warnings,
             expiry_seconds=duration_seconds,
-            created_at=now,
+            created_at=signal_time,
+            entry_at=entry_time,
         )
 
     async def generate(
@@ -113,7 +116,15 @@ class SignalGenerator:
         asset_obj = get_asset(result.asset_key)
         tf_obj = timeframe(result.timeframe)
         allowed = supported_durations(asset_obj, tf_obj)
-        duration = duration_seconds if duration_seconds in allowed else min(
+        if duration_seconds is not None and duration_seconds not in allowed:
+            result.direction = "NO TRADE"
+            label = DURATION_LABELS.get(duration_seconds, str(duration_seconds) + "s")
+            result.cancellation_reason = (
+                label + " is not supported on the " + result.timeframe + " analysis frame"
+            )
+            result.warnings.append(result.cancellation_reason)
+            return result, None
+        duration = duration_seconds if duration_seconds is not None else min(
             allowed, key=lambda value: abs(value - tf_obj.seconds)
         )
         record = await self.create_signal(user_id, result, duration)

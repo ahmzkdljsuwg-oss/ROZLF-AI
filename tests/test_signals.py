@@ -16,7 +16,7 @@ async def test_signal_is_stored_and_listed(settings, repo, eurusd):
     registry = DataSourceRegistry([FakeProvider(make_candles(noise=0.0001, seed=23), quote_price=1.1000)])
     generator = SignalGenerator(registry, repo, settings)
 
-    result, record = await generator.generate(42, eurusd, "5min", duration_seconds=300, min_confidence=0.0)
+    result, record = await generator.generate(42, eurusd, "5min", duration_seconds=60, min_confidence=0.0)
     assert record is not None
     assert record.direction in {"UP", "DOWN"}
     assert record.status == "ACTIVE"
@@ -132,7 +132,7 @@ async def test_unverifiable_marked_unverified(settings, repo, eurusd):
 async def test_open_signals_excluded_from_accuracy(settings, repo, eurusd):
     registry = DataSourceRegistry([FakeProvider(make_candles(noise=0.0001, seed=23), quote_price=1.1000)])
     generator = SignalGenerator(registry, repo, settings)
-    await generator.generate(42, eurusd, "5min", duration_seconds=300, min_confidence=0.0)
+    await generator.generate(42, eurusd, "5min", duration_seconds=60, min_confidence=0.0)
     stats = await repo.statistics(42)
     assert stats["active"] == 1
     assert stats["accuracy"] is None

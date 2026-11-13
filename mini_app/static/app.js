@@ -154,6 +154,21 @@
     const confidence = result.confidence == null ? "—" : Math.round(result.confidence) + "%";
     const pct = result.confidence == null ? 0 : Math.max(0, Math.min(100, result.confidence));
     const reasons = (result.reasons || []).map((reason) => "<li>" + api.esc(reason) + "</li>").join("");
+    const five = result.five_min || {};
+    const modeBlock = result.analysis_mode === "5M TREND" ? (
+      '<div class="eyebrow">5-MINUTE TREND MODE</div>' +
+      '<div class="result-grid">' +
+      metric("TREND", (five.trend || "—") + " · " + (five.trend_strength || "—")) +
+      metric("STRUCTURE", five.structure || "—") +
+      metric("VOLATILITY", (five.volatility || "—") + " · " + (five.volatility_state || "—")) +
+      metric("CANDLE", (five.candle || {}).name || "—") +
+      metric("SIGNAL CANDLE", api.fmtTime(result.signal_at)) +
+      metric("ENTRY TIME", api.fmtTime(result.entry_at)) +
+      metric("FIXED DURATION", result.trade_duration_seconds === 300 ? "5 MIN" : "—") +
+      metric("EXPIRY", api.fmtTime(result.expiry_at)) +
+      "</div>" +
+      ((result.mode_blockers || []).length ? '<div class="note">' + result.mode_blockers.map(api.esc).join("<br>") + "</div>" : "")
+    ) : "";
     return (
       '<div class="result-card' + (tradeable ? "" : " no-trade") + '">' +
       '<div class="result-top"><div><div class="eyebrow">' + api.esc(t("result.eyebrow")) + '</div><div class="signal-name ' + nameClass + '">' + api.esc(name) + "</div></div>" +
@@ -165,6 +180,7 @@
       metric(t("result.source"), result.source || "—") + metric(t("result.frame"), result.timeframe || "—") +
       "</div>" +
       (reasons ? '<div class="eyebrow">' + api.esc(t("result.reasons")) + '</div><ul class="reasons">' + reasons + "</ul>" : "") +
+      modeBlock +
       (result.direction === "NO TRADE" ? '<div class="note">' + api.esc(result.note || result.no_trade_reason || t("result.no_evidence")) + "</div>" : "") +
       "</div>"
     );

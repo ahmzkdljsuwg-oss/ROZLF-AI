@@ -28,6 +28,7 @@ class Signal(Base):
     warnings: Mapped[str] = mapped_column(Text, default="[]")
     expiry_seconds: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    entry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     status: Mapped[str] = mapped_column(String(16), default="ACTIVE", index=True)
     close_price: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, replace
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 from engines.markets import profile_for
 from engines.technical.evidence import evaluate_evidence
 from engines.technical.indicators import compute_indicators, frame_from_candles
 from engines.technical.smc import analyze_smc
+from engines.technical.trend5m import MODE_SECONDS, Trend5mAssessment, assess_trend_5m
 from engines.strategies.engine import evaluate_strategies
 from engines.validation import closed_candles
 from providers.base import DataUnavailable, MarketData, utc_now
@@ -51,10 +52,19 @@ class AnalysisResult:
     win_probability: float | None = None
     strategy_labels: list[str] = field(default_factory=list)
     market_profile: str = ""
+    analysis_mode: str = "STANDARD"
+    five_min: dict = field(default_factory=dict)
+    signal_at: datetime | None = None
+    entry_at: datetime | None = None
+    expiry_at: datetime | None = None
+    trade_duration_seconds: int | None = None
 
     def as_dict(self) -> dict:
         data = asdict(self)
-        data["generated_at"] = self.generated_at.isoformat()
+        for key in ("generated_at", "signal_at", "entry_at", "expiry_at"):
+            value = data.get(key)
+            if isinstance(value, datetime):
+                data[key] = value.isoformat()
         return data
 
 
@@ -148,6 +158,34 @@ def analyze_market_data(
         ind["volatility"], market_data.timeframe.seconds
     )
 
+    five_min: Trend5mAssessment | None = None
+    signal_at: datetime | None = None
+    entry_at: datetime | None = None
+    expiry_at: datetime | None = None
+    analysis_mode = "STANDARD"
+    if duration_seconds == MODE_SECONDS:
+        analysis_mode = "5M TREND"
+        candidate = direction
+        if candidate == "NO TRADE":
+            candidate = "UP" if score_up > score_down else "DOWN" if score_down > score_up else "NO TRADE"
+        five_min = assess_trend_5m(
+            frame, ind, smc, report, analysis_data, now, profile, candidate
+        )
+        signal_at = usable[-1].time + timedelta(seconds=market_data.timeframe.seconds)
+        entry_at = now
+        expiry_at = entry_at + timedelta(seconds=MODE_SECONDS)
+        if direction in ("UP", "DOWN") and five_min.blockers:
+            direction = "NO TRADE"
+            cancellation_reason = five_min.blockers[0]
+            warnings.append(cancellation_reason)
+            confirmed = []
+            opposed = []
+            invalidation = []
+            reasons = five_min.blockers[:4]
+        elif direction in ("UP", "DOWN"):
+            reasons = (five_min.reasons + reasons)
+            reasons = list(dict.fromkeys(reasons))[:8]
+
     total_score = score_up + score_down
     if total_score > 0:
         buyers = round(100 * score_up / total_score)
@@ -232,11 +270,17 @@ def analyze_market_data(
         cancellation_reason=cancellation_reason,
         session=report.session,
         confidence_components=evidence.components,
-        blockers=evidence.blockers,
+        blockers=(evidence.blockers + (five_min.blockers if five_min is not None else [])),
         data_quality_score=float(evidence.data_quality.get("score", 0)),
         win_probability=evidence.win_probability,
         strategy_labels=evidence.strategy_labels,
         market_profile=profile.name,
+        analysis_mode=analysis_mode,
+        five_min=five_min.as_dict() if five_min is not None else {},
+        signal_at=signal_at,
+        entry_at=entry_at,
+        expiry_at=expiry_at,
+        trade_duration_seconds=MODE_SECONDS if five_min is not None else None,
     )
     LOG.info(
         "ROZLF DECISION market=%s asset=%s tf=%s duration=%s direction=%s confidence=%.1f "
