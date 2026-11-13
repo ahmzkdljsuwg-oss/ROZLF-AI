@@ -161,6 +161,9 @@ def install(app: web.Application, context_provider: ContextProvider, engine: Eng
                         "error": exc.code,
                         "message": exc.message,
                         "engine_api": "unreachable",
+                        "upstream": engine.safe_url,
+                        "error_type": exc.detail,
+                        "elapsed_ms": exc.elapsed_ms,
                     },
                     503,
                 )
@@ -178,6 +181,12 @@ def install(app: web.Application, context_provider: ContextProvider, engine: Eng
 
     async def health(request: web.Request) -> web.Response:
         ctx = context_provider()
+        if request.query.get("probe") == "1" and engine is not None:
+            report = await engine.probe()
+            report["engine_ready"] = bool(report.get("body", {}).get("engine_ready"))
+            report["mode"] = "proxy"
+            report["build"] = os.getenv("RAILWAY_GIT_COMMIT_SHA", "")
+            return _json(report, 200 if report["engine_ready"] else 503)
         if _local_ready(context_provider):
             payload = {
                 "engine_ready": True,
@@ -201,6 +210,9 @@ def install(app: web.Application, context_provider: ContextProvider, engine: Eng
                         "engine_api": "unreachable",
                         "error": exc.code,
                         "message": exc.message,
+                        "upstream": engine.safe_url,
+                        "error_type": exc.detail,
+                        "elapsed_ms": exc.elapsed_ms,
                         "build": os.getenv("RAILWAY_GIT_COMMIT_SHA", ""),
                     },
                     503,
