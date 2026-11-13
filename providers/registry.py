@@ -85,15 +85,20 @@ class DataSourceRegistry:
             if not provider.configured:
                 attempts.append(f"{provider.name}: not configured")
                 continue
+            started = time.monotonic()
             try:
                 candles = await provider.fetch_candles(asset, tf, limit=limit)
             except DataUnavailable as exc:
+                logger.info("%s %s %s failed in %.0f ms: %s", provider.id, asset.key,
+                            tf.code, (time.monotonic() - started) * 1000, exc.message)
                 attempts.append(f"{provider.name}: {exc.message}")
                 continue
             except Exception:  # defensive: a provider bug must not crash the bot
                 logger.exception("provider %s crashed while fetching %s", provider.id, asset.key)
                 attempts.append(f"{provider.name}: unexpected error")
                 continue
+            logger.info("%s %s %s fetched %d bars in %.0f ms", provider.id, asset.key, tf.code,
+                        len(candles), (time.monotonic() - started) * 1000)
 
             report = validate_candles(candles, tf, now=self._clock(), min_bars=min_bars)
             if not report.ok:

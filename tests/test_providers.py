@@ -54,6 +54,43 @@ async def test_source_summary_reports_none_for_unconfigured_market(btc_otc):
     assert registry.source_summary(find_by_symbol("EUR/USD", Market.FOREX)) == "Fake Feed"
 
 
+class CountingProvider(FakeProvider):
+    def __init__(self) -> None:
+        super().__init__(quote_price=1.1000)
+        self.calls = 0
+
+    async def fetch_candles(self, asset, timeframe, limit: int = 300):
+        self.calls += 1
+        return await super().fetch_candles(asset, timeframe, limit=limit)
+
+
+async def test_repeated_fetch_is_served_from_short_cache(eurusd):
+    provider = CountingProvider()
+    registry = DataSourceRegistry([provider], cache_ttl=30.0)
+    first = await registry.fetch(eurusd, "5min")
+    second = await registry.fetch(eurusd, "5min")
+    assert provider.calls == 1
+    assert first.candles[-1].close == second.candles[-1].close
+
+
+async def test_concurrent_fetch_is_coalesced(eurusd):
+    import asyncio
+
+    provider = CountingProvider()
+    registry = DataSourceRegistry([provider], cache_ttl=30.0)
+    results = await asyncio.gather(*(registry.fetch(eurusd, "5min") for _ in range(5)))
+    assert provider.calls == 1
+    assert all(result.source == "Fake Feed" for result in results)
+
+
+async def test_zero_cache_still_refetches(eurusd):
+    provider = CountingProvider()
+    registry = DataSourceRegistry([provider], cache_ttl=0.0)
+    await registry.fetch(eurusd, "5min")
+    await registry.fetch(eurusd, "5min")
+    assert provider.calls == 2
+
+
 async def test_missing_bars_rejected(eurusd):
     registry = DataSourceRegistry([FakeProvider(candles=make_candles(12))])
     with pytest.raises(DataUnavailable):

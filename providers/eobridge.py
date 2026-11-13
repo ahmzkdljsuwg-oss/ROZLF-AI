@@ -43,7 +43,7 @@ class ExpertOptionBridgeProvider(BaseProvider):
         if not self.configured:
             raise DataUnavailable("EO_BRIDGE_NOT_CONFIGURED", "No verified ExpertOption bridge is configured")
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=10.0))
+            self._client = httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=4.0))
         try:
             response = await self._client.get(
                 f"{self.base_url}{path}", params=params, headers=self._headers()
