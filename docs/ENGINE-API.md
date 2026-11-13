@@ -17,7 +17,11 @@ ENGINE_API_URL=https://<bot-service-public-domain>
 - Railway private networking (`*.railway.internal`) only works inside one
   project. These two services are in separate Railway projects, so the bot
   service must expose a public HTTPS domain.
-- Leave the variable empty to keep the current `ENGINE_NOT_READY` behaviour.
+- A value that points at the web service's own host is discarded automatically;
+  that self-reference caused recursive requests and 30s timeouts.
+- For the `web-only` role the bot domain above is used as a last resort when the
+  variable is missing or invalid. Never rely on this in a different deployment:
+  set the real bot domain explicitly.
 
 ## Contract
 
@@ -44,3 +48,16 @@ ENGINE_API_URL=https://<bot-service-public-domain>
    `Cache-Control: no-store`.
 5. If the upstream is unreachable the proxy returns HTTP 503 with
    `ENGINE_UNREACHABLE`; it never fabricates data or reports success.
+
+## Connectivity probe
+
+`GET /api/mini/health?probe=1` runs a bounded check from the web service and
+returns DNS addresses, TCP/TLS connect time, upstream HTTP status and the real
+engine payload. It never contains tokens. Use it before opening the Mini App:
+
+```bash
+curl -sS "https://web-production-b044b.up.railway.app/api/mini/health?probe=1"
+```
+
+A healthy result has `"engine_ready": true`, `"mode": "proxy"` and an
+`"http_status": 200` from `https://rozlf-ai-production.up.railway.app`.
