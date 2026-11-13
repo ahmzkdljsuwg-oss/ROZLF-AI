@@ -525,6 +525,17 @@ def test_stylesheet_covers_every_class_the_app_renders():
         assert selector in css
 
 
+def test_settings_and_status_have_real_navigation():
+    from pathlib import Path
+
+    app = (Path(__file__).resolve().parents[1] / "mini_app/static/app.js").read_text()
+    assert '.topbar [data-route]' in app, "topbar settings button is not bound"
+    assert 'state.route !== "settings"' in app, "settings renderer guards the wrong route"
+    assert 'state.route !== "status"' in app, "status page is missing"
+    assert 'next === "status"' in app, "status page is not routed"
+    assert 'route === "status" ? "settings" : route' not in app, "status is redirected away"
+
+
 def test_confidence_calibration_keeps_quality_setups_above_default_threshold():
     from engines.technical.evidence import _clamp
 

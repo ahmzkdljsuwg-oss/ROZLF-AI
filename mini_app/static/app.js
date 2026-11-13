@@ -200,14 +200,14 @@
     const opportunities = recs && recs.items && recs.items.length
       ? recs.items.slice(0, 4).map((item) => (
           '<div class="feed-row"><div class="feed-main"><strong>' + api.esc(item.icon + " " + item.asset) + "</strong><small>" +
-          api.esc(item.market_label + " · " + item.duration_label) + '</small></div><span class="feed-tag ' +
+          api.esc((item.market_label || item.market || "—") + " · " + (item.duration_label || "—")) + '</small></div><span class="feed-tag ' +
           (item.direction === "UP" ? "live" : "down") + '">' + api.esc(item.direction) + " · " + Math.round(item.confidence) + "%</span></div>"
         )).join("")
       : empty(api.esc(t("home.no_recs")), api.esc(t("home.no_recs_sub")));
     const latest = history && history.signals && history.signals.length
       ? history.signals.slice(0, 4).map((signal) => (
           '<div class="feed-row"><div class="feed-main"><strong>' + api.esc(signal.asset) + "</strong><small>" +
-          api.esc(signal.market_label + " · " + signal.duration_label + " · " + signal.status) + '</small></div><span class="feed-tag gold">' +
+          api.esc((signal.market_label || signal.market || "—") + " · " + (signal.duration_label || "—") + " · " + signal.status) + '</small></div><span class="feed-tag gold">' +
           Math.round(signal.confidence) + "%</span></div>"
         )).join("")
       : empty(api.esc(t("home.no_signals")), api.esc(t("home.no_signals_sub")));
@@ -408,7 +408,7 @@
         ? items.map((item) => (
             '<button class="opp-card" data-market="' + api.esc(item.market) + '">' +
             '<span class="opp-left"><span class="market-icon">' + api.esc(item.icon) + "</span><span><strong>" + api.esc(item.asset) + "</strong><small>" +
-            api.esc(item.market_label + " · " + item.duration_label) + "</small></span></span>" +
+            api.esc((item.market_label || item.market || "—") + " · " + (item.duration_label || "—")) + "</small></span></span>" +
             '<span class="opp-right"><span class="feed-tag ' + (item.direction === "UP" ? "live" : "down") + '">' +
             api.esc(item.direction) + '</span><strong class="gold-text">' + Math.round(item.confidence) + "%</strong></span></button>"
           )).join("")
@@ -438,7 +438,7 @@
       const rows = data.signals && data.signals.length
         ? data.signals.map((signal) => (
             '<div class="feed-row"><div class="feed-main"><strong>' + api.esc(signal.asset) + "</strong><small>" +
-            api.esc(signal.market_label + " · " + signal.duration_label + " · " + api.fmtTime(signal.created_at)) + '</small></div>' +
+            api.esc((signal.market_label || signal.market || "—") + " · " + (signal.duration_label || "—") + " · " + api.fmtTime(signal.created_at)) + '</small></div>' +
             '<span class="feed-tag ' + (signal.status === "WIN" ? "live" : signal.status === "LOSS" ? "down" : "gold") + '">' +
             api.esc(signal.status) + "</span></div>"
           )).join("")
@@ -524,24 +524,43 @@
   }
 
   async function drawSettings(force) {
-    setActiveTab("status");
     if (!cache.settings || force) view.innerHTML = skeleton();
     try {
       const [settingsResult, statusResult] = await Promise.allSettled([
         cached("settings", () => api.once("/api/mini/settings"), force ? 0 : 45000),
         api.once("/api/mini/status"),
       ]);
-      if (state.route !== "status") return;
+      if (state.route !== "settings") return;
       const settingsPayload = settingsResult.status === "fulfilled" ? settingsResult.value : { settings: { min_confidence: 60 }, allowed: [50, 60, 70, 80, 90] };
       const status = statusResult.status === "fulfilled" ? statusResult.value : null;
       paintSettings(settingsPayload.settings, settingsPayload.allowed, status);
+    } catch (error) {
+      if (state.route === "settings") errorView(error);
+    }
+  }
+
+  async function drawStatus() {
+    view.innerHTML = skeleton();
+    try {
+      const status = await api.once("/api/mini/status");
+      if (state.route !== "status") return;
+      const sources = (status.sources || []).map((source) => (
+        '<div class="source-row"><span><strong>' + api.esc(source.name || source.id || "source") + "</strong><small>" +
+        api.esc(source.id || "") + '</small></span><span class="feed-tag ' + (source.configured ? "live" : "gold") + '">' +
+        api.esc(source.configured ? t("status.ready") : t("status.missing")) + "</span></div>"
+      )).join("");
+      view.innerHTML =
+        '<section class="page-head"><div class="eyebrow">' + api.esc(t("status.eyebrow")) + '</div><h1>' + api.esc(t("status.title")) + "</h1></section>" +
+        '<section class="glass settings-block"><div class="source-list">' + (sources || empty(api.esc(t("status.no_sources")), api.esc(t("status.no_sources_sub")))) + "</div></section>" +
+        '<button class="btn ghost block wide-action" data-route="settings">‹ ' + api.esc(t("settings.title")) + "</button>";
+      bind(view);
     } catch (error) {
       if (state.route === "status") errorView(error);
     }
   }
 
   function navigate(route, force, marketKey) {
-    const next = route === "status" ? "settings" : route;
+    const next = route;
     state.route = next;
     if (next === "market") state.marketKey = marketKey || state.marketKey;
     closeSheet();
@@ -553,10 +572,11 @@
     else if (next === "opportunities") drawOpportunities(force);
     else if (next === "history") drawHistory(force);
     else if (next === "settings") drawSettings(force);
+    else if (next === "status") drawStatus();
     else if (next === "market") drawMarket(state.marketKey);
   }
 
-  document.querySelectorAll("#tabbar button, [data-nav]").forEach((button) => {
+  document.querySelectorAll("#tabbar button, [data-nav], .topbar [data-route]").forEach((button) => {
     button.addEventListener("click", () => navigate(button.dataset.route));
   });
   const langButton = document.getElementById("lang-btn");
