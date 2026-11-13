@@ -109,7 +109,7 @@ class EngineClient:
                     content_type=response.headers.get("Content-Type", "application/json"),
                     headers={
                         key: response.headers[key]
-                        for key in ("Cache-Control", "Retry-After")
+                        for key in ("Cache-Control", "Retry-After", "X-Rozlf-Auth-Error")
                         if key in response.headers
                     },
                 )

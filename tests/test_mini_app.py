@@ -24,12 +24,14 @@ from providers.catalog import Market, find_by_symbol, timeframe
 TOKEN = "123456:TESTTOKEN"
 
 
-def make_init_data(user_id: int = 7, auth_date: int | None = None) -> str:
+def make_init_data(user_id: int = 7, auth_date: int | None = None, signature: str | None = None) -> str:
     values = {
         "auth_date": str(int(time.time()) if auth_date is None else auth_date),
         "query_id": "AAF",
         "user": json.dumps({"id": user_id, "first_name": "Test"}, separators=(",", ":")),
     }
+    if signature:
+        values["signature"] = signature
     check = "\n".join(f"{key}={values[key]}" for key in sorted(values))
     secret = hmac.new(b"WebAppData", TOKEN.encode(), hashlib.sha256).digest()
     values["hash"] = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
@@ -161,10 +163,27 @@ def test_tampered_init_data_is_rejected():
         validate_init_data(wrong, TOKEN)
 
 
+def test_init_data_with_telegram_signature_field_is_accepted():
+    user = validate_init_data(make_init_data(7, signature="ed25519-base64url-value"), TOKEN)
+    assert user.id == 7
+
+
 def test_expired_init_data_is_rejected():
     with pytest.raises(AuthError) as exc:
         validate_init_data(make_init_data(7, auth_date=int(time.time()) - 86400 * 2), TOKEN)
     assert exc.value.code == "EXPIRED_INIT_DATA"
+
+
+def test_frontend_sends_dynamic_init_data_on_every_protected_route():
+    source = (__import__("pathlib").Path(__file__).resolve().parents[1] / "mini_app/static/api.js").read_text()
+    assert "initDataUnsafe" not in source
+    assert "get initData()" in source
+    assert 'if (window.console) console.warn("[ROZLF] Telegram initData is unavailable")' in source
+    for header in ('"X-Telegram-Init-Data": rawInitData', 'Authorization: "tma " + rawInitData'):
+        assert header in source
+    assert "return await once(path, options, rawInitData);" in source
+    for route in ("bootstrap", "markets", "history", "recommendations", "analyse", "settings"):
+        assert route in source
 
 
 def test_main_menu_has_mini_app_webapp_and_keeps_bot_entries():
@@ -188,8 +207,16 @@ async def test_api_requires_valid_init_data(client):
     http, _ = client
     response = await http.get("/api/mini/bootstrap")
     assert response.status == 401
+    assert (await response.json())["error"] == "MISSING_INIT_DATA"
+    assert response.headers["X-Rozlf-Auth-Error"] == "MISSING_INIT_DATA"
     response = await http.get("/api/mini/bootstrap", headers={"X-Telegram-Init-Data": "bad"})
     assert response.status == 401
+    response = await http.get(
+        "/api/mini/bootstrap",
+        headers={"X-Telegram-Init-Data": make_init_data(7, auth_date=int(time.time()) - 86400 * 2)},
+    )
+    assert response.status == 401
+    assert (await response.json())["error"] == "EXPIRED_INIT_DATA"
     response = await http.get(
         "/api/mini/bootstrap", headers={"X-Telegram-Init-Data": make_init_data(7)}
     )

@@ -45,10 +45,12 @@ def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int = 86
     received = values.get("hash", "")
     if not received:
         raise AuthError("MISSING_HASH", "Telegram initData has no hash")
+    # Bot-token HMAC covers every field except ``hash``, including the newer
+    # ``signature`` field that Telegram adds for third-party Ed25519 validation.
     check_string = "\n".join(
         f"{key}={value}"
         for key, value in sorted(values.items())
-        if key not in ("hash", "signature")
+        if key != "hash"
     )
     expected = hmac.new(_secret(bot_token), check_string.encode("utf-8"), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, received):

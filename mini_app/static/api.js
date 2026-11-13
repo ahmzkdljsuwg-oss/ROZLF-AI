@@ -1,7 +1,26 @@
 /* API client: every request is authenticated with real Telegram initData. */
 (function () {
   const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
-  const initData = tg ? tg.initData || "" : "";
+  let initData = "";
+
+  function readInitData() {
+    try {
+      initData = (tg && tg.initData) || "";
+    } catch (err) {
+      initData = "";
+    }
+    return initData;
+  }
+
+  async function waitForInitData(timeoutMs) {
+    const deadline = Date.now() + (timeoutMs || 2500);
+    readInitData();
+    while (!initData && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      readInitData();
+    }
+    return initData;
+  }
   const meta = document.querySelector('meta[name="rozlf-api-base"]');
   const base = ((window.ROZLF_API_BASE || (meta && meta.content) || "") + "").replace(/\/+$/, "");
   const TIMEOUT_MS = 25000;
@@ -20,6 +39,10 @@
   }
 
   function friendlyStatus(status, body) {
+    const code = body && body.error;
+    if (code === "BAD_SIGNATURE") return "جلسة Telegram غير صالحة. أغلق التطبيق وافتحه من جديد.";
+    if (code === "EXPIRED_INIT_DATA") return "انتهت صلاحية جلسة Telegram. أغلق التطبيق وافتحه من جديد.";
+    if (code === "NO_USER") return "تعذر قراءة حساب Telegram. أغلق التطبيق وافتحه من جديد.";
     if (body && body.message) return body.message;
     if (status === 401) return "انتهت جلسة Telegram. أغلق التطبيق وافتحه من جديد.";
     if (status === 403) return "هذه الجلسة غير مصرّح لها باستخدام المحرك.";
@@ -30,11 +53,15 @@
     return "تعذر إكمال الطلب.";
   }
 
-  async function once(path, options) {
+  async function once(path, options, rawInitData) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     const headers = Object.assign(
-      { "X-Telegram-Init-Data": initData, Accept: "application/json" },
+      {
+        "X-Telegram-Init-Data": rawInitData,
+        Authorization: "tma " + rawInitData,
+        Accept: "application/json",
+      },
       options && options.body ? { "Content-Type": "application/json" } : {}
     );
     let response;
@@ -63,7 +90,9 @@
   }
 
   async function request(path, options) {
-    if (!initData) {
+    const rawInitData = initData || (await waitForInitData());
+    if (!rawInitData) {
+      if (window.console) console.warn("[ROZLF] Telegram initData is unavailable");
       throw new ApiError("افتح التطبيق من داخل Telegram حتى يتم التحقق من هويتك.", "NO_TELEGRAM_INIT_DATA", 401);
     }
     const method = (options && options.method) || "GET";
@@ -71,7 +100,7 @@
     let lastError = null;
     for (let i = 0; i < attempts; i += 1) {
       try {
-        return await once(path, options);
+        return await once(path, options, rawInitData);
       } catch (error) {
         lastError = error;
         if (i === attempts - 1 || !isRetryable(error)) break;
@@ -107,7 +136,7 @@
 
   window.RozlfApi = {
     tg,
-    initData,
+    get initData() { return readInitData(); },
     base,
     get bootstrap() { return request("/api/mini/bootstrap"); },
     get health() { return request("/api/mini/health"); },

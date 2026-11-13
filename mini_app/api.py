@@ -5,6 +5,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from urllib.parse import parse_qsl
 from typing import Callable
 
 from aiohttp import web
@@ -103,12 +104,22 @@ def _engine_client(engine: EngineClient | None) -> EngineClient | None:
 
 
 def _user(request: web.Request, ctx):
+    raw = init_data_from_request(request)
     try:
         return authenticate(request, ctx.settings.telegram_bot_token)
     except AuthError as exc:
+        logger.warning(
+            "mini_app auth rejected path=%s code=%s header=%s length=%d fields=%s",
+            request.path,
+            exc.code,
+            bool(request.headers.get("X-Telegram-Init-Data")),
+            len(raw),
+            ",".join(sorted(key for key, _ in parse_qsl(raw, keep_blank_values=True)))[:120],
+        )
         raise web.HTTPUnauthorized(
             text=json.dumps({"error": exc.code, "message": exc.message}, ensure_ascii=False),
             content_type="application/json",
+            headers={"X-Rozlf-Auth-Error": exc.code},
         ) from exc
 
 
@@ -136,6 +147,7 @@ def install(app: web.Application, context_provider: ContextProvider, engine: Eng
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
             response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Telegram-Init-Data"
             response.headers["Access-Control-Max-Age"] = "86400"
+            response.headers["Access-Control-Expose-Headers"] = "X-Rozlf-Auth-Error"
         return response
 
     @web.middleware
