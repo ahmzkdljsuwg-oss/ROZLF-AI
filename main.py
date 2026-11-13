@@ -5,6 +5,7 @@ import asyncio
 import logging
 import os
 import sys
+from datetime import datetime, timezone
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -52,6 +53,8 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
             "service": "ROZLF AI",
             "role": settings.role,
             "polling": state.get("polling", False),
+            "polling_conflicts": state.get("conflicts", 0),
+            "last_polling_conflict": state.get("last_conflict"),
             "stage": state.get("stage"),
             "telegram_configured": bool(settings.telegram_bot_token),
             "database_driver": normalise_database_url(settings.database_url).split(":", 1)[0],
@@ -279,19 +282,37 @@ async def _run_bot(state: dict) -> None:
     dp.shutdown.register(on_shutdown)
 
     verify_task = asyncio.create_task(verification_loop(), name="rozlf-verifier")
-    state["polling"] = True
-    try:
-        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types(), handle_signals=True)
-    except TelegramConflictError:
-        logger.error("another bot instance is polling with the same token; stop it and restart")
-    finally:
-        state["polling"] = False
-        verify_task.cancel()
+    attempt = 0
+    while True:
+        state["polling"] = True
+        state["stage"] = "polling"
         try:
-            await verify_task
-        except (asyncio.CancelledError, Exception):
-            pass
-        await bot.session.close()
+            await dp.start_polling(
+                bot,
+                allowed_updates=dp.resolve_used_update_types(),
+                handle_signals=attempt == 0,
+            )
+            break
+        except TelegramConflictError:
+            attempt += 1
+            state["polling"] = False
+            state["stage"] = "telegram-conflict"
+            state["conflicts"] = state.get("conflicts", 0) + 1
+            state["last_conflict"] = datetime.now(timezone.utc).isoformat()
+            logger.error(
+                "another bot instance is polling with the same token; retrying in 20s (conflict #%s)",
+                state["conflicts"],
+            )
+            await asyncio.sleep(20)
+        except asyncio.CancelledError:
+            break
+    state["polling"] = False
+    verify_task.cancel()
+    try:
+        await verify_task
+    except (asyncio.CancelledError, Exception):
+        pass
+    await bot.session.close()
 
 
 async def main() -> None:
