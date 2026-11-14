@@ -21,12 +21,12 @@ ROZLF AI بوت Telegram مستقل للتحليل الفني وإشارات ا�
 | تحقق WIN/LOSS/DRAW/UNVERIFIED بعد انتهاء المدة + إحصائيات دقة | ✅ يعمل |
 | Auto Scanner (تشغيل/إيقاف، اختيار الأسواق، منع التكرار) | ✅ يعمل |
 | محرك استراتيجيات (SMC/ICT/Price Action/Trend/Momentum) | ✅ يعمل مع درجات توافق أدلة وشروط إبطال |
-| تحليل صور الشارت | ❌ أُزيل بالكامل (زر + handlers + اعتماديات) |
+| تحليل صور الشارت | ✅ يعمل عبر Mistral Vision (`MISTRAL_VISION_MODEL`)، يرفض ما ليس شارتاً |
 | Mistral لتحليل الإشارات | ✅ يعمل؛ يحتاج مفتاحاً حقيقياً |
 | SMARTY و FOOTBALL/LUXURY/AI/CRICKET | ✅ محرك مستقل لكل سوق؛ تتطلب جسر ExpertOption موثّقاً (`EO_BRIDGE_URL`/`EO_BRIDGE_KEY`)، وبدونه تظهر `DATA UNAVAILABLE` |
-| OTC | ❌ خارج المشروع بالكامل (لا أزرار، لا ماسح، لا إشارات) |
+| OTC | ✅ زر وماسح وتحليل عبر `EO_BRIDGE_URL` فقط؛ بدونه `DATA UNAVAILABLE` |
 | قائمة رئيسية: كل سوق بزر مستقل + SMART/MANUAL DURATION | ✅ يعمل |
-| 🚀 Open Mini App داخل Telegram (6 أسواق، نفس المحرك) | ✅ زر WebApp + زر القائمة الدائم عبر setChatMenuButton |
+| لوحة V2 داخل Telegram: 4 أسواق + ماسح + تحليل صور + إشارات + سجل + إحصائيات | ✅ يعمل داخل Telegram فقط |
 | تنفيذ صفقات تلقائي | ❌ غير موجود بالتصميم |
 
 ## 2. تطبيق iPhone الأصلي (ROZLF AI)
@@ -136,7 +136,7 @@ PYTHONPATH=. python scripts/live_smoke.py
 
 ## 8. ملاحظات الصدق والبيانات
 
-- لا تُستخدم أسعار Forex بدلاً من SMARTY أو أي سوق مؤشرات مطلقاً. OTC غير مدعوم في هذه المرحلة.
+- لا تُستخدم أسعار Forex بدلاً من SMARTY أو OTC أو أي سوق مؤشرات مطلقاً. OTC يعمل فقط عبر جسر ExpertOption حقيقي؛ بدونه تظهر `DATA UNAVAILABLE`.
 - كل إشارة تعرض مصدر بياناتها، وكل تحقق يعرض مصدر سعر الإغلاق.
 - الأسعار القديمة أو الشموع غير الصالحة تُرفض قبل التحليل.
 - بدون مصدر متوافق تظهر رسالة `DATA UNAVAILABLE` ولا تُصدر إشارة.
