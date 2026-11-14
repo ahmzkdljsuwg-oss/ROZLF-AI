@@ -29,7 +29,28 @@ ROZLF AI بوت Telegram مستقل للتحليل الفني وإشارات ا�
 | 🚀 Open Mini App داخل Telegram (6 أسواق، نفس المحرك) | ✅ زر WebApp + زر القائمة الدائم عبر setChatMenuButton |
 | تنفيذ صفقات تلقائي | ❌ غير موجود بالتصميم |
 
-## 2. هيكل المشروع
+## 2. تطبيق iPhone الأصلي (ROZLF AI)
+
+تطبيق SwiftUI مستقل داخل `ios/` يتصل بـ `/api/app/*` فقط (بدون أي مفاتيح داخل التطبيق).
+
+- الأسواق الستة منفصلة: SMARTY / FOOTBALL / LUXURY / AI INDEX / CRICKET / FOREX.
+- شاشة «التوصيات» مرتبة حسب جودة الأدلة مع أسباب، مدة، وقت دخول، وإبطال.
+- تحليل شمعة بشمعة + Alligator + MA 200 + SMC، ومدة يدوية أو «تحليل الوقت حسب الشمعة».
+- سجل وإحصاءات من الصفقات المكتملة فقط، عربي/إنجليزي، وتصميم داكن.
+- لا يعرض حالة Online وهمية؛ عند انقطاع المصدر تظهر `DATA UNAVAILABLE`.
+
+البناء عبر GitHub Actions (macOS) ينتج IPA غير موقّع:
+
+```bash
+cd ios && xcodegen generate
+xcodebuild -project ROZLFAI.xcodeproj -scheme ROZLFAI -sdk iphoneos \
+  -configuration Release -derivedDataPath build \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+التفاصيل الكاملة وحالة التوقيع: `docs/ROZLF-IOS-DELIVERY.md`.
+
+## 3. هيكل المشروع
 
 ```
 bot/          واجهة Telegram (handlers, keyboards, middleware)
