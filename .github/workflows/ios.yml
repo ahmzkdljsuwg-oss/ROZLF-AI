@@ -20,10 +20,12 @@ jobs:
       - name: Run UI tests
         working-directory: ios
         run: |
+          DEVICE_ID=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')
+          test -n "$DEVICE_ID"
           xcodebuild test \
             -project ROZLFAI.xcodeproj \
             -scheme ROZLFAI \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
             CODE_SIGNING_ALLOWED=NO
 
   build-ipa:
