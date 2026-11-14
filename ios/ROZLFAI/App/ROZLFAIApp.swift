@@ -30,6 +30,11 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: app.isConfigured)
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("--uitest-reset") {
+                app.saveServer("")
+            }
+        }
         .task {
             if app.isConfigured && app.connection == .notConfigured {
                 _ = await app.connect()

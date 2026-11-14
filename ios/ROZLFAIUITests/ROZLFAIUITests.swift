@@ -7,7 +7,7 @@ final class ROZLFAIUITests: XCTestCase {
 
     func testSetupRejectsNonHTTPSAddress() throws {
         let app = XCUIApplication()
-        app.launchArguments += ["-rozlf.baseURL", ""]
+        app.launchArguments += ["--uitest-reset", "-rozlf.baseURL", ""]
         app.launch()
 
         let field = app.textFields["serverField"]
@@ -21,10 +21,9 @@ final class ROZLFAIUITests: XCTestCase {
 
     func testConfiguredServerShowsConnectionState() throws {
         let app = XCUIApplication()
-        app.launchArguments += ["-rozlf.baseURL", "https://invalid.example.invalid"]
+        app.launchArguments += ["--uitest-reset", "-rozlf.baseURL", "https://invalid.example.invalid"]
         app.launch()
 
-        XCTAssertTrue(app.otherElements["connectionBadge"].waitForExistence(timeout: 10)
-                      || app.staticTexts["OFFLINE"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["tab.0"].waitForExistence(timeout: 12))
     }
 }

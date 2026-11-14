@@ -8,7 +8,7 @@ enum ConnectionState {
 @MainActor
 final class AppState: ObservableObject {
     @Published var baseURLString: String = UserDefaults.standard.string(forKey: "rozlf.baseURL") ?? ""
-    @Published var language: Language = Language(rawValue: UserDefaults.standard.string(forKey: "rozlf.language") ?? "ar") ?? .arabic
+    @Published var language: Language = Language(rawValue: UserDefaults.standard.string(forKey: "rozlf.language") ?? "en") ?? .english
     @Published var connection: ConnectionState = .notConfigured
     @Published var connectionDetail: String = ""
     @Published var markets: [MarketOverview] = []

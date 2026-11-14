@@ -2,8 +2,8 @@ import Foundation
 import SwiftUI
 
 enum Language: String, CaseIterable, Identifiable {
-    case arabic = "ar"
     case english = "en"
+    case arabic = "ar"
     var id: String { rawValue }
     var title: String { self == .arabic ? "العربية" : "English" }
     var layout: LayoutDirection { self == .arabic ? .rightToLeft : .leftToRight }
