@@ -10,7 +10,7 @@ from typing import Callable
 
 from aiohttp import web
 
-from mini_app import service
+from mini_app import app_api, service
 from mini_app.auth import AuthError, authenticate, init_data_from_request
 from mini_app.engine_client import EngineClient, EngineUnavailable
 from providers.base import DataUnavailable
@@ -360,6 +360,7 @@ def install(app: web.Application, context_provider: ContextProvider, engine: Eng
     async def app_redirect(request: web.Request) -> web.Response:
         raise web.HTTPFound("/mini-app/")
 
+    app_api.install(app, context_provider, _json)
     app.router.add_get("/api/mini/health", health)
     app.router.add_get("/api/mini/bootstrap", bootstrap)
     app.router.add_get("/api/mini/markets", markets)

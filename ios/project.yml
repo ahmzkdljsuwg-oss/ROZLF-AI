@@ -1,0 +1,51 @@
+name: ROZLFAI
+options:
+  bundleIdPrefix: ai.rozlf
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  ROZLFAI:
+    type: application
+    platform: iOS
+    sources:
+      - path: ROZLFAI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.rozlf.app
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_NAME: ROZLF AI
+        INFOPLIST_KEY_CFBundleDisplayName: ROZLF AI
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        TARGETED_DEVICE_FAMILY: "1"
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+  ROZLFAIUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: ROZLFAIUITests
+    dependencies:
+      - target: ROZLFAI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.rozlf.app.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: ROZLFAI
+schemes:
+  ROZLFAI:
+    build:
+      targets:
+        ROZLFAI: all
+        ROZLFAIUITests: [test]
+    test:
+      targets:
+        - ROZLFAIUITests

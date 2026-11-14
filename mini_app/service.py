@@ -10,6 +10,7 @@ from bot import formatting as fmt
 from engines.signals.duration import auto_frames, choose_auto_duration
 from engines.signals.generator import supported_durations
 from engines.technical.analyzer import AnalysisResult, analyze_market_data
+from mini_app.app_payload import details as payload_details
 from providers.base import DataUnavailable, utc_now
 from providers.catalog import Asset, Market, assets_for, get_asset, timeframe
 
@@ -329,51 +330,61 @@ async def recommendations(ctx, user_id: int) -> dict[str, Any]:
     settings = await ctx.repo.get_user_settings(user_id, defaults={"min_confidence": ctx.settings.min_confidence})
     threshold = float(settings["min_confidence"])
 
+    async def scan_asset(asset: Asset, market: Market) -> tuple[tuple[float, float, float], dict[str, Any]] | None:
+        best: tuple[tuple[float, float, float], dict[str, Any]] | None = None
+        for frame_code in auto_frames(asset)[:2]:
+            try:
+                _, result = await ctx.generator.fetch_and_analyse(asset, frame_code)
+            except DataUnavailable:
+                continue
+            if result.direction not in ("UP", "DOWN") or result.confidence < threshold:
+                continue
+            duration, reason = choose_auto_duration(result, asset)
+            if duration is None or duration not in durations_for(asset):
+                continue
+            try:
+                data, confirmation = await ctx.generator.fetch_and_analyse(
+                    asset, frame_code, duration
+                )
+            except DataUnavailable:
+                continue
+            if confirmation.direction != result.direction or confirmation.confidence < threshold:
+                continue
+            result = confirmation
+            item = {
+                "market": market.value.upper(),
+                "market_label": MINI_LABELS.get(market, market.label),
+                "icon": MARKET_ICONS[market],
+                "asset": asset.display,
+                "asset_key": asset.key,
+                "direction": result.direction,
+                "signal_ar": "شراء" if result.direction == "UP" else "بيع",
+                "confidence": round(result.confidence, 1),
+                "duration": duration,
+                "duration_label": fmt.duration_label(duration),
+                "price": result.price,
+                "price_display": fmt.format_price(result.price, market.value),
+                "source": result.source,
+                "reason": reason,
+                "timeframe": result.timeframe,
+                "generated_at": iso(result.generated_at),
+                "status": "READY",
+                "data_status": "LIVE",
+                "details": payload_details(data, confirmation, duration, threshold),
+                "rank": (float(result.evidence_score or 0.0), float(result.data_quality_score or 0.0), result.confidence),
+            }
+            if best is None or item["rank"] > best[0]:
+                best = (item["rank"], item)
+        return best
+
     async def scan(market: Market) -> dict[str, Any] | None:
         try:
             assets = await market_assets(ctx, market)
             if not assets:
                 return None
-            asset = assets[0]
-            best: tuple[tuple[float, float, float], dict[str, Any]] | None = None
-            for frame_code in auto_frames(asset)[:2]:
-                try:
-                    _, result = await ctx.generator.fetch_and_analyse(asset, frame_code)
-                except DataUnavailable:
-                    continue
-                if result.direction not in ("UP", "DOWN") or result.confidence < threshold:
-                    continue
-                duration, reason = choose_auto_duration(result, asset)
-                if duration is None or duration not in durations_for(asset):
-                    continue
-                try:
-                    _, confirmation = await ctx.generator.fetch_and_analyse(
-                        asset, frame_code, duration
-                    )
-                except DataUnavailable:
-                    continue
-                if confirmation.direction != result.direction or confirmation.confidence < threshold:
-                    continue
-                result = confirmation
-                item = {
-                    "market": market.value.upper(),
-                    "market_label": MINI_LABELS.get(market, market.label),
-                    "icon": MARKET_ICONS[market],
-                    "asset": asset.display,
-                    "direction": result.direction,
-                    "signal_ar": "شراء" if result.direction == "UP" else "بيع",
-                    "confidence": round(result.confidence, 1),
-                    "duration": duration,
-                    "duration_label": fmt.duration_label(duration),
-                    "price": result.price,
-                    "price_display": fmt.format_price(result.price, market.value),
-                    "source": result.source,
-                    "reason": reason,
-                    "rank": (float(result.evidence_score or 0.0), float(result.data_quality_score or 0.0), result.confidence),
-                }
-                if best is None or item["rank"] > best[0]:
-                    best = (item["rank"], item)
-            return best[1] if best else None
+            candidates = await asyncio.gather(*(scan_asset(asset, market) for asset in assets[:3]))
+            usable = [item for item in candidates if item is not None]
+            return max(usable, key=lambda item: item[0])[1] if usable else None
         except Exception:  # noqa: BLE001 - one market must not break the list
             return None
 
