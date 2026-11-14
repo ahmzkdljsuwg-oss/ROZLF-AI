@@ -71,3 +71,10 @@ DATA UNAVAILABLE: no verified source
 - **Mistral API حقيقي** لم يُستدعَ بدون `MISTRAL_API_KEY`؛ تم اختبار منطق العميل والأخطاء فقط.
 - **OTC / SMARTY** غير قابلين للاختبار لعدم وجود جسر موثّق.
 - **PostgreSQL على Railway** لم يُختبر محلياً؛ الكود يستخدم `asyncpg` ويحوّل الرابط تلقائياً.
+
+## V2 Telegram Control Panel + Chart Vision (2026-11-09)
+
+- Suite: `.venv/bin/python -m pytest -q tests` → **385 passed, 3 skipped** (exit 0).
+- Covered the new V2 menu routes (`mkt:OTC`, `mkt:GOLD`, `scan:menu`, `image:info`, `live`, `hist`, `stats`, `settings`), the live status lines in `welcome_text`, OTC/GOLD scanner+health registration, MT5 staying reachable from the FOREX page, and the absence of any web-app button in the Telegram panel.
+- `tests/test_vision.py` (9 tests, mock HTTP only): image validation/rejection, downscaling, honest missing-key state, payload contains the chart image, API key redaction from errors, and no endless retry on 4xx.
+- Not tested here: a real Mistral vision call (no `MISTRAL_API_KEY`), a real OTC candle fetch (requires `EO_BRIDGE_URL`), and live Telegram delivery (requires a real bot token).
