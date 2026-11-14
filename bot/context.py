@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from aiogram import Bot
 
 from ai.mistral import MistralClient
+from ai.vision import MistralVision
 from config import Settings
 from database.repository import Repository
 from engines.signals.generator import SignalGenerator
@@ -25,6 +26,7 @@ class AppContext:
     repo: Repository
     generator: SignalGenerator
     mistral: MistralClient
+    vision: MistralVision | None = None
     inventory: MarketInventory | None = None
     health: MarketHealthService | None = None
     tracker: SignalTracker | None = None
@@ -43,7 +45,10 @@ class AppContext:
         return sources
 
     def ai_health(self) -> dict:
-        return self.mistral.health()
+        health = self.mistral.health()
+        if self.vision is not None:
+            health["vision"] = self.vision.health()
+        return health
 
     async def market_health(self, force: bool = False) -> dict:
         if self.health is None:

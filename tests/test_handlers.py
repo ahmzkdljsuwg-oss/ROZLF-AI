@@ -74,7 +74,11 @@ async def test_market_callback_lists_assets(monkeypatch):
     assert callback.answered
 
 
-REQUIRED_MENU = ["📉 ANALYSIS", "📊 MT5 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS", "🚀 Open Mini App"]
+REQUIRED_MENU = [
+    "🧠 SMARTY MARKET", "💱 OTC MARKET", "💵 FOREX MARKET", "🥇 GOLD ANALYSIS",
+    "🤖 AUTO SCANNER", "🖼️ AI IMAGE ANALYSIS", "📡 LIVE SIGNALS", "🕘 SIGNAL HISTORY",
+    "📊 PERFORMANCE STATISTICS", "⚙️ SETTINGS", "🔄 REFRESH", "🖥️ SYSTEM STATUS",
+]
 
 
 async def test_start_renders_exact_new_menu(monkeypatch, settings):
@@ -85,8 +89,8 @@ async def test_start_renders_exact_new_menu(monkeypatch, settings):
     await handlers.cmd_start(message)
     text, keyboard = message.answers[0]
     assert [button.text for row in keyboard.inline_keyboard for button in row] == REQUIRED_MENU
-    assert "مرحباً بعودتك" in text
-    assert "OTC" not in text and "GOLD" not in text
+    assert "ADVANCED TRADING INTELLIGENCE" in text
+    assert "DATA SOURCES:" in text
 
 
 @pytest.mark.parametrize(
@@ -162,17 +166,11 @@ async def test_markets_hub_callback():
     text, keyboard = callback.message.edits[0]
     assert "ANALYSIS" in text
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert data == [
-        "mkt:SMARTY",
-        "mkt:FOOTBALL",
-        "mkt:LUXURY",
-        "mkt:AI",
-        "mkt:CRICKET",
-        "mkt:FOREX",
-        "menu:main",
-        "menu:main",
+    assert data[:8] == [
+        "mkt:SMARTY", "mkt:OTC", "mkt:FOREX", "mkt:GOLD",
+        "mkt:FOOTBALL", "mkt:LUXURY", "mkt:AI", "mkt:CRICKET",
     ]
-    assert not any("OTC" in item for item in data)
+    assert data[-2:] == ["menu:main", "menu:main"]
 
 
 async def test_football_market_opens_asset_278_durations(monkeypatch):

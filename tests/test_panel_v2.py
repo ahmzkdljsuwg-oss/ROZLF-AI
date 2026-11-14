@@ -50,13 +50,12 @@ def test_confidence_is_not_fixed():
     )
 
 
-def test_welcome_has_three_sections_and_no_removed_sections():
+def test_welcome_has_three_sections_and_status_lines():
     text = fmt.welcome_text(SimpleNamespace(min_confidence=65.0, mistral_api_key="x"), ai_online=True)
-    assert "مرحباً بعودتك" in text
-    assert "The bot by lo and Q8" in text
-    assert "API: 🟢 متصل" in text
-    assert "OTC" not in text
-    assert "GOLD" not in text
+    assert "ROZLF AI" in text
+    assert "AI ENGINE: 🟢 ONLINE" in text
+    assert "DATA SOURCES:" in text
+    assert "LAST PRICE UPDATE:" in text
 
 
 def test_market_page_separates_candle_frame_from_expiry():

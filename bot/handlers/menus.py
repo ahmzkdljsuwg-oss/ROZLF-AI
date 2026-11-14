@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import html
 import logging
 import time
@@ -13,6 +14,7 @@ from aiogram.types import CallbackQuery, Message
 
 from bot import formatting as fmt
 from bot.context import get_context
+from ai.vision import ImageRejected, VisionUnavailable, prepare_image
 from bot.keyboards import menus
 from engines.signals.duration import auto_frames, choose_auto_duration
 from engines.markets import profile_for
@@ -76,11 +78,23 @@ async def _edit(callback: CallbackQuery, text: str, keyboard=None) -> None:
             await callback.message.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
 
 
+async def _welcome_panel(ctx) -> str:
+    online = await _ai_online(ctx)
+    health: dict = {}
+    if getattr(ctx, "health", None) is not None:
+        health = ctx.health.cached()
+        if not health:
+            try:
+                health = await asyncio.wait_for(ctx.market_health(), timeout=5)
+            except Exception:  # noqa: BLE001 - the panel must render even when probes hang
+                health = {}
+    return fmt.welcome_text(ctx.settings, ai_online=online, health=health)
+
+
 async def _show_main(message: Message) -> None:
     ctx = get_context()
-    online = await _ai_online(ctx)
     await message.answer(
-        fmt.welcome_text(ctx.settings, ai_online=online),
+        await _welcome_panel(ctx),
         reply_markup=menus.main_menu(),
         disable_web_page_preview=True,
     )
@@ -184,8 +198,7 @@ async def _send_status(message: Message) -> None:
 async def cb_main(callback: CallbackQuery) -> None:
     ctx = get_context()
     await callback.answer()
-    online = await _ai_online(ctx)
-    await _edit(callback, fmt.welcome_text(ctx.settings, ai_online=online), menus.main_menu())
+    await _edit(callback, await _welcome_panel(ctx), menus.main_menu())
 
 
 @router.callback_query(F.data.startswith("mkt:"))
@@ -1327,3 +1340,68 @@ async def cb_scan_market(callback: CallbackQuery) -> None:
     selection = scanner.toggle_market(market)
     await callback.answer(f"MARKETS: {', '.join(selection)}")
     await cb_scanner(callback)
+
+
+@router.callback_query(F.data == "image:info")
+async def cb_image_info(callback: CallbackQuery) -> None:
+    ctx = get_context()
+    ready = bool(ctx.vision and ctx.vision.configured)
+    await callback.answer()
+    await _edit(callback, fmt.image_info_text(ready), menus.back_only("menu:main", "🏠 MAIN MENU"))
+
+
+def _chunks(text: str, size: int = 3300) -> list[str]:
+    chunks: list[str] = []
+    current: list[str] = []
+    length = 0
+    for line in text.splitlines():
+        if length + len(line) + 1 > size and current:
+            chunks.append("\n".join(current))
+            current, length = [], 0
+        current.append(line)
+        length += len(line) + 1
+    if current:
+        chunks.append("\n".join(current))
+    return chunks or [text]
+
+
+@router.message(F.photo)
+async def on_chart_photo(message: Message) -> None:
+    ctx = get_context()
+    if ctx.vision is None or not ctx.vision.configured:
+        await message.answer(
+            "🔴 <b>AI IMAGE ANALYSIS UNAVAILABLE</b>\n\n"
+            "MISTRAL_API_KEY غير مهيأ على الخادم، لذلك لا يمكن تحليل الصورة."
+        )
+        return
+    photo = message.photo[-1]
+    if photo.file_size and photo.file_size > 12 * 1024 * 1024:
+        await message.answer("🚫 حجم الصورة أكبر من 12MB.")
+        return
+    status = await message.answer("🔍 جاري فحص الصورة وتحليل الشارت...")
+    buffer = io.BytesIO()
+    try:
+        await message.bot.download(photo, destination=buffer)
+        prepared = prepare_image(buffer.getvalue())
+    except ImageRejected as exc:
+        await status.edit_text(f"🚫 <b>IMAGE REJECTED</b>\n\n{html.escape(str(exc))}")
+        return
+    except Exception:  # noqa: BLE001 - download failures must not crash polling
+        logger.exception("chart photo download failed")
+        await status.edit_text("🚫 تعذّر تنزيل الصورة من Telegram. أعد الإرسال.")
+        return
+    try:
+        answer = await ctx.vision.analyse(prepared)
+    except VisionUnavailable as exc:
+        await status.edit_text(f"🚫 <b>VISION UNAVAILABLE</b>\n\n{html.escape(exc.message)}")
+        return
+    if answer.upper().startswith("NOT_A_CHART"):
+        await status.edit_text(
+            "🚫 <b>NOT A TRADING CHART</b>\n\n"
+            "الصورة لا تحتوي شارت تداول واضحاً. أرسل صورة شارت كاملة الدقة."
+        )
+        return
+    chunks = _chunks(answer)
+    await status.edit_text(fmt.image_analysis_text(chunks[0]))
+    for chunk in chunks[1:]:
+        await message.answer(fmt.image_analysis_text(chunk))

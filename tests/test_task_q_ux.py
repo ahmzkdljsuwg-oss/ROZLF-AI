@@ -53,24 +53,22 @@ def _ids(markup):
     return [b.callback_data for row in markup.inline_keyboard for b in row]
 
 
-def test_home_has_three_bot_buttons_and_mini_app():
+def test_home_has_the_v2_control_panel():
     markup = menus.main_menu()
-    assert len(markup.inline_keyboard) == 4
-    assert [b.text for row in markup.inline_keyboard for b in row] == [
-        "📉 ANALYSIS", "📊 MT5 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS", "🚀 Open Mini App",
-    ]
-    assert [b.callback_data for row in markup.inline_keyboard for b in row] == [
-        "analysis", "mt5:list", "settings", "recs", None,
-    ]
+    assert len(markup.inline_keyboard) == 6
+    data = _ids(markup)
+    for route in ("mkt:OTC", "mkt:GOLD", "scan:menu", "image:info", "live", "hist", "stats", "settings"):
+        assert route in data
+    assert all(data)
 
 
-def test_analysis_lists_six_full_market_names_without_home_clutter():
+def test_markets_menu_lists_every_market_and_keeps_mt5_reachable():
     markup = menus.markets_menu()
     texts = [b.text for row in markup.inline_keyboard for b in row]
-    for label, _ in FULL_MARKETS:
+    for label in ("🧠 SMARTY MARKET", "💱 OTC MARKET", "💵 FOREX MARKET", "🥇 GOLD ANALYSIS"):
         assert label in texts
-    assert not any("OTC" in t or "GOLD" in t for t in texts)
-    assert "live" not in _ids(markup)
+    forex = menus.market_menu(Market.FOREX)
+    assert any(b.callback_data == "mt5:list" for row in forex.inline_keyboard for b in row)
 
 
 def test_duration_menu_uses_requested_labels_and_supported_only():

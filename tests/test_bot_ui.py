@@ -34,20 +34,21 @@ def test_main_menu_has_real_callbacks():
     markup = menus.main_menu()
     data = [button.callback_data for row in markup.inline_keyboard for button in row]
     texts = [button.text for row in markup.inline_keyboard for button in row]
-    assert texts == ["📉 ANALYSIS", "📊 MT5 ANALYSIS", "⚙️ SETTINGS", "🏆 RECOMMENDATIONS", "🚀 Open Mini App"]
-    assert data == ["analysis", "mt5:list", "settings", "recs", None]
-    market_data = [b.callback_data for row in menus.markets_menu().inline_keyboard for b in row]
-    assert market_data == [
-        "mkt:SMARTY", "mkt:FOOTBALL", "mkt:LUXURY", "mkt:AI", "mkt:CRICKET", "mkt:FOREX",
-        "menu:main", "menu:main",
+    assert texts == [
+        "🧠 SMARTY MARKET", "💱 OTC MARKET", "💵 FOREX MARKET", "🥇 GOLD ANALYSIS",
+        "🤖 AUTO SCANNER", "🖼️ AI IMAGE ANALYSIS", "📡 LIVE SIGNALS", "🕘 SIGNAL HISTORY",
+        "📊 PERFORMANCE STATISTICS", "⚙️ SETTINGS", "🔄 REFRESH", "🖥️ SYSTEM STATUS",
     ]
-    market_texts = [b.text for row in menus.markets_menu().inline_keyboard for b in row]
-    assert "🧠 SMARTY MARKET" in market_texts
-    labels = [item for item in data + texts + market_texts if item]
-    assert not any("OTC" in item for item in labels)
-    assert not any("GOLD" in item for item in labels)
-    for item in data[:-1] + market_data:
-        assert item
+    assert data == [
+        "mkt:SMARTY", "mkt:OTC", "mkt:FOREX", "mkt:GOLD", "scan:menu", "image:info",
+        "live", "hist", "stats", "settings", "menu:refresh", "status",
+    ]
+    market_data = [b.callback_data for row in menus.markets_menu().inline_keyboard for b in row]
+    assert market_data[:8] == [
+        "mkt:SMARTY", "mkt:OTC", "mkt:FOREX", "mkt:GOLD",
+        "mkt:FOOTBALL", "mkt:LUXURY", "mkt:AI", "mkt:CRICKET",
+    ]
+    assert all(item for item in data + market_data)
 
 
 def test_market_menu_lists_all_assets():
@@ -88,16 +89,13 @@ def test_analysis_text_says_data_unavailable_when_needed():
     assert "DATA UNAVAILABLE" in fmt.DATA_UNAVAILABLE
 
 
-def test_welcome_text_shows_only_requested_lines(settings):
+def test_welcome_text_shows_control_panel_status(settings):
     text = fmt.welcome_text(settings, ai_online=True)
-    assert "مرحباً بعودتك" in text
     assert "ROZLF AI" in text
-    assert "The bot by lo and Q8" in text
-    assert "API: 🟢 متصل" in text
-    assert "OTC" not in text
-    assert "GOLD" not in text
-    assert "DISCLAIMER" not in text.upper()
-    assert len([line for line in text.splitlines() if line.strip()]) == 4
+    assert "ADVANCED TRADING INTELLIGENCE" in text
+    assert "AI ENGINE: 🟢 ONLINE" in text
+    assert "LAST PRICE UPDATE: NOT CHECKED" in text
+    assert "DATA SOURCES:" in text
 
 
 def test_market_labels():

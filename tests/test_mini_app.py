@@ -186,21 +186,11 @@ def test_frontend_sends_dynamic_init_data_on_every_protected_route():
         assert route in source
 
 
-def test_main_menu_has_mini_app_webapp_and_keeps_bot_entries():
+def test_main_menu_is_telegram_only_and_has_no_webapp_button():
     keyboard = main_menu("https://example.test/mini-app/")
     texts = [button.text for row in keyboard.inline_keyboard for button in row]
-    assert "📉 ANALYSIS" in texts and "⚙️ SETTINGS" in texts and "🏆 RECOMMENDATIONS" in texts
-    web = [button for row in keyboard.inline_keyboard for button in row if button.web_app]
-    assert len(web) == 1
-    assert web[0].text == "🚀 Open Mini App"
-    assert web[0].web_app.url == "https://example.test/mini-app/"
-
-
-def test_main_menu_always_has_default_mini_app_url():
-    keyboard = main_menu(None)
-    web = [button for row in keyboard.inline_keyboard for button in row if button.web_app]
-    assert len(web) == 1
-    assert web[0].web_app.url == "https://web-production-b044b.up.railway.app/mini-app/"
+    assert "⚙️ SETTINGS" in texts and "📡 LIVE SIGNALS" in texts
+    assert not [button for row in keyboard.inline_keyboard for button in row if button.web_app]
 
 
 async def test_api_requires_valid_init_data(client):

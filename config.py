@@ -119,6 +119,7 @@ class Settings:
     engine_api_url: str | None = None
     mt5_bridge_url: str | None = None
     mt5_bridge_key: str | None = None
+    mistral_vision_model: str = "pixtral-12b-2409"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -139,13 +140,14 @@ class Settings:
             verification_interval_seconds=max(10, _number("VERIFICATION_INTERVAL_SECONDS", 20, int)),
             min_confidence=min(95.0, max(50.0, _number("MIN_CONFIDENCE", 60.0, float))),
             scanner_enabled=_flag("SCANNER_ENABLED", True),
-            scan_markets=_text("SCAN_MARKETS", "FOREX,SMARTY,AI,FOOTBALL,LUXURY,CRICKET") or "FOREX,SMARTY,AI,FOOTBALL,LUXURY,CRICKET",
+            scan_markets=_text("SCAN_MARKETS", "FOREX,GOLD,OTC,SMARTY,AI,FOOTBALL,LUXURY,CRICKET") or "FOREX,GOLD,OTC,SMARTY,AI,FOOTBALL,LUXURY,CRICKET",
             max_scan_signals=max(1, _number("MAX_SCAN_SIGNALS", 3, int)),
             role=role,
             mini_app_url=mini_app_url,
             engine_api_url=_engine_api_url(role, mini_app_url),
             mt5_bridge_url=_http_url("MT5_BRIDGE_URL"),
             mt5_bridge_key=_text("MT5_BRIDGE_KEY"),
+            mistral_vision_model=_text("MISTRAL_VISION_MODEL", "pixtral-12b-2409") or "pixtral-12b-2409",
         )
 
     @property
@@ -205,6 +207,7 @@ class Settings:
             "telegram_chat_id_configured": self.telegram_chat_id is not None,
             "mistral": self.mistral_enabled,
             "mistral_model": self.mistral_model,
+            "mistral_vision_model": self.mistral_vision_model,
             "twelve_data": bool(self.twelve_data_api_key),
             "eo_bridge": bool(self.eo_bridge_url and self.eo_bridge_key),
             "mt5_bridge": bool(self.mt5_bridge_url and self.mt5_bridge_key),

@@ -72,15 +72,14 @@ def test_smart_duration_uses_profile_expiry():
     assert "SMARTY profile" in reason
 
 
-def test_otc_is_absent_from_all_menus_scanners_and_health():
+def test_otc_and_gold_have_real_menu_scanner_and_health_routes():
     callbacks = [button.callback_data for row in menus.main_menu().inline_keyboard for button in row]
-    assert not any(item and "OTC" in item for item in callbacks)
-    assert Market.OTC not in SCAN_PLAN
-    assert Market.OTC not in health.PROBE_PLAN
-    assert "OTC" not in fmt.welcome_text(__import__("tests.conftest", fromlist=["base_settings"]).base_settings)
+    assert "mkt:OTC" in callbacks and "mkt:GOLD" in callbacks
+    assert Market.OTC in SCAN_PLAN and Market.GOLD in SCAN_PLAN
+    assert Market.OTC in health.PROBE_PLAN and Market.GOLD in health.PROBE_PLAN
 
 
-def test_status_panel_lists_cricket_and_not_otc():
+def test_status_panel_lists_cricket_otc_and_gold():
     text = fmt.status_text(
         __import__("tests.conftest", fromlist=["base_settings"]).base_settings,
         [],
@@ -88,4 +87,5 @@ def test_status_panel_lists_cricket_and_not_otc():
         {"ready": False},
     )
     assert "CRICKET INDEX" in text
-    assert "OTC" not in text
+    assert "OTC" in text
+    assert "GOLD" in text

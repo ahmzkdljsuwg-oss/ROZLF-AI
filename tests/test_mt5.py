@@ -165,8 +165,8 @@ def test_mt5_analysis_uses_alligator_and_ma200() -> None:
 
 
 def test_mt5_menus_and_formatters() -> None:
-    main = menus.main_menu()
-    datas = [button.callback_data for row in main.inline_keyboard for button in row]
+    forex = menus.market_menu(__import__("providers.catalog", fromlist=["Market"]).Market.FOREX)
+    datas = [button.callback_data for row in forex.inline_keyboard for button in row]
     assert "mt5:list" in datas
 
     pairs = menus.mt5_pairs_menu(list(MT5_ASSETS))

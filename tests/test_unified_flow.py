@@ -180,7 +180,7 @@ async def test_otc_unavailable_never_substitutes_forex(monkeypatch):
 def test_forex_selector_uses_real_pairs():
     data = _ids(handlers.menus.market_menu(Market.FOREX))
     assert "pick:EUR_USD_FOREX" in data
-    assert all(item.startswith(("pick:", "mkt:", "menu:", "markets")) for item in data)
+    assert all(item.startswith(("pick:", "mkt:", "menu:", "markets", "mt5:")) for item in data)
 
 
 async def test_manual_duration_lists_only_supported_values(monkeypatch):

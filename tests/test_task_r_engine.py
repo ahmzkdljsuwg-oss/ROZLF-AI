@@ -58,8 +58,10 @@ def test_no_trade_card_has_no_invented_numbers():
     assert "82%" not in text
 
 
-def test_welcome_screen_is_exactly_the_four_lines():
+def test_welcome_screen_is_the_v2_panel():
     settings = SimpleNamespace(min_confidence=70.0, mistral_api_key="configured")
     text = fmt.welcome_text(settings, ai_online=False)
     lines = [line for line in text.splitlines() if line.strip()]
-    assert lines == ["مرحباً بعودتك 👋", "🧠 <b>ROZLF AI</b>", "The bot by lo and Q8", "API: 🔴 غير متصل"]
+    assert lines[0] == "🧠 <b>ROZLF AI</b>"
+    assert "AI ENGINE: 🔴 OFFLINE" in text
+    assert "LAST PRICE UPDATE: NOT CHECKED" in text

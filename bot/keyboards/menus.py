@@ -38,11 +38,26 @@ MT5_DURATION_LABELS: dict[int, str] = {
 
 MARKET_BUTTONS: tuple[tuple[str, str], ...] = (
     ("🧠 SMARTY MARKET", "mkt:SMARTY"),
+    ("💱 OTC MARKET", "mkt:OTC"),
+    ("💵 FOREX MARKET", "mkt:FOREX"),
+    ("🥇 GOLD ANALYSIS", "mkt:GOLD"),
     ("⚽ FOOTBALL INDEX", "mkt:FOOTBALL"),
     ("💎 LUXURY INDEX", "mkt:LUXURY"),
     ("🤖 AI INDEX", "mkt:AI"),
     ("🏏 CRICKET INDEX", "mkt:CRICKET"),
-    ("💱 FOREX MARKET", "mkt:FOREX"),
+)
+
+V2_MENU_BUTTONS: tuple[tuple[str, str], ...] = (
+    ("🧠 SMARTY MARKET", "mkt:SMARTY"),
+    ("💱 OTC MARKET", "mkt:OTC"),
+    ("💵 FOREX MARKET", "mkt:FOREX"),
+    ("🥇 GOLD ANALYSIS", "mkt:GOLD"),
+    ("🤖 AUTO SCANNER", "scan:menu"),
+    ("🖼️ AI IMAGE ANALYSIS", "image:info"),
+    ("📡 LIVE SIGNALS", "live"),
+    ("🕘 SIGNAL HISTORY", "hist"),
+    ("📊 PERFORMANCE STATISTICS", "stats"),
+    ("⚙️ SETTINGS", "settings"),
 )
 
 
@@ -56,13 +71,11 @@ TRADE_DURATION_LABELS: dict[int, str] = {
 
 
 def main_menu(mini_app_url: str | None = None) -> InlineKeyboardMarkup:
+    """ROZLF AI V2 control panel. Every button has a live callback handler."""
     builder = InlineKeyboardBuilder()
-    builder.row(_button("📉 ANALYSIS", "analysis"))
-    builder.row(_button("📊 MT5 ANALYSIS", "mt5:list"))
-    builder.row(_button("⚙️ SETTINGS", "settings"), _button("🏆 RECOMMENDATIONS", "recs"))
-    url = mini_app_url if mini_app_url is not None else settings.mini_app_url
-    if url:
-        builder.row(InlineKeyboardButton(text="🚀 Open Mini App", web_app=WebAppInfo(url=url)))
+    for index in range(0, len(V2_MENU_BUTTONS), 2):
+        builder.row(*[_button(text, data) for text, data in V2_MENU_BUTTONS[index:index + 2]])
+    builder.row(_button("🔄 REFRESH", "menu:refresh"), _button("🖥️ SYSTEM STATUS", "status"))
     return builder.as_markup()
 
 
@@ -103,6 +116,8 @@ def market_menu(market: Market, assets: list[Asset] | None = None) -> InlineKeyb
     for asset in assets if assets is not None else assets_for(market):
         builder.button(text=f"🎯 {asset.display}", callback_data=f"pick:{asset.key}")
     builder.adjust(1)
+    if market is Market.FOREX:
+        builder.row(_button("📊 MT5 MARKET ANALYSIS", "mt5:list"))
     builder.row(
         _button("🔄 REFRESH", f"mkt:{market.value}"),
         _button("🌐 MARKETS", "markets"),
@@ -187,6 +202,8 @@ def index_assets_menu(market: Market, assets: list[Asset]) -> InlineKeyboardMark
     for asset in assets:
         builder.button(text=f"🎯 {asset.display}", callback_data=f"ia:{asset.key}")
     builder.adjust(1)
+    if market is Market.FOREX:
+        builder.row(_button("📊 MT5 MARKET ANALYSIS", "mt5:list"))
     builder.row(
         _button("🔄 REFRESH", f"mkt:{market.value}"),
         _button("🏠 MAIN", "menu:main"),
@@ -273,6 +290,10 @@ def scanner_menu(running: bool, markets: list[str]) -> InlineKeyboardMarkup:
     builder.row(
         _button("💎 LUXURY " + ("✅" if "LUXURY" in markets else "⬜"), "scan:mk:LUXURY"),
         _button("🏏 CRICKET " + ("✅" if "CRICKET" in markets else "⬜"), "scan:mk:CRICKET"),
+    )
+    builder.row(
+        _button("💱 OTC " + ("✅" if "OTC" in markets else "⬜"), "scan:mk:OTC"),
+        _button("🥇 GOLD " + ("✅" if "GOLD" in markets else "⬜"), "scan:mk:GOLD"),
     )
     builder.row(_button("🔄 UPDATE", "scan:menu"))
     builder.row(_button("🏠 MAIN", "menu:main"))

@@ -15,6 +15,7 @@ from aiogram.types import BotCommand, MenuButtonWebApp, WebAppInfo
 from aiohttp import web
 
 from ai.mistral import MistralClient
+from ai.vision import MistralVision
 from bot import formatting as fmt
 from bot.context import AppContext, set_context
 from bot.handlers import menus
@@ -151,6 +152,10 @@ async def _run_bot(state: dict) -> None:
         api_key=settings.mistral_api_key,
         model=settings.mistral_model,
     )
+    vision = MistralVision(
+        api_key=settings.mistral_api_key,
+        model=settings.mistral_vision_model,
+    )
     generator = SignalGenerator(registry, repo, settings)
     ctx = AppContext(
         settings=settings,
@@ -159,6 +164,7 @@ async def _run_bot(state: dict) -> None:
         repo=repo,
         generator=generator,
         mistral=mistral,
+        vision=vision,
         inventory=inventory,
         health=health,
     )

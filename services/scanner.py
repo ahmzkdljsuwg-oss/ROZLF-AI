@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 SCAN_PLAN: dict[Market, tuple[str, ...]] = {
     Market.FOREX: ("5min", "15min"),
     Market.GOLD: ("15min",),
+    Market.OTC: ("1min",),
     Market.SMARTY: ("1min",),
     Market.AI: ("1min",),
     Market.FOOTBALL: ("1min",),
@@ -118,9 +119,9 @@ class AutoScanner:
         return markets or [Market.FOREX, Market.SMARTY]
 
     async def market_assets(self, market: Market) -> list[Asset]:
-        if market not in (Market.SMARTY, Market.CRICKET):
-            return assets_for(market)
         label = market.value.upper()
+        if self.inventory is None or market not in self.inventory.dynamic_markets:
+            return assets_for(market)
         if self.inventory is None:
             self.last_skips[label] = "market inventory not initialised"
             return []
