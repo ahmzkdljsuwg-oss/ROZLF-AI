@@ -21,7 +21,7 @@ final class ROZLFAIUITests: XCTestCase {
 
     func testConfiguredServerShowsConnectionState() throws {
         let app = XCUIApplication()
-        app.launchArguments += ["--uitest-reset", "-rozlf.baseURL", "https://invalid.example.invalid"]
+        app.launchArguments += ["-rozlf.baseURL", "https://invalid.example.invalid"]
         app.launch()
 
         XCTAssertTrue(app.buttons["tab.0"].waitForExistence(timeout: 12))
