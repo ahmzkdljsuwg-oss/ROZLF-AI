@@ -65,51 +65,9 @@ def test_scan_interval_property():
     assert settings.scan_interval == 120
 
 
-def test_railway_service_name_does_not_disable_polling():
-    with patch.dict(os.environ, {"RAILWAY_SERVICE_NAME": "web"}, clear=True):
+def test_mini_app_configuration_is_gone():
+    with patch.dict(os.environ, {"MINI_APP_URL": "https://example.test", "ROZLF_ROLE": "web-only"}, clear=True):
         settings = Settings.from_env()
-    assert settings.role == "bot"
-    assert settings.web_only is False
-
-
-def test_worker_role_is_not_web_only():
-    with patch.dict(os.environ, {"RAILWAY_SERVICE_NAME": "worker"}, clear=True):
-        settings = Settings.from_env()
-    assert settings.role == "bot"
-    assert settings.web_only is False
-
-
-def test_explicit_health_role_is_web_only():
-    with patch.dict(os.environ, {"RAILWAY_SERVICE_NAME": "worker", "ROZLF_ROLE": "health"}, clear=True):
-        settings = Settings.from_env()
-    assert settings.role == "health"
-    assert settings.web_only is True
-
-
-def test_engine_url_ignores_self_reference_and_uses_bot():
-    env = {
-        "ROZLF_ROLE": "web-only",
-        "RAILWAY_PUBLIC_DOMAIN": "web-production-b044b.up.railway.app",
-        "ENGINE_API_URL": "https://web-production-b044b.up.railway.app",
-    }
-    with patch.dict(os.environ, env, clear=True):
-        settings = Settings.from_env()
-    assert settings.engine_api_url == "https://rozlf-ai-production.up.railway.app"
-
-
-def test_engine_url_keeps_explicit_bot_url():
-    env = {
-        "ROZLF_ROLE": "web-only",
-        "RAILWAY_PUBLIC_DOMAIN": "web-production-b044b.up.railway.app",
-        "ENGINE_API_URL": "https://rozlf-ai-production.up.railway.app",
-    }
-    with patch.dict(os.environ, env, clear=True):
-        settings = Settings.from_env()
-    assert settings.engine_api_url == "https://rozlf-ai-production.up.railway.app"
-
-
-def test_worker_does_not_get_a_remote_engine_url():
-    env = {"ROZLF_ROLE": "worker"}
-    with patch.dict(os.environ, env, clear=True):
-        settings = Settings.from_env()
-    assert settings.engine_api_url is None
+    assert not hasattr(settings, "mini_app_url")
+    assert not hasattr(settings, "web_only")
+    assert not hasattr(settings, "role")

@@ -1029,14 +1029,15 @@ def nexus_markets_text() -> str:
 
 
 def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
-                       confidence: float | None) -> str:
+                       confidence: float | None, entry_at=None) -> str:
     trade = {"UP": "فوق", "DOWN": "تحت"}.get(direction, "NO TRADE")
     duration = duration_label(expiry_seconds) if expiry_seconds else "—"
+    clock = f" · دخول {entry_at:%H:%M} UTC" if entry_at is not None else ""
     conf = f"{confidence:.0f}%" if confidence is not None else "—"
     return (
         "NEXUS AI 🤖\n"
         f"📊 السوق: <b>{market_label(market)}</b>\n"
-        f"⏱️ الوقت: <b>{duration}</b>\n"
+        f"⏱️ الوقت: <b>{duration}</b>{clock}\n"
         f"📈 الصفقة: <b>{trade}</b>\n"
         f"🎯 الثقة: <b>{conf}</b>"
     )

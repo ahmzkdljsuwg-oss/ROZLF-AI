@@ -38,27 +38,6 @@ def _flag(name: str, default: bool) -> bool:
     return raw.lower() in {"1", "true", "yes", "on"}
 
 
-DEFAULT_MINI_APP_URL = "https://web-production-b044b.up.railway.app"
-DEFAULT_BOT_API_URL = "https://rozlf-ai-production.up.railway.app"
-
-
-def _mini_app_url() -> str | None:
-    raw = _text("MINI_APP_URL") or _text("PUBLIC_BASE_URL")
-    if not raw:
-        domain = _text("RAILWAY_PUBLIC_DOMAIN")
-        raw = f"https://{domain}" if domain else DEFAULT_MINI_APP_URL
-    if not raw:
-        return None
-    url = raw.strip().rstrip("/")
-    if not url.startswith(("http://", "https://")):
-        url = "https://" + url
-    if url.endswith("/mini-app"):
-        url = url[: -len("/mini-app")]
-    if not url.startswith("https://") and "localhost" not in url and "127.0.0.1" not in url:
-        return None
-    return url + "/mini-app/"
-
-
 def _http_url(name: str) -> str | None:
     raw = _text(name)
     if not raw:
@@ -66,22 +45,6 @@ def _http_url(name: str) -> str | None:
     url = raw.strip().rstrip("/")
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
-    return url
-
-
-def _engine_api_url(role: str, mini_app_url: str | None) -> str | None:
-    """Upstream bot URL for the web-only proxy.
-
-    A self-reference (the web service pointing at its own host) is the known
-    cause of recursive 30s timeouts, so it is ignored. The production bot
-    domain is used only as the last resort for the web-only role.
-    """
-    url = _http_url("ENGINE_API_URL")
-    own = _http_url("RAILWAY_PUBLIC_DOMAIN") or mini_app_url
-    if url and own and urlsplit(url).hostname == urlsplit(own).hostname:
-        url = None
-    if not url and role.startswith("web"):
-        return DEFAULT_BOT_API_URL
     return url
 
 
@@ -100,6 +63,8 @@ def normalise_database_url(url: str) -> str:
 class Settings:
     telegram_bot_token: str
     telegram_chat_id: int | None
+    gemini_api_key: str | None
+    gemini_model: str
     mistral_api_key: str | None
     mistral_model: str
     twelve_data_api_key: str | None
@@ -114,20 +79,17 @@ class Settings:
     scanner_enabled: bool
     scan_markets: str
     max_scan_signals: int
-    role: str
-    mini_app_url: str | None = None
-    engine_api_url: str | None = None
     mt5_bridge_url: str | None = None
     mt5_bridge_key: str | None = None
     mistral_vision_model: str = "pixtral-12b-2409"
 
     @classmethod
     def from_env(cls) -> "Settings":
-        role = (_text("ROZLF_ROLE") or "bot").lower()
-        mini_app_url = _mini_app_url()
         return cls(
             telegram_bot_token=_text("TELEGRAM_BOT_TOKEN", "") or "",
             telegram_chat_id=_number("TELEGRAM_CHAT_ID", None, int),
+            gemini_api_key=_text("GEMINI_API_KEY"),
+            gemini_model=_text("GEMINI_MODEL", "gemini-2.5-flash") or "gemini-2.5-flash",
             mistral_api_key=_text("MISTRAL_API_KEY"),
             mistral_model=_text("MISTRAL_MODEL", "mistral-small-latest") or "mistral-small-latest",
             twelve_data_api_key=_text("TWELVE_DATA_API_KEY"),
@@ -142,9 +104,6 @@ class Settings:
             scanner_enabled=_flag("SCANNER_ENABLED", True),
             scan_markets=_text("SCAN_MARKETS", "FOREX,GOLD,OTC,SMARTY,AI,FOOTBALL,LUXURY,CRICKET") or "FOREX,GOLD,OTC,SMARTY,AI,FOOTBALL,LUXURY,CRICKET",
             max_scan_signals=max(1, _number("MAX_SCAN_SIGNALS", 3, int)),
-            role=role,
-            mini_app_url=mini_app_url,
-            engine_api_url=_engine_api_url(role, mini_app_url),
             mt5_bridge_url=_http_url("MT5_BRIDGE_URL"),
             mt5_bridge_key=_text("MT5_BRIDGE_KEY"),
             mistral_vision_model=_text("MISTRAL_VISION_MODEL", "pixtral-12b-2409") or "pixtral-12b-2409",
@@ -181,9 +140,12 @@ class Settings:
         return bool(self.mistral_api_key)
 
     @property
-    def web_only(self) -> bool:
-        """Health-only mode for a dedicated service; the default bot role polls Telegram."""
-        return self.role in {"web-only", "health"}
+    def gemini_enabled(self) -> bool:
+        return bool(self.gemini_api_key)
+
+    @property
+    def ai_enabled(self) -> bool:
+        return self.gemini_enabled or self.mistral_enabled
 
     def startup_problems(self) -> list[str]:
         problems: list[str] = []
@@ -205,6 +167,8 @@ class Settings:
         return {
             "telegram": bool(self.telegram_bot_token) and self.telegram_api_looks_valid,
             "telegram_chat_id_configured": self.telegram_chat_id is not None,
+            "gemini": self.gemini_enabled,
+            "gemini_model": self.gemini_model,
             "mistral": self.mistral_enabled,
             "mistral_model": self.mistral_model,
             "mistral_vision_model": self.mistral_vision_model,
@@ -214,8 +178,6 @@ class Settings:
             "database": "postgresql" if "postgresql" in self.async_database_url else "sqlite",
             "scanner_enabled": self.scanner_enabled,
             "min_confidence": self.min_confidence,
-            "mini_app": bool(self.mini_app_url),
-            "engine_api": bool(self.engine_api_url),
         }
 
 

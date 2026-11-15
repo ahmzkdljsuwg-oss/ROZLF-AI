@@ -1,7 +1,7 @@
 """Inline keyboard builders. Every button maps to a real callback handler."""
 from __future__ import annotations
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from config import settings
@@ -108,7 +108,7 @@ def nexus_market_tools_menu() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def main_menu(mini_app_url: str | None = None) -> InlineKeyboardMarkup:
+def main_menu() -> InlineKeyboardMarkup:
     """ROZLF AI V2 control panel. Every button has a live callback handler."""
     builder = InlineKeyboardBuilder()
     for index in range(0, len(V2_MENU_BUTTONS), 2):

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from aiogram import Bot
 
+from ai.gemini import GeminiClient
 from ai.mistral import MistralClient
 from ai.vision import MistralVision
 from config import Settings
@@ -26,6 +27,7 @@ class AppContext:
     repo: Repository
     generator: SignalGenerator
     mistral: MistralClient
+    gemini: GeminiClient | None = None
     vision: MistralVision | None = None
     inventory: MarketInventory | None = None
     health: MarketHealthService | None = None
@@ -45,7 +47,18 @@ class AppContext:
         return sources
 
     def ai_health(self) -> dict:
-        health = self.mistral.health()
+        mistral = self.mistral.health()
+        gemini = self.gemini.health() if self.gemini is not None else {"configured": False}
+        models = [
+            name for name, item in (("Gemini", gemini), ("Mistral", mistral))
+            if item.get("configured")
+        ]
+        health = {
+            "configured": bool(models),
+            "model": " + ".join(models),
+            "gemini": gemini,
+            "mistral": mistral,
+        }
         if self.vision is not None:
             health["vision"] = self.vision.health()
         return health

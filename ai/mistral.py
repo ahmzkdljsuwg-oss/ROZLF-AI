@@ -161,3 +161,15 @@ class MistralClient:
         )
         return await self.chat(prompt)
 
+    async def review_setup(self, payload: dict) -> str:
+        return await self.chat(
+            "Review this computed analysis and return the required JSON:\n" + str(payload),
+            system_prompt=(
+                "You are ROZLF AI, an independent reviewer of a computed trading analysis. "
+                "Use ONLY the JSON evidence supplied. Never invent prices, candles or indicators. "
+                "Decide strictly UP, DOWN or NO TRADE. Return JSON only: "
+                '{"decision":"UP|DOWN|NO TRADE","confidence":0-100,"reason":"max 60 words"}. '
+                "NO TRADE is correct when evidence is insufficient or contradictory."
+            ),
+        )
+

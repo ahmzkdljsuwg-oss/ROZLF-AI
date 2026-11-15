@@ -11,9 +11,10 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramConflictError
-from aiogram.types import BotCommand, MenuButtonWebApp, WebAppInfo
+from aiogram.types import BotCommand, MenuButtonCommands
 from aiohttp import web
 
+from ai.gemini import GeminiClient
 from ai.mistral import MistralClient
 from ai.vision import MistralVision
 from bot import formatting as fmt
@@ -22,7 +23,6 @@ from bot.handlers import menus
 from bot.keyboards import menus as keyboards
 from bot.middleware.auth import AccessMiddleware
 from config import normalise_database_url, settings
-from mini_app.api import install as install_mini_app
 from database.repository import Repository
 from engines.signals.generator import SignalGenerator
 from providers.eobridge import ExpertOptionBridgeProvider
@@ -52,7 +52,6 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
         payload = {
             "status": "ok" if not state.get("error") else "degraded",
             "service": "ROZLF AI",
-            "role": settings.role,
             "polling": state.get("polling", False),
             "polling_conflicts": state.get("conflicts", 0),
             "last_polling_conflict": state.get("last_conflict"),
@@ -62,12 +61,10 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
             "scanner": bool(live.scanner and live.scanner.running) if live else False,
             "scanner_last_run": str(live.scanner.last_run) if live and live.scanner and live.scanner.last_run else None,
             "sources": live.source_map() if live else {},
-            "ai": live.mistral.configured if live else settings.mistral_enabled,
+            "ai": live.ai_health() if live else settings.describe().get("ai", {}),
             "bridge_configured": bool(settings.bridge_url and settings.eo_bridge_key),
             "build": os.getenv("ROZLF_BUILD_SHA") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "unknown",
             "menu_version": "M4",
-            "mini_app_configured": bool(settings.mini_app_url),
-            "mini_app_url": settings.mini_app_url,
             "menu_button": state.get("menu_button", "pending"),
             "menu": [
                 {"text": button.text, "callback": button.callback_data}
@@ -81,14 +78,13 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
     app = web.Application()
     app.router.add_get("/", health)
     app.router.add_get("/health", health)
-    install_mini_app(app, lambda: state.get("ctx"))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", settings.port)
     await site.start()
     state["health_started"] = True
     state["runner"] = runner
-    logger.info("health server listening on :%s (role=%s)", settings.port, settings.role)
+    logger.info("health server listening on :%s", settings.port)
     return runner
 
 
@@ -103,8 +99,7 @@ async def _keep_alive_after_failure(state: dict) -> None:
                 {
                     "status": "degraded",
                     "service": "ROZLF AI",
-                    "role": settings.role,
-                    "polling": False,
+                            "polling": False,
                     "stage": state.get("stage"),
                     "error": state.get("error"),
                 }
@@ -131,7 +126,7 @@ async def _run_bot(state: dict) -> None:
     for problem in problems:
         logger.warning("startup: %s", problem)
     if not settings.telegram_bot_token:
-        logger.error("TELEGRAM_BOT_TOKEN is missing for role %s; keeping health endpoint only", settings.role)
+        logger.error("TELEGRAM_BOT_TOKEN is missing; keeping health endpoint only")
         state["stage"] = "no-telegram-token"
         await asyncio.Event().wait()
         return
@@ -148,6 +143,10 @@ async def _run_bot(state: dict) -> None:
     registry = build_registry(settings, bridge=bridge)
     inventory = MarketInventory(bridge)
     health = MarketHealthService(registry, inventory)
+    gemini = GeminiClient(
+        api_key=settings.gemini_api_key,
+        model=settings.gemini_model,
+    ) if settings.gemini_enabled else None
     mistral = MistralClient(
         api_key=settings.mistral_api_key,
         model=settings.mistral_model,
@@ -164,6 +163,7 @@ async def _run_bot(state: dict) -> None:
         repo=repo,
         generator=generator,
         mistral=mistral,
+        gemini=gemini,
         vision=vision,
         inventory=inventory,
         health=health,
@@ -171,23 +171,6 @@ async def _run_bot(state: dict) -> None:
 
     state["ctx"] = ctx
     set_context(ctx)
-
-    if settings.web_only:
-        logger.info("ROZLF AI started: web-only role (Mini App + health, no Telegram polling)")
-        if not settings.engine_api_url and not settings.telegram_bot_token:
-            logger.error(
-                "Mini App API has no engine: set ENGINE_API_URL to the bot service public domain"
-            )
-        try:
-            await asyncio.Event().wait()
-        finally:
-            await repo.close()
-            await registry.close()
-            await mistral.close()
-            await bot.session.close()
-            if runner is not None:
-                await runner.cleanup()
-        return
 
     async def notify_signal(record) -> None:
         chat_id = settings.telegram_chat_id or record.user_id
@@ -250,27 +233,16 @@ async def _run_bot(state: dict) -> None:
                     BotCommand(command="scan", description="فتح الماسح التلقائي"),
                     BotCommand(command="stats", description="الإحصائيات"),
                     BotCommand(command="id", description="عرض CHAT ID"),
-                    BotCommand(command="miniapp", description="🚀 فتح Mini App مباشرة"),
                 ]
             )
         except Exception:
             logger.exception("could not publish bot commands; continuing")
-        # Set chat menu button — use configured URL or fall back to default
-        from config import DEFAULT_MINI_APP_URL
-        _menu_btn_url = settings.mini_app_url or (DEFAULT_MINI_APP_URL + "/mini-app/")
-        if _menu_btn_url:
-            try:
-                await bot.set_chat_menu_button(
-                    menu_button=MenuButtonWebApp(
-                        text="🚀 Open Mini App",
-                        web_app=WebAppInfo(url=_menu_btn_url),
-                    )
-                )
-                state["menu_button"] = "ok"
-                logger.info("chat menu button set: %s", _menu_btn_url)
-            except Exception as exc:
-                state["menu_button"] = f"error:{type(exc).__name__}:{exc}"
-                logger.exception("could not set chat menu button (url=%s); continuing", _menu_btn_url)
+        try:
+            await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+            state["menu_button"] = "commands"
+        except Exception:
+            state["menu_button"] = "error"
+            logger.exception("could not reset the chat menu button; continuing")
         if settings.scanner_enabled:
             await scanner.start()
         logger.info("ROZLF AI started: %s", settings.describe())
@@ -281,6 +253,8 @@ async def _run_bot(state: dict) -> None:
         await repo.close()
         await registry.close()
         await mistral.close()
+        if gemini is not None:
+            await gemini.close()
         if runner is not None:
             await runner.cleanup()
 

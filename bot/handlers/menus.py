@@ -47,14 +47,19 @@ def _analysis_lock(user_id: int) -> asyncio.Lock:
 
 
 async def _ai_online(ctx) -> bool:
-    client = getattr(ctx, "mistral", None)
-    if client is not None:
+    clients = [
+        client for client in (getattr(ctx, "gemini", None), getattr(ctx, "mistral", None))
+        if client is not None and getattr(client, "configured", False)
+    ]
+    if not clients:
+        return bool(getattr(ctx.settings, "ai_enabled", False))
+    for client in clients:
         try:
-            return await client.check()
+            if await client.check():
+                return True
         except Exception as exc:  # a probe failure must never break the menu
             logger.info("AI status probe failed: %s", type(exc).__name__)
-            return False
-    return bool(getattr(ctx.settings, "mistral_api_key", None))
+    return False
 
 
 async def _present_result(
@@ -151,7 +156,13 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str) -> None:
             "⏳ جارٍ قراءة الشموع المغلقة والشمعة الحالية، وحساب المؤشرات واختيار المدة تلقائياً...",
         )
         ctx = get_context()
-        service = MarketAnalysisService(ctx.registry, ctx.settings, getattr(ctx, "inventory", None))
+        service = MarketAnalysisService(
+            ctx.registry,
+            ctx.settings,
+            getattr(ctx, "inventory", None),
+            gemini=getattr(ctx, "gemini", None),
+            mistral=getattr(ctx, "mistral", None),
+        )
         outcome = await service.analyse(market)
 
         if outcome.result is None:
@@ -203,7 +214,7 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str) -> None:
             logger.exception("could not persist NEXUS signal")
         await _edit(
             callback,
-            fmt.nexus_signal_text(market.value, result.direction, outcome.duration_seconds, result.confidence),
+            fmt.nexus_signal_text(market.value, result.direction, outcome.duration_seconds, result.confidence, result.generated_at),
             menus.nexus_result_menu(market),
         )
 
@@ -212,22 +223,6 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str) -> None:
 @router.message(Command("menu"))
 async def cmd_start(message: Message) -> None:
     await _show_nexus_home(message)
-
-
-@router.message(Command("miniapp"))
-async def cmd_miniapp(message: Message) -> None:
-    """Send a direct link to the Mini App as a WebApp button."""
-    from config import settings, DEFAULT_MINI_APP_URL
-    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-    url = settings.mini_app_url or (DEFAULT_MINI_APP_URL + "/mini-app/")
-    kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="🚀 Open Mini App", web_app=WebAppInfo(url=url))
-    ]])
-    await message.answer(
-        "<b>🚀 ROZLF AI Mini App</b>\nاضغط الزر أدناه لفتح التطبيق:",
-        reply_markup=kb,
-        parse_mode="HTML",
-    )
 
 
 @router.message(Command("markets"))

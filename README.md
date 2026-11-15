@@ -56,18 +56,17 @@ xcodebuild -project ROZLFAI.xcodeproj -scheme ROZLFAI -sdk iphoneos \
 bot/          واجهة Telegram (handlers, keyboards, middleware)
 engines/      markets (ملف مستقل لكل سوق) + technical + smc + strategies + signals
 providers/    قاعدة المزودين، الكتالوج، التحقق، الـ registry
-ai/           Mistral لتحليل الإشارات النصية
+ai/           Gemini + Mistral لمراجعة التحليل تلقائياً (نص فقط، بلا أسعار مختلقة)
 engines/strategies/  محرك الاستراتيجيات الموحّد
 engines/backtest/    اختبار تاريخي سببي (walk-forward)
 services/     scanner، signal tracker، statistics
 database/     SQLAlchemy models + repository
-tests/        pytest suite (188+ اختباراً)
-mini_app/     Telegram Mini App (API + static UI)
+tests/        pytest suite
 docs/         DATA-SOURCES.md، TEST-REPORT.md، BACKTEST-RESULTS.md
 main.py       نقطة التشغيل (Polling)
 ```
 
-## 3. التشغيل محلياً
+## 4. التشغيل محلياً
 
 ```bash
 python3.11 -m venv .venv
@@ -83,24 +82,25 @@ python main.py
 PYTHONPATH=. python scripts/live_smoke.py
 ```
 
-## 4. المتغيرات المطلوبة
+## 5. المتغيرات المطلوبة
 
 | المتغير | مطلوب؟ | الوصف |
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | ✅ | توكن البوت من @BotFather |
 | `TELEGRAM_CHAT_ID` | اختياري | لقفل البوت على مستخدم/محادثة واحدة |
 | `DATABASE_URL` | اختياري | افتراضياً SQLite؛ على Railway استخدم PostgreSQL |
-| `MISTRAL_API_KEY` | اختياري | لتحليل AI النصي |
+| `GEMINI_API_KEY` | اختياري | مراجعة التحليل تلقائياً داخل نفس مسار التحليل (Gemini) |
+| `GEMINI_MODEL` | اختياري | افتراضياً `gemini-2.5-flash` |
+| `MISTRAL_API_KEY` | اختياري | مراجعة التحليل تلقائياً داخل نفس مسار التحليل (Mistral) |
 | `MISTRAL_MODEL` | اختياري | افتراضياً `mistral-small-latest` |
 | `MISTRAL_VISION_MODEL` | اختياري | افتراضياً `pixtral-12b-2409` |
 | `TWELVE_DATA_API_KEY` | اختياري لكنه مهم | بدونه demo mode يدعم EUR/USD و USD/JPY فقط |
 | `EO_BRIDGE_URL` / `EO_BRIDGE_KEY` | اختياري | جسر SMARTY ومؤشرات ExpertOption |
 | `MT5_BRIDGE_URL` / `MT5_BRIDGE_KEY` | اختياري | جسر قراءة MetaTrader 5 يعمل على جهاز/VPS متصل بالمنصة |
 | `SCANNER_ENABLED`, `SCAN_MARKETS`, `MAX_SCAN_SIGNALS`, `MIN_CONFIDENCE` | اختياري | إعدادات الماسح |
-| `ENGINE_API_URL` | مطلوب لخدمة الويب فقط | رابط خدمة البوت التي تملك المحرك الحقيقي؛ توجّه خدمة الويب طلبات Mini App الموثقة إليه (initData يُتحقق منه في خدمة البوت) |
 | `LOG_LEVEL` | اختياري | INFO افتراضياً |
 
-## 5. النشر على Railway
+## 6. النشر على Railway
 
 1. ادفع المشروع إلى GitHub (تم ربط المستودع).
 2. في Railway: **New Project → Deploy from GitHub repo**.
@@ -114,12 +114,6 @@ PYTHONPATH=. python scripts/live_smoke.py
 6. استخدم **نسخة واحدة فقط** (numReplicas=1) — تشغيل نسختين Polling يعطي `TelegramConflictError` (والبوت يوضح ذلك في اللوج ويتوقف).
 
 > البوت يعمل بـ Polling فقط، ولا يشغّل Webhook في نفس الوقت.
-
-## 6. ROZLF MINI APP
-
-يُخدم التطبيق من نفس خدمة الويب على `/mini-app/`، ويضيف زراً واحداً في القائمة الرئيسية.
-الرابط العام يُؤخذ من `MINI_APP_URL` أو `PUBLIC_BASE_URL` أو `RAILWAY_PUBLIC_DOMAIN`.
-التفاصيل الكاملة: `docs/MINI-APP.md`.
 
 ## 7. MT5 MARKET ANALYSIS
 
@@ -142,6 +136,6 @@ PYTHONPATH=. python scripts/live_smoke.py
 - بدون مصدر متوافق تظهر رسالة `DATA UNAVAILABLE` ولا تُصدر إشارة.
 - التفاصيل الكاملة في `docs/DATA-SOURCES.md`، ونتائج Task M في `docs/TASK-M-REPORT.md`، وتقرير الاختبار في `docs/TEST-REPORT.md`.
 
-## NEXUS AI Telegram flow
+## 9. NEXUS AI TELEGRAM FLOW
 
-`/start` opens the NEXUS home screen with the single `حلل 🤖` button. The seven markets are listed as separate vertical buttons and analysed automatically from their own source only. When a market has no verified feed the bot answers `DATA UNAVAILABLE` and issues no recommendation. Existing advanced tools remain reachable through `🛠 أدوات إضافية`.
+`/start` opens the NEXUS home screen with the single `حلل 🤖` button. The seven markets are listed as separate vertical buttons and analysed automatically from their own source only. When a market has no verified feed the bot answers `DATA UNAVAILABLE` and issues no recommendation. Existing advanced tools remain reachable through `🛠 أدوات إضافية`. Gemini and Mistral review every automatic recommendation inside the same analysis path and a disagreement (or `NO TRADE`) blocks the signal.

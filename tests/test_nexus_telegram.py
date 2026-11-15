@@ -260,3 +260,39 @@ async def test_every_dynamic_market_shows_data_unavailable_without_its_source(mo
     assert "NO TRADE" in text
     assert "خذ صفقة أخرى 🔄" in [b.text for row in keyboard.inline_keyboard for b in row]
     assert ctx.repo.signals == []
+
+
+@pytest.mark.asyncio
+async def test_gemini_and_mistral_review_run_inside_automatic_analysis(monkeypatch, settings):
+    import services.market_analysis as market_analysis
+    from ai.review import AIReviewer
+
+    monkeypatch.setattr(market_analysis, "analyze_market_data", lambda data: _result("UP", 80.0))
+    monkeypatch.setattr(market_analysis, "choose_auto_duration", lambda *args: (60, "test setup"))
+
+    class FakeAI:
+        configured = True
+
+        def __init__(self, reply):
+            self.reply = reply
+
+        async def analyse_setup(self, payload):
+            assert payload["technical_decision"] == "UP"
+            assert payload["entry_price"] == _result("UP", 80.0).price
+            return self.reply
+
+    service = market_analysis.MarketAnalysisService(
+        DataSourceRegistry([FakeProvider()], cache_ttl=0), settings
+    )
+    service.reviewer = AIReviewer(
+        FakeAI('{"decision":"UP","confidence":72}'),
+        FakeAI('{"decision":"UP","confidence":68}'),
+    )
+    outcome = await service.analyse(Market.FOREX)
+    assert outcome.actionable
+    assert any("AI review confirmed" in reason for reason in outcome.result.reasons)
+
+    service.reviewer = AIReviewer(FakeAI('{"decision":"DOWN"}'), FakeAI('{"decision":"UP"}'))
+    blocked = await service.analyse(Market.FOREX)
+    assert not blocked.actionable
+    assert "DOWN" in blocked.conflict

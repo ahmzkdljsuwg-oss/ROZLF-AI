@@ -5,6 +5,7 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 
+from ai.review import AIReviewer
 from config import Settings
 from engines.signals.duration import auto_frames, choose_auto_duration
 from engines.technical.analyzer import AnalysisResult, analyze_market_data
@@ -41,10 +42,11 @@ class MarketAnalysis:
 
 
 class MarketAnalysisService:
-    def __init__(self, registry: DataSourceRegistry, settings: Settings, inventory=None) -> None:
+    def __init__(self, registry: DataSourceRegistry, settings: Settings, inventory=None, gemini=None, mistral=None) -> None:
         self.registry = registry
         self.settings = settings
         self.inventory = inventory
+        self.reviewer = AIReviewer(gemini, mistral)
 
     async def assets_for(self, market: Market) -> list[Asset]:
         if market in (Market.FOREX, Market.GOLD):
@@ -108,6 +110,17 @@ class MarketAnalysisService:
                 outcome.result = best
                 outcome.duration_seconds = duration
                 outcome.duration_reason = reason
+                if self.reviewer.configured():
+                    review = await self.reviewer.review(
+                        best.direction, _review_payload(best, duration, reason)
+                    )
+                    if review.conflict:
+                        outcome.conflict = review.conflict
+                        return outcome
+                    if review.verdicts:
+                        best.reasons.append(
+                            "AI review confirmed by " + ", ".join(v.model for v in review.verdicts)
+                        )
                 return outcome
             outcome.errors.append("best setup did not pass the confidence or duration filter")
         results.sort(key=lambda item: item[0].confidence, reverse=True)
@@ -134,3 +147,36 @@ class MarketAnalysisService:
 
 def _asset_by_key(assets: list[Asset], key: str) -> Asset:
     return next((asset for asset in assets if asset.key == key), assets[0])
+
+
+def _review_payload(result: AnalysisResult, duration: int, reason: str) -> dict:
+    indicators = {
+        key: result.indicators.get(key)
+        for key in (
+            "close", "trend", "rsi", "macd", "macd_signal", "macd_hist",
+            "ema9", "ema21", "ema50", "ema200", "sma50", "atr", "bb_upper",
+            "bb_middle", "bb_lower", "stoch_k", "stoch_d", "adx",
+        )
+        if key in result.indicators
+    }
+    return {
+        "asset": result.asset_display,
+        "market": result.market,
+        "timeframe": result.timeframe,
+        "technical_decision": result.direction,
+        "confidence": result.confidence,
+        "entry_price": result.price,
+        "closed_candles": result.closed_candles,
+        "current_candle": result.current_candle,
+        "indicators": indicators,
+        "smc": result.smc,
+        "alligator_ma": result.alligator_ma,
+        "confirmed_strategies": result.confirmed_strategies,
+        "opposing_strategies": result.opposing_strategies,
+        "reasons": result.reasons,
+        "warnings": result.warnings,
+        "blockers": result.blockers,
+        "auto_duration_seconds": duration,
+        "duration_reason": reason,
+        "source": result.source,
+    }
