@@ -12,7 +12,7 @@ ROZLF AI بوت Telegram مستقل للتحليل الفني وإشارات ا�
 | الميزة | الحالة |
 |---|---|
 | لوحة تحكم Telegram (Inline Keyboard، تعديل رسائل بدون إغراق) | ✅ يعمل |
-| تحليل FOREX (EUR/USD, USD/JPY بدون مفتاح عبر Twelve Data demo) | ✅ تم اختباره على بيانات حقيقية |
+| تحليل FOREX | ⚠️ يحتاج `TWELVE_DATA_API_KEY` حقيقياً؛ لا يوجد وضع demo أو Yahoo |
 | باقي أزواج FOREX و GOLD | ✅ مع `TWELVE_DATA_API_KEY` (بدونه `DATA UNAVAILABLE` بصدق) |
 | Gold quote لحظي (Swissquote) | ✅ يعمل |
 | محرك فني كامل: RSI, MACD, EMA 9/21/50/200, SMA, Bollinger, ATR, Stochastic, S/R, Patterns | ✅ يعمل |

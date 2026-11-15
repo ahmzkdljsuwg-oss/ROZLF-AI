@@ -6,9 +6,9 @@
 
 ### Twelve Data (FOREX / GOLD — شموع)
 - Endpoint: `https://api.twelvedata.com/time_series`
-- تم اختبار `EUR/USD`, `interval=1min` بنجاح وأعاد شموع OHLC حقيقية (بدون مفتاح، وضع demo).
-- مع مفتاح `TWELVE_DATA_API_KEY` تزيد الحصص والأصول المتاحة.
-- القيود: حدود الطلبات في وضع demo، وقد تُرفض بعض الأزواج. عند الفشل يتحول المشروع إلى مزود آخر أو يعيد `DATA UNAVAILABLE`.
+- لا يوجد وضع demo ولا مفتاح مشترك: بدون `TWELVE_DATA_API_KEY` حقيقي يعتبر المزود غير مهيأ.
+- عند الفشل أو غياب المفتاح تُعاد `DATA UNAVAILABLE` ولا تُصدر إشارة.
+- القيود: حدود الخطة قد ترفض بعض الأزواج أو XAU/USD.
 
 ### Swissquote public quotes (FOREX / GOLD — سعر لحظي)
 - Endpoint: `https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/{symbol}`
@@ -58,15 +58,11 @@
 - يجب أن يتحقق الجسر من مطابقة اسم الأصل والسوق والتوقيت، وأن يرفض الأسعار القديمة.
 - عند رفض الجسر للطلب سيظهر `DATA UNAVAILABLE` بدلاً من إشارة.
 
-## 6. مصدر Forex احتياطي بلا مفتاح (تم اختباره فعلياً)
+## 6. مصدر Forex الاحتياطي — معطّل
 
-| المصدر | النوع | الشموع | الترخيص/الاستخدام | الحالة |
-|---|---|---|---|---|
-| Yahoo Finance chart API (`providers/yahoo.py`) | FX حقيقي متأخر زمنياً عبر HTTPS | 1m/5m/15m/30m/1h | بيانات عامة للاستخدام غير التجاري؛ واجهة غير رسمية | ✅ مختبر 2026-11-09: 300 شمعة حقيقية لكل أزواج FOREX التسعة |
-
-- يُستخدم فقط عندما يفشل Twelve Data (مفتاح غير موجود أو 401)، وفقط لسوق FOREX.
-- لا يخدم GOLD ولا OTC ولا SMARTY: يرفضها صراحةً بـ `UNSUPPORTED_MARKET`.
-- GOLD يبقى على Twelve Data؛ وبدون `TWELVE_DATA_API_KEY` حقيقي يظهر `DATA UNAVAILABLE` مع سبب واضح (مفتاح demo مرفوض)، ولا تُصدر إشارة.
+- `providers/yahoo.py` بقي في الشيفرة للمرجع والاختبارات فقط، ولا يُسجّل في `build_registry`.
+- السبب: Yahoo Finance واجهة غير رسمية وغير مرخّصة تجارياً؛ لا تُستخدم لبيانات التداول.
+- FOREX وGOLD يعتمدان على Twelve Data بمفتاح حقيقي فقط. بدون مفتاح تظهر `DATA UNAVAILABLE`.
 
 ## 7. اكتشاف SMARTY من الجسر
 - المصدر الأساسي: `GET /assets?market=smarty` من حساب ExpertOption الحقيقي.

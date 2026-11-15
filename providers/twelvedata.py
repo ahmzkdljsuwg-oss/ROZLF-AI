@@ -22,9 +22,7 @@ class TwelveDataProvider(BaseProvider):
     can_serve_candles = True
 
     def __init__(self, api_key: str | None, client: httpx.AsyncClient | None = None) -> None:
-        # Twelve Data documents a shared "demo" key; it works for a small symbol
-        # subset only, so real keys are still required for full coverage.
-        self.api_key = api_key or "demo"
+        self.api_key = (api_key or "").strip()
         self._client = client
         self._owns_client = client is None
         self._cache: dict[tuple[str, str], tuple[float, list[Candle]]] = {}
@@ -32,22 +30,14 @@ class TwelveDataProvider(BaseProvider):
 
     @property
     def configured(self) -> bool:
-        return True
-
-    @property
-    def demo_mode(self) -> bool:
-        return self.api_key == "demo"
+        return bool(self.api_key)
 
     def _supports(self, asset: Asset) -> bool:
         return asset.twelve_data_symbol is not None
 
     def status(self):
         status = super().status()
-        detail = (
-            "no TWELVE_DATA_API_KEY set — demo key only covers a few FX symbols, GOLD needs a live key"
-            if self.demo_mode
-            else "live API key"
-        )
+        detail = "live API key" if self.api_key else "TWELVE_DATA_API_KEY is not configured"
         return status.__class__(
             id=status.id,
             name=status.name,
@@ -67,6 +57,13 @@ class TwelveDataProvider(BaseProvider):
             await self._client.aclose()
             self._client = None
 
+    def _require_key(self) -> None:
+        if not self.api_key:
+            raise DataUnavailable(
+                "NOT_CONFIGURED",
+                "TWELVE_DATA_API_KEY is not configured; no verified FOREX/GOLD source is available",
+            )
+
     def _check_payload(self, payload: Any, symbol: str) -> None:
         if not isinstance(payload, dict):
             raise DataUnavailable("BAD_RESPONSE", f"Twelve Data returned an unexpected payload for {symbol}")
@@ -77,10 +74,9 @@ class TwelveDataProvider(BaseProvider):
         if code == 429:
             raise DataUnavailable("RATE_LIMITED", "Twelve Data rate limit reached", message)
         if code in (401, 403):
-            hint = " (no TWELVE_DATA_API_KEY set; the demo key rejects this symbol)" if self.demo_mode else ""
             raise DataUnavailable(
                 "INVALID_KEY",
-                "Twelve Data API key rejected" + hint,
+                "Twelve Data API key rejected",
                 message,
             )
         if "not available" in message.lower() or "not found" in message.lower():
@@ -92,6 +88,7 @@ class TwelveDataProvider(BaseProvider):
         raise DataUnavailable("PROVIDER_ERROR", f"Twelve Data error for {symbol}: {message}", message)
 
     async def fetch_candles(self, asset: Asset, tf: Timeframe, limit: int = 300) -> list[Candle]:
+        self._require_key()
         symbol = asset.twelve_data_symbol or ""
         key = (symbol, tf.code)
         cached = self._cache.get(key)
@@ -147,6 +144,7 @@ class TwelveDataProvider(BaseProvider):
         return list(candles)
 
     async def fetch_quote(self, asset: Asset) -> Quote:
+        self._require_key()
         symbol = asset.twelve_data_symbol or ""
         cached = self._quote_cache.get(symbol)
         now = time.monotonic()

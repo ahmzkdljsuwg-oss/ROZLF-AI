@@ -205,7 +205,6 @@ def build_registry(config, bridge=None) -> DataSourceRegistry:
     from providers.eobridge import ExpertOptionBridgeProvider
     from providers.mt5 import MT5BridgeProvider
     from providers.swissquote import SwissquoteProvider
-    from providers.yahoo import YahooForexProvider
     from providers.twelvedata import TwelveDataProvider
 
     bridge = bridge or ExpertOptionBridgeProvider(
@@ -216,7 +215,6 @@ def build_registry(config, bridge=None) -> DataSourceRegistry:
         [
             MT5BridgeProvider(config.mt5_bridge_url, config.mt5_bridge_key),
             TwelveDataProvider(config.twelve_data_api_key),
-            YahooForexProvider(),
             SwissquoteProvider(),
             bridge,
         ]
