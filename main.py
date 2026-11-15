@@ -64,8 +64,18 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
             "ai": live.ai_health() if live else settings.describe().get("ai", {}),
             "bridge_configured": bool(settings.bridge_url and settings.eo_bridge_key),
             "build": os.getenv("ROZLF_BUILD_SHA") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "unknown",
-            "menu_version": "M4",
+            "menu_version": "NEXUS-M5",
             "menu_button": state.get("menu_button", "pending"),
+            "nexus_home": [
+                {"text": button.text, "callback": button.callback_data}
+                for row in keyboards.nexus_home_menu().inline_keyboard
+                for button in row
+            ],
+            "nexus_markets": [
+                {"text": button.text, "callback": button.callback_data}
+                for row in keyboards.nexus_markets_menu().inline_keyboard
+                for button in row
+            ],
             "menu": [
                 {"text": button.text, "callback": button.callback_data}
                 for row in keyboards.main_menu().inline_keyboard
@@ -223,7 +233,7 @@ async def _run_bot(state: dict) -> None:
             for row in keyboards.main_menu().inline_keyboard
             for button in row
         )
-        logger.info("ROZLF MENU M3 READY: %s", menu_fingerprint)
+        logger.info("ROZLF MENU NEXUS-M5 READY: %s", menu_fingerprint)
         try:
             await bot.set_my_commands(
                 [
