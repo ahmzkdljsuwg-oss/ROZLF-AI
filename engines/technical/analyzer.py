@@ -53,6 +53,8 @@ class AnalysisResult:
     strategy_labels: list[str] = field(default_factory=list)
     market_profile: str = ""
     alligator_ma: dict = field(default_factory=dict)
+    current_candle: dict = field(default_factory=dict)
+    closed_candles: int = 0
 
     def as_dict(self) -> dict:
         data = asdict(self)
@@ -95,6 +97,20 @@ def analyze_market_data(
         candles=usable,
         validation=replace(market_data.validation, bar_count=len(usable)),
     )
+    current = market_data.candles[-1]
+    closed_times = {candle.time for candle in usable}
+    current_candle = {}
+    if current.time not in closed_times:
+        span = max(float(current.high - current.low), 1e-12)
+        current_candle = {
+            "open": current.open,
+            "high": current.high,
+            "low": current.low,
+            "close": current.close,
+            "direction": "UP" if current.close > current.open else "DOWN" if current.close < current.open else "FLAT",
+            "close_position": round((current.close - current.low) / span * 100, 1),
+            "time": current.time.isoformat(),
+        }
     frame = frame_from_candles(usable)
     ind = compute_indicators(frame)
     smc = analyze_smc(frame, ind["atr"])
@@ -249,6 +265,8 @@ def analyze_market_data(
         strategy_labels=evidence.strategy_labels,
         market_profile=profile.name,
         alligator_ma=alligator_ma.as_dict(),
+        current_candle=current_candle,
+        closed_candles=len(usable),
     )
     LOG.info(
         "ROZLF DECISION market=%s asset=%s tf=%s duration=%s direction=%s confidence=%.1f "

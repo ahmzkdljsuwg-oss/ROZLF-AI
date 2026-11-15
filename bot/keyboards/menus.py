@@ -70,6 +70,44 @@ TRADE_DURATION_LABELS: dict[int, str] = {
 }
 
 
+NEXUS_MARKET_ORDER: tuple[tuple[str, str], ...] = (
+    ("1️⃣ OTC", "nx:market:OTC"),
+    ("2️⃣ SMARTY", "nx:market:SMARTY"),
+    ("3️⃣ FOOTBALL", "nx:market:FOOTBALL"),
+    ("4️⃣ LUXURY", "nx:market:LUXURY"),
+    ("5️⃣ AI INDEX", "nx:market:AI"),
+    ("6️⃣ CRICKET", "nx:market:CRICKET"),
+    ("7️⃣ FOREX", "nx:market:FOREX"),
+)
+
+
+def nexus_home_menu() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(_button("حلل 🤖", "nx:analyse"))
+    return builder.as_markup()
+
+
+def nexus_markets_menu() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for text, data in NEXUS_MARKET_ORDER:
+        builder.row(_button(text, data))
+    builder.row(_button("🛠 أدوات إضافية", "nx:more"))
+    return builder.as_markup()
+
+
+def nexus_result_menu(market: Market) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(_button("خذ صفقة أخرى 🔄", f"nx:again:{market.value.upper()}"))
+    builder.row(_button("📊 كل الأسواق", "nx:analyse"), _button("🏠 الرئيسية", "menu:main"))
+    return builder.as_markup()
+
+
+def nexus_market_tools_menu() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(_button("🔙 الأسواق", "nx:analyse"), _button("🏠 الرئيسية", "menu:main"))
+    return builder.as_markup()
+
+
 def main_menu(mini_app_url: str | None = None) -> InlineKeyboardMarkup:
     """ROZLF AI V2 control panel. Every button has a live callback handler."""
     builder = InlineKeyboardBuilder()

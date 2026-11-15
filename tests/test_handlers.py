@@ -74,11 +74,7 @@ async def test_market_callback_lists_assets(monkeypatch):
     assert callback.answered
 
 
-REQUIRED_MENU = [
-    "🧠 SMARTY MARKET", "💱 OTC MARKET", "💵 FOREX MARKET", "🥇 GOLD ANALYSIS",
-    "🤖 AUTO SCANNER", "🖼️ AI IMAGE ANALYSIS", "📡 LIVE SIGNALS", "🕘 SIGNAL HISTORY",
-    "📊 PERFORMANCE STATISTICS", "⚙️ SETTINGS", "🔄 REFRESH", "🖥️ SYSTEM STATUS",
-]
+REQUIRED_MENU = ["حلل 🤖"]
 
 
 async def test_start_renders_exact_new_menu(monkeypatch, settings):
@@ -89,8 +85,8 @@ async def test_start_renders_exact_new_menu(monkeypatch, settings):
     await handlers.cmd_start(message)
     text, keyboard = message.answers[0]
     assert [button.text for row in keyboard.inline_keyboard for button in row] == REQUIRED_MENU
-    assert "ADVANCED TRADING INTELLIGENCE" in text
-    assert "DATA SOURCES:" in text
+    assert "NEXUS AI" in text
+    assert "WELCOME BACK" in text
 
 
 @pytest.mark.parametrize(

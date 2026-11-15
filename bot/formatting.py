@@ -1009,3 +1009,60 @@ def image_analysis_text(model_text: str) -> str:
         f"{safe}\n\n"
         "<i>⚠️ صورة ساكنة — ليست سعراً حياً ولا توصية تنفيذ.</i>"
     )
+
+
+NEXUS_WELCOME = (
+    "WELCOME BACK 👋\n\n"
+    "<b>NEXUS AI 🤖</b>\n"
+    "ذكاء اصطناعي لتحليل الأسواق واختيار أفضل الفرص.\n\n"
+    "<i>تحليل وإشارات فقط — لا ينفّذ البوت أي صفقات.</i>"
+)
+
+
+def nexus_markets_text() -> str:
+    return (
+        "<b>NEXUS AI 🤖</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "اختر السوق الذي تريد تحليله.\n"
+        "كل سوق يُحلَّل بمصدر بياناته المستقل، والمدة تُختار تلقائياً."
+    )
+
+
+def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
+                       confidence: float | None) -> str:
+    trade = {"UP": "فوق", "DOWN": "تحت"}.get(direction, "NO TRADE")
+    duration = duration_label(expiry_seconds) if expiry_seconds else "—"
+    conf = f"{confidence:.0f}%" if confidence is not None else "—"
+    return (
+        "NEXUS AI 🤖\n"
+        f"📊 السوق: <b>{market_label(market)}</b>\n"
+        f"⏱️ الوقت: <b>{duration}</b>\n"
+        f"📈 الصفقة: <b>{trade}</b>\n"
+        f"🎯 الثقة: <b>{conf}</b>"
+    )
+
+
+def nexus_data_unavailable_text(market: str, detail: str | None = None) -> str:
+    lines = [
+        "NEXUS AI 🤖",
+        f"📊 السوق: <b>{market_label(market)}</b>",
+        "📈 الصفقة: <b>NO TRADE</b>",
+        "🎯 الثقة: —",
+        "",
+        "⛔ <b>DATA UNAVAILABLE</b>",
+        "لا يوجد مصدر بيانات حقيقي ومتحقق لهذا السوق الآن.",
+        "لن يصدر البوت أي توصية من بيانات غير موثوقة.",
+    ]
+    if detail:
+        lines.append(f"<i>{detail}</i>")
+    return "\n".join(lines)
+
+
+def nexus_unchanged_text(market: str) -> str:
+    return (
+        "NEXUS AI 🤖\n"
+        f"📊 السوق: <b>{market_label(market)}</b>\n"
+        "📈 الصفقة: <b>NO TRADE</b>\n"
+        "🎯 الثقة: —\n\n"
+        "🔄 لم تتغير ظروف السوق منذ آخر توصية، لذلك لن يكرر البوت نفس النتيجة."
+    )

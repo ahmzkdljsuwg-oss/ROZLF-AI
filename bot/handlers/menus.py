@@ -19,6 +19,7 @@ from bot.keyboards import menus
 from engines.signals.duration import auto_frames, choose_auto_duration
 from engines.markets import profile_for
 from engines.signals.generator import DURATION_LABELS, supported_durations
+from services.market_analysis import MarketAnalysisService
 from providers.base import DataUnavailable
 from providers.catalog import (
     SMARTY_ASSET, TIMEFRAMES, Asset, Market, assets_for, get_asset, register_dynamic, timeframe,
@@ -35,6 +36,8 @@ _LAST_ANALYSIS: dict[tuple[int, str], tuple] = {}
 _PENDING_MIN: dict[int, float] = {}
 _RECS_CACHE: dict[int, tuple[float, str]] = {}
 _MT5_CACHE: dict[str, tuple[float, list[Asset]]] = {}
+_NEXUS_LAST: dict[tuple[int, str], tuple[tuple, float]] = {}
+NEXUS_MARKETS = {"OTC", "SMARTY", "FOOTBALL", "LUXURY", "AI", "CRICKET", "FOREX"}
 TRADE_DURATION_CHOICES: tuple[int, ...] = (30, 60, 120, 180, 300)
 MT5_DURATIONS: tuple[int, ...] = (60, 300, 900, 1800, 3600)
 
@@ -100,10 +103,115 @@ async def _show_main(message: Message) -> None:
     )
 
 
+async def _show_nexus_home(message: Message) -> None:
+    await message.answer(
+        fmt.NEXUS_WELCOME,
+        reply_markup=menus.nexus_home_menu(),
+        disable_web_page_preview=True,
+    )
+
+
+@router.callback_query(F.data == "nx:analyse")
+async def cb_nx_analyse(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await _edit(callback, fmt.nexus_markets_text(), menus.nexus_markets_menu())
+
+
+@router.callback_query(F.data == "nx:more")
+async def cb_nx_more(callback: CallbackQuery) -> None:
+    ctx = get_context()
+    await callback.answer()
+    await _edit(callback, await _welcome_panel(ctx), menus.main_menu())
+
+
+@router.callback_query(F.data.startswith("nx:market:"))
+async def cb_nx_market(callback: CallbackQuery) -> None:
+    await _nexus_analyse(callback, callback.data.split(":", 2)[2].upper())
+
+
+@router.callback_query(F.data.startswith("nx:again:"))
+async def cb_nx_again(callback: CallbackQuery) -> None:
+    await _nexus_analyse(callback, callback.data.split(":", 2)[2].upper())
+
+
+async def _nexus_analyse(callback: CallbackQuery, market_name: str) -> None:
+    if market_name not in NEXUS_MARKETS:
+        await callback.answer("سوق غير معروف", show_alert=True)
+        return
+    market = Market[market_name]
+    user_id = callback.from_user.id
+    if _analysis_lock(user_id).locked():
+        await callback.answer("التحليل السابق لم ينتهِ بعد", show_alert=True)
+        return
+    await callback.answer()
+    async with _analysis_lock(user_id):
+        await _edit(
+            callback,
+            f"NEXUS AI 🤖\n📊 السوق: <b>{market.label}</b>\n\n"
+            "⏳ جارٍ قراءة الشموع المغلقة والشمعة الحالية، وحساب المؤشرات واختيار المدة تلقائياً...",
+        )
+        ctx = get_context()
+        service = MarketAnalysisService(ctx.registry, ctx.settings, getattr(ctx, "inventory", None))
+        outcome = await service.analyse(market)
+
+        if outcome.result is None:
+            detail = outcome.errors[0] if outcome.errors else None
+            await _edit(callback, fmt.nexus_data_unavailable_text(market.value, detail),
+                        menus.nexus_result_menu(market))
+            return
+
+        result = outcome.result
+        if not outcome.actionable:
+            reason = outcome.conflict or "; ".join(outcome.errors[:1]) or None
+            text = fmt.nexus_signal_text(market.value, "NO TRADE", None, None)
+            if reason:
+                text += f"\n\n<i>{reason}</i>"
+            await _edit(callback, text, menus.nexus_result_menu(market))
+            return
+
+        fingerprint = (
+            result.asset_key,
+            result.direction,
+            result.timeframe,
+            round(result.price, 8),
+            round(result.confidence, 1),
+            outcome.duration_seconds,
+        )
+        previous = _NEXUS_LAST.get((user_id, market.value))
+        if previous is not None and previous[0] == fingerprint and (time.monotonic() - previous[1]) < 600:
+            await _edit(callback, fmt.nexus_unchanged_text(market.value), menus.nexus_result_menu(market))
+            return
+
+        _NEXUS_LAST[(user_id, market.value)] = (fingerprint, time.monotonic())
+        try:
+            await ctx.repo.add_signal(
+                user_id=user_id,
+                asset_key=result.asset_key,
+                asset_display=result.asset_display,
+                market=result.market,
+                timeframe=result.timeframe,
+                direction=result.direction,
+                confidence=result.confidence,
+                entry_price=result.price,
+                source=result.source,
+                reasons=result.reasons,
+                warnings=result.warnings,
+                expiry_seconds=outcome.duration_seconds,
+                created_at=result.generated_at,
+            )
+        except Exception:  # noqa: BLE001 - a persistence fault must not hide a valid analysis
+            logger.exception("could not persist NEXUS signal")
+        await _edit(
+            callback,
+            fmt.nexus_signal_text(market.value, result.direction, outcome.duration_seconds, result.confidence),
+            menus.nexus_result_menu(market),
+        )
+
+
 @router.message(CommandStart())
 @router.message(Command("menu"))
 async def cmd_start(message: Message) -> None:
-    await _show_main(message)
+    await _show_nexus_home(message)
 
 
 @router.message(Command("miniapp"))
