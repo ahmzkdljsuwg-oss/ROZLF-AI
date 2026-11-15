@@ -141,3 +141,7 @@ PYTHONPATH=. python scripts/live_smoke.py
 - الأسعار القديمة أو الشموع غير الصالحة تُرفض قبل التحليل.
 - بدون مصدر متوافق تظهر رسالة `DATA UNAVAILABLE` ولا تُصدر إشارة.
 - التفاصيل الكاملة في `docs/DATA-SOURCES.md`، ونتائج Task M في `docs/TASK-M-REPORT.md`، وتقرير الاختبار في `docs/TEST-REPORT.md`.
+
+## NEXUS AI Telegram flow
+
+`/start` opens the NEXUS home screen with the single `حلل 🤖` button. The seven markets are listed as separate vertical buttons and analysed automatically from their own source only. When a market has no verified feed the bot answers `DATA UNAVAILABLE` and issues no recommendation. Existing advanced tools remain reachable through `🛠 أدوات إضافية`.
