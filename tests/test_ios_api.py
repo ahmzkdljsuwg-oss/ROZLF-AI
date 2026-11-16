@@ -86,3 +86,15 @@ async def test_scan_preserves_no_trade_when_calibration_fails(monkeypatch):
         data = await response.json()
         assert data["items"]
         assert all(r["direction"] == "NO TRADE" for r in data["items"])
+
+
+async def test_invalid_chart_image_returns_validation_message():
+    class Vision:
+        configured = True
+
+    app = web.Application()
+    install(app, lambda: SimpleNamespace(vision=Vision()), "key")
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post("/api/nexus/v1/image", headers={"Authorization": "Bearer key"}, data=b"")
+        assert response.status == 400
+        assert (await response.json())["message"]

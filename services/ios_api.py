@@ -187,7 +187,7 @@ def install(app: web.Application, context, token: str) -> None:
                 prepared = await asyncio.to_thread(prepare_image, await request.read())
                 result = await ctx.vision.analyse(prepared)
             except ImageRejected as exc:
-                return web.json_response({"message": exc.message}, status=400)
+                return web.json_response({"message": str(exc)}, status=400)
             except VisionUnavailable as exc:
                 return web.json_response({"message": exc.message}, status=503)
         return web.json_response({"text": result})
