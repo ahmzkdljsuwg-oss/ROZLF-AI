@@ -49,46 +49,6 @@ def market_label(market: str) -> str:
     return labels.get(market, market)
 
 
-def welcome_text(settings: Settings, ai_online: bool | None = None, health: dict | None = None) -> str:
-    online = bool(getattr(settings, "mistral_api_key", None)) if ai_online is None else ai_online
-    ai_state = "🟢 ONLINE" if online else "🔴 OFFLINE"
-
-    live = total = 0
-    last_update: datetime | None = None
-    if health:
-        total = len(health)
-        for entry in health.values():
-            if getattr(entry, "ok", False):
-                live += 1
-                stamp = getattr(entry, "last_time", None)
-                if stamp is not None and (last_update is None or stamp > last_update):
-                    last_update = stamp
-        if total and live == total:
-            feed = "🟢 CONNECTED"
-        elif live:
-            feed = f"🟡 PARTIAL · {live}/{total} MARKETS"
-        else:
-            feed = "🔴 DISCONNECTED"
-    else:
-        configured = bool(getattr(settings, "twelve_data_api_key", None)) or bool(
-            getattr(settings, "eo_bridge_url", None)
-        )
-        feed = "🟡 CONFIGURED · NOT PROBED" if configured else "🔴 NOT CONFIGURED"
-
-    stamp_text = local_time(last_update) if last_update else "NOT CHECKED"
-    return (
-        "🧠 <b>ROZLF AI</b>\n"
-        "<b>ADVANCED TRADING INTELLIGENCE</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "مرحباً بك في نظام ROZLF AI.\n"
-        "اختر قسماً من الأزرار أدناه.\n\n"
-        f"📡 DATA SOURCES: {feed}\n"
-        f"🤖 AI ENGINE: {ai_state}\n"
-        f"🕒 LAST PRICE UPDATE: {stamp_text}\n\n"
-        "<i>تحليل وإشارات فقط — لا ينفّذ البوت أي صفقات.</i>"
-    )
-
-
 ARABIC_REASONS = {
     "BOS / CHoCH": "كسر هيكل السوق (BOS/CHoCH).",
     "Market Structure": "هيكل السوق يدعم الاتجاه.",
@@ -1026,6 +986,15 @@ def nexus_markets_text() -> str:
         "━━━━━━━━━━━━━━━━━━\n"
         "اختر السوق الذي تريد تحليله.\n"
         "كل سوق يُحلَّل بمصدر بياناته المستقل، والمدة تُختار تلقائياً."
+    )
+
+
+def nexus_tools_text() -> str:
+    return (
+        "<b>NEXUS AI 🤖 · الأدوات</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "الماسح التلقائي، تحليل الصور، الإشارات، السجل والإحصائيات والإعدادات —\n"
+        "كلها تعمل على نفس مصادر البيانات الحقيقية."
     )
 
 

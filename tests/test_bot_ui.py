@@ -30,32 +30,33 @@ def _record(direction="UP", status="ACTIVE") -> SignalRecord:
     )
 
 
-def test_main_menu_has_real_callbacks():
-    markup = menus.main_menu()
-    data = [button.callback_data for row in markup.inline_keyboard for button in row]
-    texts = [button.text for row in markup.inline_keyboard for button in row]
-    assert texts == [
-        "🧠 SMARTY MARKET", "💱 OTC MARKET", "💵 FOREX MARKET", "🥇 GOLD ANALYSIS",
-        "🤖 AUTO SCANNER", "🖼️ AI IMAGE ANALYSIS", "📡 LIVE SIGNALS", "🕘 SIGNAL HISTORY",
-        "📊 PERFORMANCE STATISTICS", "⚙️ SETTINGS", "🔄 REFRESH", "🖥️ SYSTEM STATUS",
+def test_single_nexus_home_menu_has_real_callbacks():
+    home = menus.nexus_home_menu()
+    data = [b.callback_data for row in home.inline_keyboard for b in row]
+    texts = [b.text for row in home.inline_keyboard for b in row]
+    assert texts == ["حلل 🤖"]
+    assert data == ["nx:analyse"]
+
+    markets = menus.nexus_markets_menu()
+    market_data = [b.callback_data for row in markets.inline_keyboard for b in row]
+    assert market_data[:7] == [
+        "nx:market:OTC", "nx:market:SMARTY", "nx:market:FOOTBALL",
+        "nx:market:LUXURY", "nx:market:AI", "nx:market:CRICKET", "nx:market:FOREX",
     ]
-    assert data == [
-        "mkt:SMARTY", "mkt:OTC", "mkt:FOREX", "mkt:GOLD", "scan:menu", "image:info",
-        "live", "hist", "stats", "settings", "menu:refresh", "status",
-    ]
-    market_data = [b.callback_data for row in menus.markets_menu().inline_keyboard for b in row]
-    assert market_data[:8] == [
-        "mkt:SMARTY", "mkt:OTC", "mkt:FOREX", "mkt:GOLD",
-        "mkt:FOOTBALL", "mkt:LUXURY", "mkt:AI", "mkt:CRICKET",
-    ]
-    assert all(item for item in data + market_data)
+    assert "nx:more" in market_data
+
+    tools = menus.nexus_tools_menu()
+    tool_data = [b.callback_data for row in tools.inline_keyboard for b in row]
+    for route in ("scan:menu", "image:info", "live", "hist", "stats", "settings", "status"):
+        assert route in tool_data
+    assert not any(item.startswith("mkt:") for item in market_data + tool_data)
 
 
 def test_market_menu_lists_all_assets():
     markup = menus.market_menu(Market.FOREX)
     data = [button.callback_data for row in markup.inline_keyboard for button in row]
     assert any(item.startswith("pick:") for item in data)
-    assert "menu:main" in data
+    assert "nx:home" in data
 
 
 def test_signal_text_contains_required_fields():
@@ -89,13 +90,10 @@ def test_analysis_text_says_data_unavailable_when_needed():
     assert "DATA UNAVAILABLE" in fmt.DATA_UNAVAILABLE
 
 
-def test_welcome_text_shows_control_panel_status(settings):
-    text = fmt.welcome_text(settings, ai_online=True)
-    assert "ROZLF AI" in text
-    assert "ADVANCED TRADING INTELLIGENCE" in text
-    assert "AI ENGINE: 🟢 ONLINE" in text
-    assert "LAST PRICE UPDATE: NOT CHECKED" in text
-    assert "DATA SOURCES:" in text
+def test_welcome_text_is_the_single_nexus_home(settings):
+    assert "WELCOME BACK" in fmt.NEXUS_WELCOME
+    assert "NEXUS AI" in fmt.NEXUS_WELCOME
+    assert not hasattr(fmt, "welcome_text")
 
 
 def test_market_labels():

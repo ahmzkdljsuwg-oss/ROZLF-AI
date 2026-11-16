@@ -33,6 +33,14 @@ class FakeRegistry:
         return "NONE"
 
 
+class _FakeRepo:
+    async def get_analysis_mode(self, user_id):
+        return "strong"
+
+    async def add_signal(self, **kwargs):
+        return 1
+
+
 class FakeInventory:
     def __init__(self, assets=None, error=None):
         self.assets_list = assets or []
@@ -58,6 +66,7 @@ def _fake_context(monkeypatch, inventory=None):
         SimpleNamespace(
             registry=FakeRegistry(),
             inventory=inventory or FakeInventory(),
+            repo=_FakeRepo(),
             settings=SimpleNamespace(min_confidence=65.0, scan_interval=90, scanner_enabled=False),
         ),
         raising=False,
@@ -65,13 +74,15 @@ def _fake_context(monkeypatch, inventory=None):
 
 
 async def test_market_callback_lists_assets(monkeypatch):
-    _fake_context(monkeypatch)
-    callback = FakeCallback("mkt:FOREX")
-    await handlers.cb_market(callback)
+    from providers.catalog import Market, dynamic_asset
+
+    asset = dynamic_asset("SMRTY", Market.SMARTY, precision=2, bridge_id=240, name="SMRTY")
+    _fake_context(monkeypatch, inventory=FakeInventory(assets=[asset]))
+    callback = FakeCallback("nx:market:SMARTY")
+    await handlers._nexus_assets(callback, "SMARTY", 0)
     text, keyboard = callback.message.edits[0]
-    assert "FOREX" in text
-    assert keyboard is not None
-    assert callback.answered
+    assert "SMARTY" in text
+    assert "nx:pick:SMARTY:0" in [b.callback_data for row in keyboard.inline_keyboard for b in row]
 
 
 REQUIRED_MENU = ["حلل 🤖"]
@@ -89,38 +100,31 @@ async def test_start_renders_exact_new_menu(monkeypatch, settings):
     assert "WELCOME BACK" in text
 
 
-@pytest.mark.parametrize(
-    ("market_name", "symbol", "asset_id"),
-    [
-        ("SMARTY", "SMRTY", 240),
-        ("FOOTBALL", "FOOTBALL_INDEX_OTC_R", 278),
-        ("LUXURY", "LUXURY_INDEX_OTC_R", 286),
-        ("AI", "AI_INDEX_OTC_R", 285),
-        ("CRICKET", "CRICKET_INDEX_OTC_R", 276),
-    ],
-)
-async def test_each_market_button_opens_its_real_asset(monkeypatch, market_name, symbol, asset_id):
-    from providers.catalog import Market, dynamic_asset
+@pytest.mark.parametrize("market_name", ["OTC", "SMARTY", "FOOTBALL", "LUXURY", "AI", "CRICKET", "FOREX"])
+async def test_every_market_button_dispatches_to_the_unified_flow(monkeypatch, market_name):
+    _fake_context(monkeypatch)
+    seen = []
 
-    asset = dynamic_asset(symbol, getattr(Market, market_name), precision=5, bridge_id=asset_id, name=market_name)
-    _fake_context(monkeypatch, inventory=FakeInventory(assets=[asset]))
-    callback = FakeCallback(f"mkt:{market_name}")
-    await handlers.cb_market(callback)
-    text, keyboard = callback.message.edits[0]
-    assert f"MARKET ID: <b>{asset_id}</b>" in text
-    data = [button.callback_data for row in keyboard.inline_keyboard for button in row]
-    assert data[:3] == [f"td:{asset.key}:30", f"td:{asset.key}:60", f"td:{asset.key}:120"]
-    assert f"td:smart:{asset.key}" in data
+    async def fake_analyse(callback, name, asset_key=None):
+        seen.append(("analysis", name))
+
+    async def fake_assets(callback, name, page):
+        seen.append(("picker", name))
+
+    monkeypatch.setattr(handlers, "_nexus_analyse", fake_analyse)
+    monkeypatch.setattr(handlers, "_nexus_assets", fake_assets)
+    callback = FakeCallback(f"nx:market:{market_name}")
+    await handlers.cb_nx_market(callback)
+    expected = "picker" if market_name in handlers.ASSET_PICK_MARKETS else "analysis"
+    assert seen == [(expected, market_name)]
 
 
 async def test_forex_button_shows_real_pairs(monkeypatch):
     _fake_context(monkeypatch)
-    callback = FakeCallback("mkt:FOREX")
-    await handlers.cb_market(callback)
-    text, keyboard = callback.message.edits[0]
-    for pair in ("EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "USD/CHF", "NZD/USD", "EUR/JPY", "GBP/JPY"):
-        assert pair in text
-    assert "XAU/USD" not in text
+    callback = FakeCallback("nx:market:FOREX")
+    await handlers._nexus_analyse(callback, "FOREX")
+    text, keyboard = callback.message.edits[-1]
+    assert "FOREX" in text.upper()
     assert keyboard is not None
 
 
@@ -132,26 +136,18 @@ async def test_inactive_cricket_shows_unavailable_and_no_durations(monkeypatch):
             raise DataUnavailable("CRICKET_UNAVAILABLE", "CRICKET UNAVAILABLE — no active Cricket instrument")
 
     _fake_context(monkeypatch, inventory=InactiveCricket())
-    callback = FakeCallback("mkt:CRICKET")
-    await handlers.cb_market(callback)
-    text, keyboard = callback.message.edits[0]
-    assert "CRICKET UNAVAILABLE" in text
+    callback = FakeCallback("nx:market:CRICKET")
+    await handlers._nexus_analyse(callback, "CRICKET")
+    text, keyboard = callback.message.edits[-1]
+    assert "DATA UNAVAILABLE" in text
     data = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert not any(item.startswith(("dur:", "md:", "ix:")) for item in data)
 
 
-async def test_market_callback_is_case_insensitive(monkeypatch):
-    _fake_context(monkeypatch)
-    callback = FakeCallback("mkt:SMARTY")
-    await handlers.cb_market(callback)
-    text, _ = callback.message.edits[0]
-    assert "SMARTY" in text.upper()
-
-
 async def test_unknown_market_rejected(monkeypatch):
     _fake_context(monkeypatch)
-    callback = FakeCallback("mkt:CRYPTO")
-    await handlers.cb_market(callback)
+    callback = FakeCallback("nx:market:CRYPTO")
+    await handlers.cb_nx_market(callback)
     assert any("غير معروف" in text for text in callback.answered)
     assert callback.message.edits == []
 
@@ -160,28 +156,13 @@ async def test_markets_hub_callback():
     callback = FakeCallback("markets")
     await handlers.cb_markets(callback)
     text, keyboard = callback.message.edits[0]
-    assert "ANALYSIS" in text
+    assert "NEXUS AI" in text
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert data[:8] == [
-        "mkt:SMARTY", "mkt:OTC", "mkt:FOREX", "mkt:GOLD",
-        "mkt:FOOTBALL", "mkt:LUXURY", "mkt:AI", "mkt:CRICKET",
+    assert data[:7] == [
+        "nx:market:OTC", "nx:market:SMARTY", "nx:market:FOOTBALL",
+        "nx:market:LUXURY", "nx:market:AI", "nx:market:CRICKET", "nx:market:FOREX",
     ]
-    assert data[-2:] == ["menu:main", "menu:main"]
-
-
-async def test_football_market_opens_asset_278_durations(monkeypatch):
-    from providers.catalog import Market, dynamic_asset
-
-    asset = dynamic_asset(
-        "FOOTBALL_INDEX_OTC_R", Market.FOOTBALL, precision=5, bridge_id=278, name="Football Index"
-    )
-    _fake_context(monkeypatch, inventory=FakeInventory(assets=[asset]))
-    callback = FakeCallback("mkt:FOOTBALL")
-    await handlers.cb_market(callback)
-    text, keyboard = callback.message.edits[0]
-    assert "FOOTBALL INDEX" in text and "278" in text
-    data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert f"td:smart:{asset.key}" in data
+    assert data[-1] == "nx:more"
 
 
 async def test_football_duration_reaches_asset_278_analysis(monkeypatch):
@@ -247,44 +228,12 @@ def _smarty_assets():
     ]
 
 
-async def test_smarty_market_lists_assets_and_single_tap_selects(monkeypatch):
+async def test_smarty_market_lists_assets_in_the_unified_picker(monkeypatch):
     assets = _smarty_assets()
     _fake_context(monkeypatch, inventory=FakeInventory(assets=assets))
-
-    callback = FakeCallback("mkt:SMARTY")
-    await handlers.cb_market(callback)
+    callback = FakeCallback("nx:market:SMARTY")
+    await handlers._nexus_assets(callback, "SMARTY", 0)
     text, keyboard = callback.message.edits[0]
     assert "SMARTY" in text
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert any(item.startswith("pick:") for item in data)
-
-    chosen = assets[1]
-    callback = FakeCallback(f"pick:{chosen.key}")
-    await handlers.cb_pick_asset(callback)
-    text, keyboard = callback.message.edits[0]
-    assert chosen.key.replace("SMARTY_", "") in text.replace(" ", "") or "SMRTY" in text
-    data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert f"td:smart:{chosen.key}" in data
-
-
-async def test_smarty_single_asset_opens_durations_immediately(monkeypatch):
-    asset = _smarty_assets()[0]
-    _fake_context(monkeypatch, inventory=FakeInventory(assets=[asset]))
-    callback = FakeCallback("mkt:SMARTY")
-    await handlers.cb_market(callback)
-    _, keyboard = callback.message.edits[0]
-    data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert f"td:smart:{asset.key}" in data
-    assert all(not item.startswith("sa:") for item in data)
-
-
-async def test_smarty_asset_callback_shows_durations_once(monkeypatch):
-    asset = _smarty_assets()[0]
-    _fake_context(monkeypatch, inventory=FakeInventory(assets=[asset]))
-    callback = FakeCallback(f"ast:{asset.key}")
-    await handlers.cb_asset(callback)
-    text, keyboard = callback.message.edits[0]
-    assert "SMARTY" in text.upper()
-    data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert f"td:smart:{asset.key}" in data
-    assert "SMARTY_241" not in text
+    assert "nx:pick:SMARTY:0" in data and "nx:pick:SMARTY:1" in data

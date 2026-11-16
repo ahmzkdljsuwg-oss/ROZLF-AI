@@ -58,10 +58,8 @@ def test_no_trade_card_has_no_invented_numbers():
     assert "82%" not in text
 
 
-def test_welcome_screen_is_the_v2_panel():
-    settings = SimpleNamespace(min_confidence=70.0, mistral_api_key="configured")
-    text = fmt.welcome_text(settings, ai_online=False)
-    lines = [line for line in text.splitlines() if line.strip()]
-    assert lines[0] == "🧠 <b>ROZLF AI</b>"
-    assert "AI ENGINE: 🔴 OFFLINE" in text
-    assert "LAST PRICE UPDATE: NOT CHECKED" in text
+def test_welcome_screen_is_the_single_nexus_panel():
+    lines = [line for line in fmt.NEXUS_WELCOME.splitlines() if line.strip()]
+    assert lines[0] == "WELCOME BACK 👋"
+    assert "NEXUS AI 🤖" in fmt.NEXUS_WELCOME
+    assert not hasattr(fmt, "welcome_text")

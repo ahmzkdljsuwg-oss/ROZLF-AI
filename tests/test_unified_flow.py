@@ -130,57 +130,72 @@ def _ids(markup):
     ("market", "bridge_id", "label"),
     [
         (Market.FOOTBALL, 278, "FOOTBALL INDEX"),
-        (Market.SMARTY, 240, "SMARTY"),
         (Market.AI, 285, "AI INDEX"),
         (Market.LUXURY, 286, "LUXURY INDEX"),
     ],
 )
-async def test_market_routes_to_real_asset_id(monkeypatch, market, bridge_id, label):
+async def test_market_routes_to_the_unified_analysis(monkeypatch, market, bridge_id, label):
     asset = dynamic_asset(f"ASSET_{bridge_id}", market, bridge_id=bridge_id, name=label)
     _context(monkeypatch, FakeInventory([asset]))
-    callback = FakeCallback(f"mkt:{market.value.upper()}")
-    await handlers.cb_market(callback)
-    text, keyboard = callback.message.edits[0]
-    assert str(bridge_id) in text
+    callback = FakeCallback(f"nx:market:{market.value.upper()}")
+    await handlers._nexus_analyse(callback, market.value.upper())
+    text = callback.message.edits[-1][0]
     assert label in text
-    assert f"td:smart:{asset.key}" in _ids(keyboard)
+
+
+async def test_smarty_and_otc_use_the_real_asset_picker(monkeypatch):
+    smarty = dynamic_asset("SMRTY", Market.SMARTY, bridge_id=240, name="SMARTY")
+    _context(monkeypatch, FakeInventory([smarty]))
+    callback = FakeCallback("nx:market:SMARTY")
+    await handlers._nexus_assets(callback, "SMARTY", 0)
+    text, keyboard = callback.message.edits[0]
+    assert "1 أصل نشط" in text
+    labels = [b.text for row in keyboard.inline_keyboard for b in row]
+    assert any("SMRTY" in label for label in labels)
+    assert "nx:pick:SMARTY:0" in _ids(keyboard)
+    assert not any(item.startswith("mkt:") for item in _ids(keyboard))
 
 
 async def test_cricket_comes_from_catalog_not_guessed_id(monkeypatch):
     cricket = dynamic_asset("CRICKET_INDEX_OTC_R", Market.CRICKET, bridge_id=276, name="Cricket Index")
     _context(monkeypatch, FakeInventory([cricket]))
-    callback = FakeCallback("mkt:CRICKET")
-    await handlers.cb_market(callback)
-    text, keyboard = callback.message.edits[0]
-    assert "CRICKET INDEX" in text and "276" in text
-    assert f"td:smart:{cricket.key}" in _ids(keyboard)
+    seen = []
+
+    async def fake_analyse(callback, name, asset_key=None):
+        seen.append(name)
+
+    monkeypatch.setattr(handlers, "_nexus_analyse", fake_analyse)
+    callback = FakeCallback("nx:market:CRICKET")
+    await handlers.cb_nx_market(callback)
+    assert seen == ["CRICKET"]
 
 
 async def test_cricket_unavailable_keeps_market_visible(monkeypatch):
     error = DataUnavailable("CRICKET_UNAVAILABLE", "no active Cricket instrument")
     _context(monkeypatch, FakeInventory(error=error))
-    callback = FakeCallback("mkt:CRICKET")
-    await handlers.cb_market(callback)
-    text, keyboard = callback.message.edits[0]
-    assert "CRICKET INDEX UNAVAILABLE" in text
-    assert "mkt:cricket" in _ids(keyboard)
+    callback = FakeCallback("nx:market:CRICKET")
+    await handlers._nexus_analyse(callback, "CRICKET")
+    text, keyboard = callback.message.edits[-1]
+    assert "DATA UNAVAILABLE" in text
+    assert "CRICKET" in text.upper()
+    assert "nx:analyse" in _ids(keyboard)
 
 
 async def test_otc_unavailable_never_substitutes_forex(monkeypatch):
     error = DataUnavailable("OTC_UNAVAILABLE", "no verified OTC feed")
     _context(monkeypatch, FakeInventory(error=error))
-    callback = FakeCallback("mkt:OTC")
-    await handlers.cb_market(callback)
-    text, keyboard = callback.message.edits[0]
-    assert "OTC UNAVAILABLE" in text
+    callback = FakeCallback("nx:market:OTC")
+    await handlers._nexus_assets(callback, "OTC", 0)
+    text, keyboard = callback.message.edits[-1]
+    assert "DATA UNAVAILABLE" in text
     assert "EUR/USD" not in text
-    assert "mkt:otc" in _ids(keyboard)
+    assert "nx:analyse" in _ids(keyboard)
 
 
-def test_forex_selector_uses_real_pairs():
-    data = _ids(handlers.menus.market_menu(Market.FOREX))
-    assert "pick:EUR_USD_FOREX" in data
-    assert all(item.startswith(("pick:", "mkt:", "menu:", "markets", "mt5:")) for item in data)
+def test_markets_hub_uses_only_the_canonical_callbacks():
+    data = _ids(handlers.menus.nexus_markets_menu())
+    assert "nx:market:FOREX" in data and "nx:market:OTC" in data
+    assert all(item.startswith(("nx:market:", "nx:more")) for item in data)
 
 
 async def test_manual_duration_lists_only_supported_values(monkeypatch):
@@ -267,12 +282,13 @@ async def test_repeated_press_does_not_run_analysis_twice(monkeypatch):
 
 
 async def test_market_data_isolated_between_indices(monkeypatch):
-    football = dynamic_asset("FOOTBALL_INDEX_OTC_R", Market.FOOTBALL, bridge_id=278, name="Football Index")
-    ai = dynamic_asset("AI_INDEX_OTC_R", Market.AI, bridge_id=285, name="AI Index")
-    _context(monkeypatch, FakeInventory([football, ai]))
-    for market, asset, other in ((Market.FOOTBALL, football, ai), (Market.AI, ai, football)):
-        callback = FakeCallback(f"mkt:{market.value.upper()}")
-        await handlers.cb_market(callback)
-        text = callback.message.edits[0][0]
-        assert str(asset.bridge_id) in text
-        assert str(other.bridge_id) not in text
+    _context(monkeypatch, FakeInventory([]))
+    seen = []
+
+    async def fake_analyse(callback, name, asset_key=None):
+        seen.append(name)
+
+    monkeypatch.setattr(handlers, "_nexus_analyse", fake_analyse)
+    for market in (Market.FOOTBALL, Market.AI):
+        await handlers.cb_nx_market(FakeCallback(f"nx:market:{market.value.upper()}"))
+    assert seen == ["FOOTBALL", "AI"]

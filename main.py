@@ -78,7 +78,7 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
             ],
             "menu": [
                 {"text": button.text, "callback": button.callback_data}
-                for row in keyboards.main_menu().inline_keyboard
+                for row in keyboards.nexus_tools_menu().inline_keyboard
                 for button in row
             ],
             "error": state.get("error"),
@@ -230,7 +230,7 @@ async def _run_bot(state: dict) -> None:
             logger.exception("could not clear a stale Telegram webhook")
         menu_fingerprint = " | ".join(
             f"{button.text}={button.callback_data}"
-            for row in keyboards.main_menu().inline_keyboard
+            for row in keyboards.nexus_home_menu().inline_keyboard
             for button in row
         )
         logger.info("ROZLF MENU NEXUS-M5 READY: %s", menu_fingerprint)

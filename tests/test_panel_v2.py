@@ -50,12 +50,9 @@ def test_confidence_is_not_fixed():
     )
 
 
-def test_welcome_has_three_sections_and_status_lines():
-    text = fmt.welcome_text(SimpleNamespace(min_confidence=65.0, mistral_api_key="x"), ai_online=True)
-    assert "ROZLF AI" in text
-    assert "AI ENGINE: 🟢 ONLINE" in text
-    assert "DATA SOURCES:" in text
-    assert "LAST PRICE UPDATE:" in text
+def test_home_is_the_single_nexus_panel():
+    assert "WELCOME BACK" in fmt.NEXUS_WELCOME
+    assert "NEXUS AI" in fmt.NEXUS_WELCOME
 
 
 def test_market_page_separates_candle_frame_from_expiry():
@@ -77,7 +74,7 @@ def test_unavailable_hides_duration_actions():
     markup = kb.unavailable_menu(Market.CRICKET)
     data = [b.callback_data for row in markup.inline_keyboard for b in row]
     assert not any(item.startswith(("dur:", "md:")) for item in data)
-    assert "menu:main" in data
+    assert "nx:home" in data
 
 
 def test_signal_result_menu_has_details_and_reanalyse():
@@ -86,7 +83,7 @@ def test_signal_result_menu_has_details_and_reanalyse():
     data = [b.callback_data for row in markup.inline_keyboard for b in row]
     assert f"whyd:{asset.key}:1min" in data
     assert f"an:{asset.key}:1min" in data
-    assert "menu:main" in data
+    assert "nx:home" in data
 
 
 def _result(asset, direction="UP", confidence=77.0):

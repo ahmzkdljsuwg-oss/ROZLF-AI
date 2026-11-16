@@ -89,28 +89,6 @@ async def _edit(callback: CallbackQuery, text: str, keyboard=None) -> None:
             await callback.message.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
 
 
-async def _welcome_panel(ctx) -> str:
-    online = await _ai_online(ctx)
-    health: dict = {}
-    if getattr(ctx, "health", None) is not None:
-        health = ctx.health.cached()
-        if not health:
-            try:
-                health = await asyncio.wait_for(ctx.market_health(), timeout=5)
-            except Exception:  # noqa: BLE001 - the panel must render even when probes hang
-                health = {}
-    return fmt.welcome_text(ctx.settings, ai_online=online, health=health)
-
-
-async def _show_main(message: Message) -> None:
-    ctx = get_context()
-    await message.answer(
-        await _welcome_panel(ctx),
-        reply_markup=menus.main_menu(),
-        disable_web_page_preview=True,
-    )
-
-
 async def _show_nexus_home(message: Message) -> None:
     await message.answer(
         fmt.NEXUS_WELCOME,
@@ -125,11 +103,16 @@ async def cb_nx_analyse(callback: CallbackQuery) -> None:
     await _edit(callback, fmt.nexus_markets_text(), menus.nexus_markets_menu())
 
 
+@router.callback_query(F.data == "nx:home")
+async def cb_nx_home(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await _edit(callback, fmt.NEXUS_WELCOME, menus.nexus_home_menu())
+
+
 @router.callback_query(F.data == "nx:more")
 async def cb_nx_more(callback: CallbackQuery) -> None:
-    ctx = get_context()
     await callback.answer()
-    await _edit(callback, await _welcome_panel(ctx), menus.main_menu())
+    await _edit(callback, fmt.nexus_tools_text(), menus.nexus_tools_menu())
 
 
 @router.callback_query(F.data.startswith("nx:market:"))
@@ -370,8 +353,8 @@ async def cmd_start(message: Message) -> None:
 @router.message(Command("markets"))
 async def cmd_markets(message: Message) -> None:
     await message.answer(
-        fmt.markets_selector_text(),
-        reply_markup=menus.markets_menu(),
+        fmt.nexus_markets_text(),
+        reply_markup=menus.nexus_markets_menu(),
         disable_web_page_preview=True,
     )
 
@@ -436,24 +419,21 @@ async def _send_status(message: Message) -> None:
             text += f"\nLAST SCAN: {fmt.local_time(scanner.last_run)} ({scanner.last_found} signals)"
         if scanner.last_error:
             text += f"\nLAST SCANNER ERROR: {scanner.last_error[:120]}"
-    await message.answer(text, disable_web_page_preview=True)
+    await message.answer(text, reply_markup=menus.back_to_main(), disable_web_page_preview=True)
 
 
 @router.callback_query(F.data.in_({"menu:main", "menu:refresh"}))
 async def cb_main(callback: CallbackQuery) -> None:
-    ctx = get_context()
     await callback.answer()
-    await _edit(callback, await _welcome_panel(ctx), menus.main_menu())
+    await _edit(callback, fmt.NEXUS_WELCOME, menus.nexus_home_menu())
 
 
 @router.callback_query(F.data.startswith("mkt:"))
 async def cb_market(callback: CallbackQuery) -> None:
-    market = MARKETS.get(callback.data.split(":", 1)[1].lower())
-    if market is None:
-        await callback.answer("MARKET غير معروف", show_alert=True)
-        return
-    await callback.answer(f"⏳ فحص {market.label}...")
-    await _show_market(callback, market)
+    """Old panel data in the chat history: forward to the unified NEXUS flow."""
+    market_name = callback.data.split(":", 1)[1].upper()
+    await callback.answer()
+    await _nexus_analyse(callback, market_name)
 
 
 async def _show_market(callback: CallbackQuery, market: Market) -> None:
@@ -533,7 +513,7 @@ async def _show_duration_method(callback: CallbackQuery, asset: Asset) -> None:
 @router.callback_query(F.data == "analysis")
 async def cb_analysis(callback: CallbackQuery) -> None:
     await callback.answer()
-    await _edit(callback, fmt.markets_selector_text(), menus.markets_menu())
+    await _edit(callback, fmt.nexus_markets_text(), menus.nexus_markets_menu())
 
 
 def _mt5_provider(ctx):
@@ -1322,13 +1302,13 @@ async def cb_auto(callback: CallbackQuery) -> None:
 @router.callback_query(F.data == "analyze")
 async def cb_analyze(callback: CallbackQuery) -> None:
     await callback.answer()
-    await _edit(callback, fmt.markets_selector_text(), menus.markets_menu())
+    await _edit(callback, fmt.nexus_markets_text(), menus.nexus_markets_menu())
 
 
 @router.callback_query(F.data == "markets")
 async def cb_markets(callback: CallbackQuery) -> None:
     await callback.answer()
-    await _edit(callback, fmt.markets_selector_text(), menus.markets_menu())
+    await _edit(callback, fmt.nexus_markets_text(), menus.nexus_markets_menu())
 
 
 async def _show_trend(callback: CallbackQuery) -> None:
@@ -1592,7 +1572,7 @@ async def cb_image_info(callback: CallbackQuery) -> None:
     ctx = get_context()
     ready = bool(ctx.vision and ctx.vision.configured)
     await callback.answer()
-    await _edit(callback, fmt.image_info_text(ready), menus.back_only("menu:main", "🏠 MAIN MENU"))
+    await _edit(callback, fmt.image_info_text(ready), menus.back_to_main())
 
 
 def _chunks(text: str, size: int = 3300) -> list[str]:

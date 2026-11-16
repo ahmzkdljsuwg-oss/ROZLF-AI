@@ -73,8 +73,8 @@ def test_smart_duration_uses_profile_expiry():
 
 
 def test_otc_and_gold_have_real_menu_scanner_and_health_routes():
-    callbacks = [button.callback_data for row in menus.main_menu().inline_keyboard for button in row]
-    assert "mkt:OTC" in callbacks and "mkt:GOLD" in callbacks
+    callbacks = [button.callback_data for row in menus.nexus_markets_menu().inline_keyboard for button in row]
+    assert "nx:market:OTC" in callbacks
     assert Market.OTC in SCAN_PLAN and Market.GOLD in SCAN_PLAN
     assert Market.OTC in health.PROBE_PLAN and Market.GOLD in health.PROBE_PLAN
 

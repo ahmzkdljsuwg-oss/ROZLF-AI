@@ -53,19 +53,17 @@ def _ids(markup):
     return [b.callback_data for row in markup.inline_keyboard for b in row]
 
 
-def test_home_has_the_v2_control_panel():
-    markup = menus.main_menu()
-    assert len(markup.inline_keyboard) == 6
-    data = _ids(markup)
-    for route in ("mkt:OTC", "mkt:GOLD", "scan:menu", "image:info", "live", "hist", "stats", "settings"):
-        assert route in data
-    assert all(data)
+def test_home_has_the_single_nexus_entry():
+    assert _ids(menus.nexus_home_menu()) == ["nx:analyse"]
+    tools = _ids(menus.nexus_tools_menu())
+    for route in ("scan:menu", "image:info", "live", "hist", "stats", "settings", "status"):
+        assert route in tools
 
 
 def test_markets_menu_lists_every_market_and_keeps_mt5_reachable():
-    markup = menus.markets_menu()
+    markup = menus.nexus_markets_menu()
     texts = [b.text for row in markup.inline_keyboard for b in row]
-    for label in ("🧠 SMARTY MARKET", "💱 OTC MARKET", "💵 FOREX MARKET", "🥇 GOLD ANALYSIS"):
+    for label in ("1️⃣ OTC", "2️⃣ SMARTY", "3️⃣ FOOTBALL", "4️⃣ LUXURY", "5️⃣ AI INDEX", "6️⃣ CRICKET", "7️⃣ FOREX"):
         assert label in texts
     forex = menus.market_menu(Market.FOREX)
     assert any(b.callback_data == "mt5:list" for row in forex.inline_keyboard for b in row)
@@ -81,7 +79,7 @@ def test_duration_menu_uses_requested_labels_and_supported_only():
     assert "🧠 ANALYZE TRADE TIME" in texts
     data = _ids(markup)
     assert f"td:{asset.key}:30" in data and f"td:smart:{asset.key}" in data
-    assert "menu:analysis" in data and "menu:main" in data
+    assert "menu:analysis" in data and "nx:home" in data
 
 
 def test_trade_duration_labels_do_not_mix_candle_frame():

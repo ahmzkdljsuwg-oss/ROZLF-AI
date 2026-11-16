@@ -121,10 +121,10 @@ async def test_smarty_menu_unavailable_without_bridge(monkeypatch):
         SimpleNamespace(registry=FakeRegistry(), inventory=inventory, settings=SimpleNamespace(min_confidence=65.0)),
         raising=False,
     )
-    callback = FakeCallback("mkt:SMARTY")
-    await handlers.cb_market(callback)
+    callback = FakeCallback("nx:market:SMARTY")
+    await handlers._nexus_assets(callback, "SMARTY", 0)
     text = callback.message.edits[-1][0]
-    assert "SMARTY UNAVAILABLE" in text or "SMARTY_UNAVAILABLE" in text
+    assert "DATA UNAVAILABLE" in text
     assert "EUR/USD" not in text
 
 
