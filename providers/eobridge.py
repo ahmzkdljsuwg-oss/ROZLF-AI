@@ -6,6 +6,7 @@ orders and never accepts data for a different market or platform.
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from typing import Any
 
@@ -126,15 +127,22 @@ class ExpertOptionBridgeProvider(BaseProvider):
             )
 
     async def fetch_candles(self, asset: Asset, tf: Timeframe, limit: int = 300) -> list[Candle]:
-        payload = await self._get(
-            "/candles",
-            {
-                "market": asset.market.value,
-                "symbol": asset.bridge_symbol or asset.symbol,
-                "timeframe": tf.code,
-                "limit": max(60, limit),
-            },
-        )
+        params = {
+            "market": asset.market.value,
+            "symbol": asset.bridge_symbol or asset.symbol,
+            "timeframe": tf.code,
+            "limit": max(60, limit),
+        }
+        for attempt in range(2):
+            try:
+                payload = await self._get("/candles", params)
+                break
+            except DataUnavailable as exc:
+                # The socket supervisor often reconnects while a candle request
+                # is in flight. Retry once, without touching credentials.
+                if attempt or exc.code not in {"DISCONNECTED", "NETWORK"}:
+                    raise
+                await asyncio.sleep(0.5)
         self._check_market(payload, asset)
         rows = payload.get("candles") or []
         candles: list[Candle] = []

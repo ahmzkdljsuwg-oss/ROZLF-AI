@@ -109,8 +109,8 @@ def analyze_market_data(
     )
     seconds = market_data.timeframe.seconds
     is_smarty = market_data.asset.market is Market.SMARTY
-    if is_smarty and usable[-1].time + timedelta(seconds=TARGET_OFFSET * seconds) <= now:
-        raise DataUnavailable("MISSING_RECENT_CANDLE", "آخر شمعة مغلقة لـSMARTY متأخرة عن توقيت السوق")
+    if (is_smarty or analysis_mode == "lo") and usable[-1].time + timedelta(seconds=TARGET_OFFSET * seconds) <= now:
+        raise DataUnavailable("MISSING_RECENT_CANDLE", "آخر شمعة مغلقة متأخرة عن توقيت السوق")
 
     current = market_data.candles[-1]
     closed_times = {candle.time for candle in usable}
@@ -130,11 +130,12 @@ def analyze_market_data(
     live_frame = frame_from_candles(market_data.candles)
     target_open = target_open_for(live_frame, seconds, now)
     regime = None
-    if is_smarty:
+    if is_smarty or analysis_mode == "lo":
         # The future target must immediately follow the currently forming slot,
         # even if the feed has not published that slot yet.
         target_open = usable[-1].time + timedelta(seconds=TARGET_OFFSET * seconds)
-        regime = diagnose_regime(frame, seconds)
+        if is_smarty:
+            regime = diagnose_regime(frame, seconds)
     # Calibrations were trained on completed candles only. Using the forming
     # candle here changes the feature distribution and invalidates the measured
     # hit rates, especially on 5s/15s/30s frames. Keep the live frame solely

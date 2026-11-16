@@ -993,7 +993,8 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
                        confidence: float | None, target_open_at=None,
                        reasons: list[str] | None = None, asset: str | None = None,
                        confidence_verified: bool = True,
-                       mode: str = "strong") -> str:
+                       mode: str = "strong", trend: str | None = None,
+                       volatility: str | None = None) -> str:
     trade = {"UP": "شراء / Buy 🟢", "DOWN": "بيع / Sell 🔴"}.get(direction, "NO TRADE ⚪")
     if not expiry_seconds:
         duration = "—"
@@ -1017,6 +1018,12 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
     ]
     if mode == "lo":
         lines.append("🧪 LO MODE · UNCALIBRATED")
+        if target_open_at is not None:
+            lines.append("🕯️ التوقع للشمعة الجاية من آخر شمعة مغلقة")
+        trend_label = {"UP": "صاعد", "DOWN": "هابط", "RANGE": "عرضي"}.get(trend)
+        volatility_label = {"LOW": "منخفض", "NORMAL": "طبيعي", "HIGH": "عالٍ"}.get(volatility)
+        if trend_label and volatility_label:
+            lines.append(f"📊 الترند: {trend_label} · التذبذب: {volatility_label}")
     if confidence_verified and confidence is not None:
         lines.append(f"🎯 الثقة: <b>{confidence:.0f}%</b>")
     elif direction in ("UP", "DOWN"):
@@ -1026,11 +1033,11 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
     return "\n\n".join(lines)
 
 
-def nexus_data_unavailable_text(market: str, detail: str | None = None) -> str:
+def nexus_data_unavailable_text(market: str, detail: str | None = None, *, mode: str = "strong") -> str:
     lines = [
         "NEXUS AI 🤖",
         f"📊 السوق: <b>{market_label(market)}</b>",
-        "📈 الصفقة: <b>NO TRADE</b>",
+        "📈 الصفقة: <b>NO TRADE</b>" if mode != "lo" else "📈 الصفقة: —",
         "🎯 الثقة: —",
         "",
         "⛔ <b>DATA UNAVAILABLE</b>",

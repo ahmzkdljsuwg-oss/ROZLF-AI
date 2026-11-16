@@ -158,10 +158,7 @@ async def test_markets_hub_callback():
     text, keyboard = callback.message.edits[0]
     assert text == "📊 اختر السوق المراد تحليله:"
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert data[:2] == [
-        "nx:market:FOOTBALL", "nx:classic:smarty",
-    ]
-    assert data[-1] == "nx:more"
+    assert data == ["nx:more"]
 
 
 async def test_football_duration_reaches_asset_278_analysis(monkeypatch):

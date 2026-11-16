@@ -48,7 +48,7 @@ TRADE_DURATION_LABELS: dict[int, str] = {
 }
 
 
-NEXUS_MENU_VERSION = "TELEGRAM-CLASSIC-1"
+NEXUS_MENU_VERSION = "TELEGRAM-CLASSIC-2"
 
 NEXUS_MARKET_ORDER: tuple[tuple[str, str], ...] = (
     ("Football Index ⚽", "nx:market:FOOTBALL"),
@@ -57,6 +57,7 @@ NEXUS_MARKET_ORDER: tuple[tuple[str, str], ...] = (
     ("OTC 🌙", "nx:market:OTC"),
     ("Luxury Index 💎", "nx:market:LUXURY"),
     ("AI Index 🤖", "nx:market:AI"),
+    ("Cricket Index 🏏", "nx:market:CRICKET"),
     ("Forex 💱", "nx:market:FOREX"),
     ("MT5 📈", "mt5:list"),
 )
@@ -117,18 +118,26 @@ def nexus_home_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[_button("ابدأ استلام الإشارات 🚀", "nx:analyse")]])
 
 
-def nexus_markets_menu(otc_assets: Iterable[Asset] | None = None) -> InlineKeyboardMarkup:
+def nexus_markets_menu(
+    otc_assets: Iterable[Asset] = (), available: set[str] | None = None,
+) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+
+    def add(label: str, data: str) -> None:
+        if available is None or data in available:
+            builder.row(_button(label, data))
+
     for label, data in NEXUS_MARKET_ORDER[:2]:
-        builder.row(_button(label, data))
-    verified_otc = _classic_asset_labels(otc_assets or [])
+        add(label, data)
+    verified_otc = _classic_asset_labels(otc_assets)
     for index, (label, _) in enumerate(_CLASSIC_ASSETS):
         if index == 4:
-            builder.row(_button(*NEXUS_MARKET_ORDER[2]))
-        if label in verified_otc or label == "EUR/JPY 💵":
+            add(*NEXUS_MARKET_ORDER[2])
+        if label in verified_otc or (label == "EUR/JPY 💵" and
+                                     (available is None or "nx:market:FOREX" in available)):
             builder.row(_button(label, f"nx:favorite:{index}"))
     for label, data in NEXUS_MARKET_ORDER[3:]:
-        builder.row(_button(label, data))
+        add(label, data)
     builder.row(_button("أدوات إضافية 🛠️", "nx:more"))
     return builder.as_markup()
 

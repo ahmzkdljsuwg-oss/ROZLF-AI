@@ -8,7 +8,7 @@ from bot.handlers import menus as handlers
 from bot.keyboards import menus
 from engines.technical.analyzer import AnalysisResult
 from providers.base import DataUnavailable, utc_now
-from providers.catalog import Market, dynamic_asset
+from providers.catalog import Market, dynamic_asset, assets_for
 from services.market_analysis import MarketAnalysis, MarketAnalysisService
 from tests.conftest import FakeProvider
 from providers.registry import DataSourceRegistry
@@ -69,11 +69,10 @@ def test_nexus_home_and_market_stack_order():
     assert [b.text for row in home.inline_keyboard for b in row] == ["ابدأ استلام الإشارات 🚀"]
     markets = menus.nexus_markets_menu()
     rows = [[b.text for b in row] for row in markets.inline_keyboard]
-    assert [row[0] for row in rows[:8]] == [
-        "Football Index ⚽", "Smarty 🧠", "USD/NGN (OTC) 🇳🇬",
-        "EUR/USD (OTC) 🇪🇺", "GBP/USD (OTC) 🇬🇧", "USD/JPY (OTC) 🇯🇵",
-        "Gold 🪙", "Silver ⚪",
+    assert [row[0] for row in rows[:4]] == [
+        "Football Index ⚽", "Smarty 🧠", "Gold 🪙", "EUR/JPY 💵",
     ]
+    assert not any("(OTC)" in row[0] for row in rows)
     assert all(len(row) == 1 for row in rows)
 
 
@@ -93,8 +92,11 @@ async def test_classic_panel_picks_real_assets_in_video_order(monkeypatch):
 
     class Inventory:
         async def assets(self, market):
-            assert market is Market.OTC
-            return assets
+            if market is Market.OTC:
+                return assets
+            if market is Market.SMARTY:
+                return [dynamic_asset("SMARTY", market, bridge_id=240)]
+            return []
 
     monkeypatch.setattr(context, "_context", SimpleNamespace(inventory=Inventory()))
     seen = []
@@ -109,16 +111,17 @@ async def test_classic_panel_picks_real_assets_in_video_order(monkeypatch):
     rows = keyboard.inline_keyboard
     assert text == "📊 اختر السوق المراد تحليله:"
     assert all(len(row) == 1 for row in rows)
-    assert [row[0].text for row in rows[7:13]] == [
-        "Silver ⚪", "Bitcoin/USD ⚡", "Ethereum/USD 💎", "Apple 🍎",
-        "Google 🔍 (Alphabet)", "Facebook 👤",
+    assert [row[0].text for row in rows] == [
+        "Smarty 🧠", "USD/NGN (OTC) 🇳🇬", "EUR/USD (OTC) 🇪🇺", "Silver ⚪",
+        "Apple 🍎", "McDonald's 🍔", "OTC 🌙", "أدوات إضافية 🛠️",
     ]
-    await handlers.cb_nx_favorite(FakeCallback(rows[2][0].callback_data))
-    await handlers.cb_nx_classic_smarty(FakeCallback(rows[1][0].callback_data))
-    unavailable = FakeCallback(rows[4][0].callback_data)
+    await handlers.cb_nx_favorite(FakeCallback(rows[1][0].callback_data))
+    await handlers.cb_nx_classic_smarty(FakeCallback(rows[0][0].callback_data))
+    unavailable = FakeCallback("nx:favorite:2")
     await handlers.cb_nx_favorite(unavailable)
     assert "البيانات غير متاحة" in unavailable.message.edits[-1][0]
     assert seen == [("OTC", "OTC_55"), ("SMARTY", None)]
+
 
 
 
@@ -227,7 +230,7 @@ async def test_market_analysis_conflict_returns_no_trade(monkeypatch):
     from bot import context
 
     ctx = SimpleNamespace(
-        registry=DataSourceRegistry([]),
+        registry=DataSourceRegistry([FakeProvider()]),
         settings=SimpleNamespace(min_confidence=60.0, scan_interval=90, scanner_enabled=False),
         repo=FakeRepo(),
         inventory=None,
@@ -251,6 +254,9 @@ async def test_market_analysis_conflict_returns_no_trade(monkeypatch):
     monkeypatch.setattr(handlers, "MarketAnalysisService", FakeService)
     callback = FakeCallback("nx:market:FOREX")
     await handlers.cb_nx_market(callback)
+    assert "اختر الأصل" in callback.message.edits[-1][0]
+    callback.data = "nx:pick:FOREX:0"
+    await handlers.cb_nx_pick(callback)
     text, _ = callback.message.edits[-1]
     assert "الصفقة: <b>NO TRADE ⚪</b>" in text
     assert "conflicts" in text
@@ -394,3 +400,50 @@ def test_card_shows_real_asset_and_unverified_confidence():
     assert "السوق: <b>EUR/USD OTC</b>" in text
     assert "LO MODE" in text
     assert "UNVERIFIED" in text
+
+
+@pytest.mark.asyncio
+async def test_forex_picker_has_all_supported_pairs_and_analyzes_only_selection(monkeypatch):
+    from bot import context
+
+    ctx = SimpleNamespace(registry=DataSourceRegistry([FakeProvider()]), inventory=None)
+    monkeypatch.setattr(context, "_context", ctx)
+    seen = []
+
+    async def analyse(callback, market, asset_key=None):
+        seen.append((market, asset_key))
+
+    monkeypatch.setattr(handlers, "_nexus_analyse", analyse)
+    callback = FakeCallback("nx:market:FOREX")
+    await handlers.cb_nx_market(callback)
+    title, keyboard = callback.message.edits[-1]
+    assert "اختر الأصل" in title
+    expected = assets_for(Market.FOREX)
+    pairs = [row[0] for row in keyboard.inline_keyboard[:-1]]
+    assert [b.text for b in pairs] == [a.symbol for a in expected]
+    assert seen == []
+    await handlers.cb_nx_pick(FakeCallback(pairs[1].callback_data))
+    await handlers.cb_nx_pick(FakeCallback("nx:pick:FOREX:-1"))
+    assert seen == [("FOREX", expected[1].key)]
+
+
+@pytest.mark.asyncio
+async def test_panel_hides_unavailable_otc_shortcuts_and_category(monkeypatch):
+    from bot import context
+
+    asset = dynamic_asset("USDNGN_OTC_R", Market.OTC, bridge_id=559)
+    registry = DataSourceRegistry([FakeProvider()])
+    registry.mark_unavailable(asset)
+
+    class Inventory:
+        async def assets(self, market):
+            return [asset] if market is Market.OTC else []
+
+    monkeypatch.setattr(context, "_context", SimpleNamespace(inventory=Inventory(), registry=registry))
+    callback = FakeCallback("nx:analyse")
+    await handlers.cb_nx_analyse(callback)
+    _, keyboard = callback.message.edits[-1]
+    routes = [row[0].callback_data for row in keyboard.inline_keyboard]
+    assert "nx:market:FOREX" in routes
+    assert "nx:market:OTC" not in routes and "nx:favorite:0" not in routes
+    assert "mt5:list" not in routes and "nx:market:CRICKET" not in routes

@@ -1,3 +1,4 @@
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -39,8 +40,9 @@ class Callback:
 
 def _ctx(repo, inventory=None):
     return SimpleNamespace(
-        registry=DataSourceRegistry([]),
-        settings=SimpleNamespace(min_confidence=60.0, scan_interval=90, scanner_enabled=False),
+        registry=DataSourceRegistry([FakeProvider()]),
+        settings=SimpleNamespace(min_confidence=60.0, scan_interval=90, scanner_enabled=False,
+                                 subscriptions_enabled=False, owner_ids=[]),
         repo=repo,
         inventory=inventory,
         gemini=None,
@@ -171,11 +173,10 @@ async def test_telegram_market_path_uses_saved_mode(monkeypatch, repo, market_na
     monkeypatch.setattr(handlers, "MarketAnalysisService", Service)
     callback = Callback(f"nx:market:{market_name}", 77)
     await handlers.cb_nx_market(callback)
-    if market_name == "SMARTY":
-        pick = Callback("nx:pick:SMARTY:0", 77)
-        pick.message = callback.message
-        await handlers.cb_nx_pick(pick)
-        assert seen["asset_key"]
+    pick = Callback(f"nx:pick:{market_name}:0", 77)
+    pick.message = callback.message
+    await handlers.cb_nx_pick(pick)
+    assert seen["asset_key"]
     text, _ = callback.message.edits[-1]
     assert seen["mode"] == mode
     assert "السوق:" in text
@@ -185,3 +186,68 @@ async def test_telegram_market_path_uses_saved_mode(monkeypatch, repo, market_na
         assert "61%" in text
     if market_name == "SMARTY":
         assert "5 ثوانٍ" in text
+
+
+@pytest.mark.asyncio
+async def test_start_resets_lo_but_menu_does_not(monkeypatch, repo):
+    from bot import context
+
+    monkeypatch.setattr(context, "_context", _ctx(repo))
+    message = Message(11)
+    message.text = "/lo"
+    await handlers.cmd_lo(message)
+    message.text = "/menu"
+    await handlers.cmd_start(message)
+    assert await repo.get_analysis_mode(11) == "lo"
+    message.text = "/start@ExampleBot"
+    await handlers.cmd_start(message)
+    assert await repo.get_analysis_mode(11) == "strong"
+
+
+@pytest.mark.asyncio
+async def test_lo_uses_candles_only_and_skips_external_review(settings, monkeypatch):
+    from services import market_analysis
+    from tests.conftest import make_candles
+
+    class Provider(FakeProvider):
+        async def fetch_candles(self, asset, tf, limit=300):
+            frames.append((asset.key, tf.code))
+            return make_candles(n=300, tf_seconds=tf.seconds)
+
+        async def fetch_quote(self, *args, **kwargs):
+            pytest.fail("LO must not request a quote")
+
+    class Reviewer:
+        def configured(self):
+            pytest.fail("LO must not ask external AI to review")
+
+    frames = []
+    service = market_analysis.MarketAnalysisService(DataSourceRegistry([Provider()]), settings, mode="lo")
+    service.reviewer = Reviewer()
+    outcome = await service.analyse(Market.FOREX, "EUR_USD_FOREX")
+    assert outcome.actionable
+    assert frames == [("EUR_USD_FOREX", "1min")]
+    assert outcome.result.target_open_at > utc_now()
+    assert not outcome.result.confidence_verified
+
+
+@pytest.mark.asyncio
+async def test_smarty_lo_tries_one_minute_after_no_trade_fast_frames(settings, monkeypatch):
+    from services import market_analysis
+
+    attempted = []
+
+    async def one(self, asset, frame, semaphore):
+        attempted.append(frame)
+        now = utc_now()
+        result = AnalysisResult(
+            asset.key, asset.display, "smarty", frame, "UP" if frame == "1min" else "NO TRADE",
+            0, 10, 0, 1, "test", now, target_open_at=now + timedelta(seconds=20),
+        )
+        return result, frame
+
+    monkeypatch.setattr(market_analysis.MarketAnalysisService, "_one", one)
+    service = market_analysis.MarketAnalysisService(DataSourceRegistry([]), settings, mode="lo")
+    outcome = await service.analyse(Market.SMARTY)
+    assert attempted == ["5sec", "15sec", "30sec", "1min"]
+    assert outcome.actionable and outcome.result.timeframe == "1min"

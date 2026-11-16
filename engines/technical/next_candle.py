@@ -218,6 +218,25 @@ def _technical_forecast(score: float, components: dict[str, float], target: date
     )
 
 
+def _lo_components(frame: pd.DataFrame, arrays: dict[str, pd.Series],
+                   score: float, components: dict[str, float]) -> tuple[float, dict[str, float]]:
+    """Adjust only LO for range conditions and volatility relative to this asset."""
+    atr = arrays["atr"]
+    baseline = float(atr.iloc[-97:-1].median())
+    latest = float(atr.iloc[-1])
+    walk = frame["close"].tail(21)
+    travel = float(walk.diff().abs().sum())
+    efficiency = abs(float(walk.iloc[-1] - walk.iloc[0])) / travel if travel else 0.0
+    adjusted = dict(components)
+    if efficiency < 0.20:
+        adjusted["trend"] *= 0.65
+    if baseline > 0 and latest > 1.6 * baseline:
+        adjusted["volatility"] = -math.copysign(min(2.0, abs(score) / 3), score)
+    elif baseline > 0 and latest < 0.65 * baseline:
+        adjusted["volatility"] = 0.0
+    return round(sum(adjusted.values()), 4), adjusted
+
+
 def forecast_from_frame(
     frame: pd.DataFrame,
     *,
@@ -251,9 +270,10 @@ def forecast_from_frame(
 
     arrays = _series(frame)
     score, components = score_at(frame, arrays)
-    table, label = _table_for(calibration or load_calibration(), market, timeframe_code)
     if not require_calibration:
+        score, components = _lo_components(frame, arrays, score, components)
         return _technical_forecast(score, components, target, timeframe_seconds, [])
+    table, label = _table_for(calibration or load_calibration(), market, timeframe_code)
     if table is None:
         return NextCandleForecast(
             "NO TRADE", score, None, None, [], components, target, timeframe_seconds,

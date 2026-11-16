@@ -30,8 +30,9 @@ class DataSourceRegistry:
         self._providers = list(providers)
         self._clock = clock
         self._cache_ttl = max(0.0, cache_ttl)
-        self._cache: dict[tuple[str, str, int], tuple[float, MarketData]] = {}
-        self._inflight: dict[tuple[str, str, int], asyncio.Task] = {}
+        self._cache: dict[tuple[str, str, int, bool], tuple[float, MarketData]] = {}
+        self._panel_cooldown: dict[str, float] = {}
+        self._inflight: dict[tuple[str, str, int, bool], asyncio.Task] = {}
 
     @property
     def providers(self) -> list[BaseProvider]:
@@ -56,11 +57,22 @@ class DataSourceRegistry:
         ordered.extend(available.values())
         return ordered
 
-    async def fetch(self, asset: Asset, tf: Timeframe | str = "5min", limit: int = 300) -> MarketData:
+    def mark_unavailable(self, asset: Asset, seconds: float = 45.0) -> None:
+        self._panel_cooldown[asset.key] = time.monotonic() + seconds
+
+    def recently_unavailable(self, asset: Asset) -> bool:
+        deadline = self._panel_cooldown.get(asset.key, 0)
+        if deadline > time.monotonic():
+            return True
+        self._panel_cooldown.pop(asset.key, None)
+        return False
+
+    async def fetch(self, asset: Asset, tf: Timeframe | str = "5min", limit: int = 300,
+                    *, with_quote: bool = True) -> MarketData:
         tf = timeframe(tf) if isinstance(tf, str) else tf
-        key = (asset.key, tf.code, int(limit))
+        key = (asset.key, tf.code, int(limit), with_quote)
         if self._cache_ttl <= 0:
-            return await self._fetch_uncached(asset, tf, limit)
+            return await self._fetch_uncached(asset, tf, limit, with_quote)
 
         cached = self._cache.get(key)
         if cached is not None and cached[0] > time.monotonic():
@@ -69,7 +81,7 @@ class DataSourceRegistry:
         if pending is not None:
             return await pending
 
-        task = asyncio.ensure_future(self._fetch_uncached(asset, tf, limit))
+        task = asyncio.ensure_future(self._fetch_uncached(asset, tf, limit, with_quote))
         self._inflight[key] = task
         try:
             data = await task
@@ -78,9 +90,10 @@ class DataSourceRegistry:
         self._cache[key] = (time.monotonic() + self._cache_ttl, data)
         return data
 
-    async def _fetch_uncached(self, asset: Asset, tf: Timeframe, limit: int) -> MarketData:
+    async def _fetch_uncached(self, asset: Asset, tf: Timeframe, limit: int, with_quote: bool) -> MarketData:
         min_bars = TIMEFRAME_MIN_BARS[tf.code]
         attempts: list[str] = []
+        failures: list[str] = []
 
         for provider in self.providers_for(asset):
             if not provider.configured:
@@ -93,6 +106,7 @@ class DataSourceRegistry:
                 logger.info("%s %s %s failed in %.0f ms: %s", provider.id, asset.key,
                             tf.code, (time.monotonic() - started) * 1000, exc.message)
                 attempts.append(f"{provider.name}: {exc.message}")
+                failures.append(exc.code)
                 continue
             except Exception:  # defensive: a provider bug must not crash the bot
                 logger.exception("provider %s crashed while fetching %s", provider.id, asset.key)
@@ -109,7 +123,8 @@ class DataSourceRegistry:
                 attempts.append(f"{provider.name}: stale data ({report.age_seconds}s old)")
                 continue
 
-            quote = await self._quote_with_fallback(asset, None, timeout=4.0)
+            self._panel_cooldown.pop(asset.key, None)
+            quote = await self._quote_with_fallback(asset, None, timeout=4.0) if with_quote else None
             return MarketData(
                 asset=asset,
                 timeframe=tf,
@@ -121,7 +136,7 @@ class DataSourceRegistry:
 
         detail = "; ".join(attempts) or "no provider registered for this market"
         raise DataUnavailable(
-            "DATA_UNAVAILABLE",
+            failures[0] if len(failures) == 1 and len(attempts) == 1 else "DATA_UNAVAILABLE",
             f"DATA UNAVAILABLE — no verified source for {asset.display} {tf.label}",
             detail,
         )

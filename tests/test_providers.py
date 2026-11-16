@@ -95,3 +95,29 @@ async def test_missing_bars_rejected(eurusd):
     registry = DataSourceRegistry([FakeProvider(candles=make_candles(12))])
     with pytest.raises(DataUnavailable):
         await registry.fetch(eurusd, timeframe("15min"))
+
+
+async def test_expertoption_otc_history_retries_same_asset_on_socket_disconnect(monkeypatch):
+    import httpx
+    from providers.catalog import dynamic_asset
+    from providers.eobridge import ExpertOptionBridgeProvider
+
+    calls = []
+    asset = dynamic_asset("USDNGN_OTC_R", Market.OTC, bridge_id=559)
+
+    def respond(request):
+        assert request.url.path == "/candles"
+        calls.append(dict(request.url.params))
+        if len(calls) == 1:
+            return httpx.Response(503, json={"error": "DISCONNECTED", "message": "socket reconnecting"})
+        return httpx.Response(200, json={
+            "market": "otc",
+            "symbol": asset.symbol,
+            "candles": [{"time": utc_now().isoformat(), "open": 100, "high": 102, "low": 99, "close": 101}],
+        })
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+        gateway = ExpertOptionBridgeProvider("https://bridge.example", "test", client=http)
+        rows = await gateway.fetch_candles(asset, timeframe("1min"))
+    assert len(rows) == 1 and rows[0].close == 101
+    assert calls == [{"market": "otc", "symbol": "USDNGN_OTC_R", "timeframe": "1min", "limit": "300"}] * 2
