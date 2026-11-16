@@ -123,8 +123,12 @@ def analyze_market_data(
     frame = frame_from_candles(usable)
     live_frame = frame_from_candles(market_data.candles)
     target_open = target_open_for(live_frame, market_data.timeframe.seconds, now)
+    # Calibrations were trained on completed candles only. Using the forming
+    # candle here changes the feature distribution and invalidates the measured
+    # hit rates, especially on 5s/15s/30s frames. Keep the live frame solely
+    # for locating the next target open; score only the last closed candle.
     forecast = forecast_from_frame(
-        live_frame,
+        frame,
         market=market_data.asset.market.value,
         timeframe_code=market_data.timeframe.code,
         timeframe_seconds=market_data.timeframe.seconds,
