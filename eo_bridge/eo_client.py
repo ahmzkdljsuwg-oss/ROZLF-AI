@@ -199,7 +199,7 @@ class ExpertOptionClient:
         self._ws = await self._session.ws_connect(
             self.settings.ws_url,
             headers=HEADERS,
-            heartbeat=25,
+            heartbeat=10,
             compress=0,
             max_msg_size=0,
         )
@@ -258,7 +258,7 @@ class ExpertOptionClient:
         while self._ws is not None and not self._ws.closed:
             with contextlib.suppress(Exception):
                 await self._send({"action": "ping", "message": {}})
-            await asyncio.sleep(25)
+            await asyncio.sleep(8)
 
     # ----------------------------------------------------------------- receiving
     async def _receive_loop(self) -> None:
