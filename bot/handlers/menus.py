@@ -385,6 +385,9 @@ async def cmd_markets(message: Message) -> None:
 
 @router.message(Command("activate"))
 async def cmd_activate(message: Message) -> None:
+    if not get_context().settings.subscriptions_enabled:
+        await message.answer("✅ البوت مفتوح للجميع، ولا يحتاج كود تفعيل. استخدم /start أو /lo.")
+        return
     parts = (message.text or "").split(maxsplit=1)
     if len(parts) < 2 or not parts[1].strip():
         await message.answer(
@@ -418,6 +421,9 @@ async def cmd_activate(message: Message) -> None:
 
 @router.message(Command("status"))
 async def cmd_subscription_status(message: Message) -> None:
+    if not get_context().settings.subscriptions_enabled:
+        await message.answer("✅ التحليل مفتوح للجميع بدون اشتراك. استخدم /start أو /lo.")
+        return
     try:
         record = await get_context().repo.subscription_for(message.from_user.id)
     except Exception:
