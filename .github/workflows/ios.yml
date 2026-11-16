@@ -57,11 +57,11 @@ jobs:
           test -n "$APP_PATH"
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
-          zip -qry ROZLFAI-unsigned.ipa Payload
-          shasum -a 256 ROZLFAI-unsigned.ipa > ROZLFAI-unsigned.ipa.sha256
+          zip -qry NEXUS-AI-unsigned.ipa Payload
+          shasum -a 256 NEXUS-AI-unsigned.ipa > NEXUS-AI-unsigned.ipa.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: ROZLFAI-unsigned-ipa
           path: |
-            ios/ROZLFAI-unsigned.ipa
-            ios/ROZLFAI-unsigned.ipa.sha256
+            ios/NEXUS-AI-unsigned.ipa
+            ios/NEXUS-AI-unsigned.ipa.sha256

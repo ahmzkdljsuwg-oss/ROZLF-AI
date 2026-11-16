@@ -88,7 +88,9 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
         }
         return web.json_response(payload)
 
-    app = web.Application()
+    app = web.Application(client_max_size=5 * 1024 * 1024)
+    from services.ios_api import install as install_ios_api
+    install_ios_api(app, lambda: state.get("ctx") or ctx, os.getenv("NEXUS_IOS_ACCESS_TOKEN", ""))
     app.router.add_get("/", health)
     app.router.add_get("/health", health)
     runner = web.AppRunner(app)

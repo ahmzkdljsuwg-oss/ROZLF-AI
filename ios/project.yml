@@ -1,26 +1,28 @@
 name: ROZLFAI
 options:
-  bundleIdPrefix: ai.rozlf
+  bundleIdPrefix: ai.nexus
   deploymentTarget:
     iOS: "16.0"
   createIntermediateGroups: true
 settings:
   base:
-    SWIFT_VERSION: "5.9"
-    MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "2.0.0"
+    CURRENT_PROJECT_VERSION: "2"
 targets:
   ROZLFAI:
     type: application
     platform: iOS
     sources:
-      - path: ROZLFAI
+      - path: NEXUS
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: ai.rozlf.app
+        PRODUCT_BUNDLE_IDENTIFIER: ai.nexus.app
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_NAME: ROZLF AI
-        INFOPLIST_KEY_CFBundleDisplayName: ROZLF AI
+        PRODUCT_NAME: NEXUSAI
+        INFOPLIST_KEY_CFBundleDisplayName: NEXUS AI
+        INFOPLIST_KEY_NSCameraUsageDescription: "استخدم الكاميرا لالتقاط رسم بياني وتحليله."
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
@@ -37,7 +39,7 @@ targets:
       - target: ROZLFAI
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: ai.rozlf.app.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: ai.nexus.app.uitests
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: ROZLFAI
 schemes:

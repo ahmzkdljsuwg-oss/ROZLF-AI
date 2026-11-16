@@ -1,29 +1,28 @@
 import XCTest
 
 final class ROZLFAIUITests: XCTestCase {
-    override func setUpWithError() throws {
-        continueAfterFailure = false
+    func testLaunchOpensAndBottomScanTabWorks() {
+        let app = XCUIApplication()
+        app.launchArguments += ["--uitest"]
+        app.launch()
+        let scan = app.buttons["nexus.tab.scan"]
+        XCTAssertTrue(scan.waitForExistence(timeout: 8))
+        scan.tap()
+        let action = app.buttons["nexus.scan.now"]
+        XCTAssertTrue(action.isHittable)
+        action.tap()
+        XCTAssertTrue(app.staticTexts["اضبط اتصال المحرك من الإعدادات أولاً."].exists)
     }
 
-    func testSetupRejectsNonHTTPSAddress() throws {
+    func testSettingsAndServicesAreReachable() {
         let app = XCUIApplication()
-        app.launchArguments += ["--uitest-reset", "-rozlf.baseURL", ""]
+        app.launchArguments += ["--uitest"]
         app.launch()
-
-        let field = app.textFields["serverField"]
-        XCTAssertTrue(field.waitForExistence(timeout: 8))
-        field.tap()
-        field.typeText("http://example.com")
-        app.buttons["connectButton"].tap()
-
-        XCTAssertTrue(app.staticTexts["Enter a valid HTTPS address. HTTP is accepted only for localhost."].waitForExistence(timeout: 3))
-    }
-
-    func testConfiguredServerShowsConnectionState() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-rozlf.baseURL", "https://invalid.example.invalid"]
-        app.launch()
-
-        XCTAssertTrue(app.buttons["tab.0"].waitForExistence(timeout: 12))
+        let settings = app.buttons["nexus.tab.settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 8))
+        settings.tap()
+        XCTAssertTrue(app.buttons["nexus.connect"].exists)
+        app.buttons["nexus.tab.services"].tap()
+        XCTAssertTrue(app.staticTexts["تحليل الرسم البياني"].exists)
     }
 }
