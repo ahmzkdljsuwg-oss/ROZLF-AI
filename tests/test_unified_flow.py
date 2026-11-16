@@ -196,7 +196,7 @@ def test_markets_hub_uses_only_the_canonical_callbacks():
     data = _ids(handlers.menus.nexus_markets_menu())
     assert "nx:market:FOREX" in data and "nx:market:OTC" in data
     assert "mt5:list" in data
-    assert all(item.startswith(("nx:market:", "nx:more", "nx:classic:smarty", "mt5:list")) for item in data)
+    assert all(item.startswith(("nx:market:", "nx:favorite:", "nx:more", "nx:classic:smarty", "mt5:list")) for item in data)
 
 
 async def test_manual_duration_lists_only_supported_values(monkeypatch):

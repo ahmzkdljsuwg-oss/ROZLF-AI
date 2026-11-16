@@ -158,9 +158,8 @@ async def test_markets_hub_callback():
     text, keyboard = callback.message.edits[0]
     assert text == "📊 اختر السوق المراد تحليله:"
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert data[:9] == [
-        "nx:market:FOOTBALL", "nx:classic:smarty", "nx:market:GOLD", "nx:market:OTC",
-        "nx:market:LUXURY", "nx:market:AI", "nx:market:CRICKET", "nx:market:FOREX", "mt5:list",
+    assert data[:2] == [
+        "nx:market:FOOTBALL", "nx:classic:smarty",
     ]
     assert data[-1] == "nx:more"
 

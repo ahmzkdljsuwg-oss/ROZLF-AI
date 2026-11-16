@@ -134,13 +134,30 @@ class Repository:
         self._engine = create_async_engine(normalise_database_url(self.settings.database_url), future=True)
         self._session_factory = async_sessionmaker(self._engine, expire_on_commit=False)
         async with self._engine.begin() as connection:
+            postgres = connection.dialect.name == "postgresql"
+            if postgres:
+                # Serialize startup schema work if both services initialize together.
+                await connection.execute(text("SELECT pg_advisory_xact_lock(782136460)"))
             await connection.run_sync(Base.metadata.create_all)
+            if postgres:
+                await self._migrate_telegram_user_ids(connection)
             signal_columns = await connection.run_sync(
                 lambda sync: {column["name"] for column in inspect(sync).get_columns("signals")}
             )
             if "result_reason" not in signal_columns:
                 await connection.execute(text("ALTER TABLE signals ADD COLUMN result_reason TEXT"))
             await self._migrate_code_hashes(connection)
+
+    @staticmethod
+    async def _migrate_telegram_user_ids(connection) -> None:
+        """Keep Telegram account IDs above 2³¹-1 usable on existing PostgreSQL databases."""
+        for table in ("signals", "user_modes", "user_settings"):
+            columns = await connection.run_sync(
+                lambda sync: inspect(sync).get_columns(table)
+            )
+            kind = next((str(col["type"]) for col in columns if col["name"] == "user_id"), None)
+            if kind == "INTEGER":
+                await connection.execute(text(f"ALTER TABLE {table} ALTER COLUMN user_id TYPE BIGINT"))
 
     async def _migrate_code_hashes(self, connection) -> None:
         """Hash legacy plaintext codes in place, then erase the plaintext."""

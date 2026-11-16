@@ -24,7 +24,6 @@ from bot.keyboards import menus as keyboards
 from bot.middleware.auth import AccessMiddleware
 from bot.middleware.subscription import SubscriptionMiddleware
 from config import normalise_database_url, settings
-from providers.catalog import Market
 from database.repository import Repository
 from engines.signals.generator import SignalGenerator
 from providers.eobridge import ExpertOptionBridgeProvider
@@ -75,9 +74,7 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
             ],
             "nexus_markets": [
                 {"text": button.text, "callback": button.callback_data}
-                for row in keyboards.nexus_markets_menu(
-                    live.inventory.cached_assets(Market.OTC) if live and live.inventory else ()
-                ).inline_keyboard
+                for row in keyboards.nexus_markets_menu().inline_keyboard
                 for button in row
             ],
             "menu": [

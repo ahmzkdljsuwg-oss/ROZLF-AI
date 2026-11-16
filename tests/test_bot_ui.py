@@ -39,9 +39,8 @@ def test_single_nexus_home_menu_has_real_callbacks():
 
     markets = menus.nexus_markets_menu()
     market_data = [b.callback_data for row in markets.inline_keyboard for b in row]
-    assert market_data[:9] == [
-        "nx:market:FOOTBALL", "nx:classic:smarty", "nx:market:GOLD", "nx:market:OTC",
-        "nx:market:LUXURY", "nx:market:AI", "nx:market:CRICKET", "nx:market:FOREX", "mt5:list",
+    assert market_data[:2] == [
+        "nx:market:FOOTBALL", "nx:classic:smarty",
     ]
     assert "nx:more" in market_data
 

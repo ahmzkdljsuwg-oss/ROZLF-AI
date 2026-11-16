@@ -69,11 +69,13 @@ def test_nexus_home_and_market_stack_order():
     assert [b.text for row in home.inline_keyboard for b in row] == ["ابدأ استلام الإشارات 🚀"]
     markets = menus.nexus_markets_menu()
     rows = [[b.text for b in row] for row in markets.inline_keyboard]
-    assert [row[0] for row in rows[:9]] == [
-        "Football Index ⚽", "Smarty 🧠", "Gold 🪙", "OTC 🌙", "Luxury Index 💎",
-        "AI Index 🤖", "Cricket Index 🏏", "Forex 💱", "MT5 📈",
+    assert [row[0] for row in rows[:8]] == [
+        "Football Index ⚽", "Smarty 🧠", "USD/NGN (OTC) 🇳🇬",
+        "EUR/USD (OTC) 🇪🇺", "GBP/USD (OTC) 🇬🇧", "USD/JPY (OTC) 🇯🇵",
+        "Gold 🪙", "Silver ⚪",
     ]
-    assert all(len(row) == 1 for row in rows[:9])
+    assert all(len(row) == 1 for row in rows)
+
 
 
 @pytest.mark.asyncio
@@ -107,14 +109,17 @@ async def test_classic_panel_picks_real_assets_in_video_order(monkeypatch):
     rows = keyboard.inline_keyboard
     assert text == "📊 اختر السوق المراد تحليله:"
     assert all(len(row) == 1 for row in rows)
-    assert [row[0].text for row in rows[:8]] == [
-        "Football Index ⚽", "Smarty 🧠", "USD/NGN (OTC) 🇳🇬",
-        "EUR/USD (OTC) 🇪🇺", "Gold 🪙", "Silver ⚪", "Apple 🍎", "McDonald's 🍔",
+    assert [row[0].text for row in rows[7:13]] == [
+        "Silver ⚪", "Bitcoin/USD ⚡", "Ethereum/USD 💎", "Apple 🍎",
+        "Google 🔍 (Alphabet)", "Facebook 👤",
     ]
-    assert all("GBP/USD (OTC)" not in row[0].text for row in rows)
-    await handlers.cb_nx_classic_asset(FakeCallback(rows[2][0].callback_data))
+    await handlers.cb_nx_favorite(FakeCallback(rows[2][0].callback_data))
     await handlers.cb_nx_classic_smarty(FakeCallback(rows[1][0].callback_data))
+    unavailable = FakeCallback(rows[4][0].callback_data)
+    await handlers.cb_nx_favorite(unavailable)
+    assert "البيانات غير متاحة" in unavailable.message.edits[-1][0]
     assert seen == [("OTC", "OTC_55"), ("SMARTY", None)]
+
 
 
 def test_nexus_card_matches_required_format():

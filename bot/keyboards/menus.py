@@ -109,27 +109,23 @@ def _classic_asset_labels(assets: Iterable[Asset]) -> dict[str, Asset]:
     return result
 
 
-def nexus_asset_callback(asset: Asset) -> str:
-    return f"nx:asset:{asset.key}"
+def nexus_favorite(index: int, assets: Iterable[Asset]) -> tuple[str, Asset | None]:
+    label, _ = _CLASSIC_ASSETS[index]
+    return label, _classic_asset_labels(assets).get(label)
 
 
 def nexus_home_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[_button("ابدأ استلام الإشارات 🚀", "nx:analyse")]])
 
 
-def nexus_markets_menu(assets: Iterable[Asset] = ()) -> InlineKeyboardMarkup:
+def nexus_markets_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    favorites = _classic_asset_labels(assets)
     for label, data in NEXUS_MARKET_ORDER[:2]:
         builder.row(_button(label, data))
     for index, (label, _) in enumerate(_CLASSIC_ASSETS):
         if index == 4:
             builder.row(_button(*NEXUS_MARKET_ORDER[2]))
-        asset = favorites.get(label)
-        if asset is not None:
-            data = nexus_asset_callback(asset)
-            if len(data.encode("utf-8")) <= 64:
-                builder.row(_button(label, data))
+        builder.row(_button(label, f"nx:favorite:{index}"))
     for label, data in NEXUS_MARKET_ORDER[3:]:
         builder.row(_button(label, data))
     builder.row(_button("أدوات إضافية 🛠️", "nx:more"))

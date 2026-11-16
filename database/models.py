@@ -15,7 +15,7 @@ class Signal(Base):
     __tablename__ = "signals"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
     asset_key: Mapped[str] = mapped_column(String(32), index=True)
     asset_display: Mapped[str] = mapped_column(String(32))
     market: Mapped[str] = mapped_column(String(16))
@@ -42,7 +42,7 @@ class Signal(Base):
 class UserMode(Base):
     __tablename__ = "user_modes"
 
-    user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     mode: Mapped[str] = mapped_column(String(16), default="strong")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
@@ -50,7 +50,7 @@ class UserMode(Base):
 class UserSettings(Base):
     __tablename__ = "user_settings"
 
-    user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     markets: Mapped[str] = mapped_column(Text, default='["FOREX"]')
     min_confidence: Mapped[float] = mapped_column(Float, default=60.0)
     scanner_enabled: Mapped[int] = mapped_column(Integer, default=1)
