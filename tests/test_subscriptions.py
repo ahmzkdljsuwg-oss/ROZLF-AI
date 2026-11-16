@@ -52,7 +52,7 @@ async def test_code_creation_is_unique_and_supports_every_duration(repo):
     for days in (1, 7, 30, 90, 365):
         record = await repo.create_activation_code(days, created_by=9001)
         assert record.code.startswith("NX-")
-        assert len(record.code) == 15
+        assert len(record.code) == 22
         assert record.duration_days == days
         assert record.status == "AVAILABLE"
         codes.add(record.code)
@@ -75,7 +75,7 @@ async def test_code_activates_once_and_queues_owner_notification(repo):
     pending = await repo.pending_notifications()
     assert len(pending) == 1
     payload = pending[0].payload
-    assert payload["code"] == code.code
+    assert payload["code"].startswith("NX-****-****-") and payload["code"].endswith(code.code[-4:])
     assert payload["telegram_id"] == 5001
     assert payload["username"] == "first"
     assert payload["duration_days"] == 30
@@ -160,7 +160,7 @@ async def test_client_activate_and_status_handlers(repo, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_subscription_middleware_blocks_analysis_but_allows_public_commands(settings, repo):
-    gate = SubscriptionMiddleware(replace(settings, subscriptions_enabled=True, owner_telegram_ids="9001"), repo)
+    gate = SubscriptionMiddleware(replace(settings, subscriptions_enabled=True, owner_telegram_ids="8368948762"), repo)
     calls = []
 
     async def handler(event, data):
@@ -187,12 +187,12 @@ async def test_subscription_middleware_blocks_analysis_but_allows_public_command
 
 @pytest.mark.asyncio
 async def test_owners_bypass_the_subscription_gate(settings, repo):
-    gate = SubscriptionMiddleware(replace(settings, subscriptions_enabled=True, owner_telegram_ids="9001"), repo)
+    gate = SubscriptionMiddleware(replace(settings, subscriptions_enabled=True, owner_telegram_ids="8368948762"), repo)
 
     async def handler(event, data):
         return "ok"
 
-    assert await gate(handler, Callback("nx:market:OTC", user_id=9001), {}) == "ok"
+    assert await gate(handler, Callback("nx:market:OTC", user_id=8368948762), {}) == "ok"
 
 
 @pytest.mark.asyncio
@@ -201,16 +201,17 @@ async def test_admin_creates_lists_and_revokes_codes(repo):
     await admin_handlers.cb_days(callback, repo)
     text, _ = callback.message.sent[-1]
     assert "تم إنشاء كود تفعيل جديد" in text
-    code = (await repo.list_codes(status="AVAILABLE"))[0]
+    import re
+    created_code = re.search(r"(NX-[A-Z0-9]{4}(?:-[A-Z0-9]{4}){3})", text).group(1)
 
     available = Callback("adm:codes:avail", user_id=9001)
     await admin_handlers.cb_codes(available, repo)
-    assert any(code.code in text for text, _ in available.message.sent)
+    assert any("NX-****-****-" in text for text, _ in available.message.sent)
 
-    await repo.activate_code(code.code, 8301, username="user8301")
+    await repo.activate_code(created_code, 8301, username="user8301")
     used = Callback("adm:codes:used", user_id=9001)
     await admin_handlers.cb_codes(used, repo)
-    assert any(code.code in text for text, _ in used.message.sent)
+    assert any("NX-****-****-" in text for text, _ in used.message.sent)
 
     customers = Callback("adm:cust", user_id=9001)
     await admin_handlers.cb_customers(customers, repo)
@@ -247,7 +248,7 @@ async def test_admin_notification_loop_delivers_and_clears_queue(repo):
     except asyncio.CancelledError:
         pass
     assert bot.sent and bot.sent[0][0] == 9001
-    assert code.code in bot.sent[0][1]
+    assert "NX-****-****-" in bot.sent[0][1]
     assert "8401" in bot.sent[0][1]
     assert "يوم واحد" in bot.sent[0][1]
     assert await repo.pending_notifications() == []

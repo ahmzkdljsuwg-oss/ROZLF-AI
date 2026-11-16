@@ -61,7 +61,10 @@ class SubscriptionCode(Base):
     __tablename__ = "subscription_codes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # Legacy column kept non-null for existing PostgreSQL tables. New rows store
+    # only a hash fragment here; the plaintext code is never persisted.
     code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    code_hash: Mapped[str | None] = mapped_column(String(64), unique=True, index=True, nullable=True)
     duration_days: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(16), default="AVAILABLE", index=True)
     created_by: Mapped[int] = mapped_column(BigInteger)

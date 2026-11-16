@@ -1,6 +1,7 @@
 """Async repository: only verified outcomes feed statistics."""
 from __future__ import annotations
 
+import hashlib
 import json
 import secrets
 from dataclasses import dataclass
@@ -40,8 +41,14 @@ CODE_DISABLED = "DISABLED"
 SUB_ACTIVE = "ACTIVE"
 SUB_EXPIRED = "EXPIRED"
 SUB_REVOKED = "REVOKED"
+SUB_BANNED = "BANNED"
 
 _CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def hash_activation_code(code: str) -> str:
+    normalised = (code or "").strip().upper()
+    return hashlib.sha256(normalised.encode("utf-8")).hexdigest()
 
 
 @dataclass
@@ -128,11 +135,43 @@ class Repository:
         self._session_factory = async_sessionmaker(self._engine, expire_on_commit=False)
         async with self._engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
-            columns = await connection.run_sync(
+            signal_columns = await connection.run_sync(
                 lambda sync: {column["name"] for column in inspect(sync).get_columns("signals")}
             )
-            if "result_reason" not in columns:
+            if "result_reason" not in signal_columns:
                 await connection.execute(text("ALTER TABLE signals ADD COLUMN result_reason TEXT"))
+            await self._migrate_code_hashes(connection)
+
+    async def _migrate_code_hashes(self, connection) -> None:
+        """Hash legacy plaintext codes in place, then erase the plaintext."""
+        columns = await connection.run_sync(
+            lambda sync: {column["name"] for column in inspect(sync).get_columns("subscription_codes")}
+        )
+        if "code_hash" not in columns:
+            await connection.execute(text("ALTER TABLE subscription_codes ADD COLUMN code_hash VARCHAR(64)"))
+        rows = (
+            await connection.execute(text("SELECT id, code, code_hash FROM subscription_codes"))
+        ).mappings().all()
+        for row in rows:
+            stored = row["code"] or ""
+            digest = row["code_hash"] or hash_activation_code(stored)
+            await connection.execute(
+                text(
+                    "UPDATE subscription_codes SET code_hash = :digest, code = :masked WHERE id = :id"
+                ),
+                {"digest": digest, "masked": digest[:32], "id": row["id"]},
+            )
+            if stored and stored != digest[:32]:
+                await connection.execute(
+                    text("UPDATE subscriptions SET last_code = :masked WHERE last_code = :stored"),
+                    {"masked": digest[:16], "stored": stored},
+                )
+        await connection.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_subscription_codes_code_hash "
+                "ON subscription_codes (code_hash)"
+            )
+        )
 
     async def close(self) -> None:
         if self._engine is not None:
@@ -363,10 +402,16 @@ class Repository:
             raise ValueError("duration_days must be positive")
         now = datetime.now(timezone.utc)
         for _ in range(12):
-            code = "NX-" + "".join(secrets.choice(_CODE_ALPHABET) for _ in range(12))
+            groups = [
+                "".join(secrets.choice(_CODE_ALPHABET) for _ in range(4))
+                for _ in range(4)
+            ]
+            code = "NX-" + "-".join(groups)
+            digest = hash_activation_code(code)
             async with self._session() as session:
                 row = SubscriptionCode(
-                    code=code,
+                    code=digest[:32],
+                    code_hash=digest,
                     duration_days=duration_days,
                     status=CODE_AVAILABLE,
                     created_by=created_by,
@@ -379,7 +424,7 @@ class Repository:
                     await session.rollback()
                     continue
                 await session.refresh(row)
-                return self._code_record(row)
+                return self._code_record(row, revealed_code=code)
         raise RuntimeError("could not generate a unique activation code")
 
     async def list_codes(self, status: str | None = None, limit: int = 50) -> list[CodeRecord]:
@@ -390,6 +435,22 @@ class Repository:
             rows = (await session.scalars(statement)).all()
             return [self._code_record(row) for row in rows]
 
+    async def find_code_by_hash(self, digest: str) -> CodeRecord | None:
+        async with self._session() as session:
+            row = await session.scalar(
+                select(SubscriptionCode).where(SubscriptionCode.code_hash == digest)
+            )
+            return self._code_record(row) if row is not None else None
+
+    async def disable_code(self, code_id: int) -> bool:
+        async with self._session() as session:
+            row = await session.get(SubscriptionCode, code_id)
+            if row is None or row.status != CODE_AVAILABLE:
+                return False
+            row.status = CODE_DISABLED
+            await session.commit()
+        return True
+
     async def activate_code(
         self,
         code: str,
@@ -399,13 +460,17 @@ class Repository:
         now: datetime | None = None,
     ) -> ActivationResult:
         normalised = (code or "").strip().upper()
+        digest = hash_activation_code(normalised)
         now = now or datetime.now(timezone.utc)
         async with self._session() as session:
             async with session.begin():
+                existing_subscription = await session.get(Subscription, telegram_id)
+                if existing_subscription is not None and existing_subscription.status == SUB_BANNED:
+                    return ActivationResult("BANNED", "هذا الحساب محظور ولا يمكنه تفعيل أي كود.")
                 claimed = await session.execute(
                     update(SubscriptionCode)
                     .where(
-                        SubscriptionCode.code == normalised,
+                        SubscriptionCode.code_hash == digest,
                         SubscriptionCode.status == CODE_AVAILABLE,
                         SubscriptionCode.used_by.is_(None),
                     )
@@ -413,14 +478,16 @@ class Repository:
                 )
                 if claimed.rowcount != 1:
                     existing = await session.scalar(
-                        select(SubscriptionCode).where(SubscriptionCode.code == normalised)
+                        select(SubscriptionCode).where(SubscriptionCode.code_hash == digest)
                     )
                     if existing is None:
                         return ActivationResult("INVALID", "الكود غير موجود.")
                     if existing.status == CODE_DISABLED:
                         return ActivationResult("DISABLED", "هذا الكود معطل.")
                     return ActivationResult("USED", "هذا الكود مستخدم مسبقاً ولا يمكن تفعيله مرة أخرى.")
-                row = await session.scalar(select(SubscriptionCode).where(SubscriptionCode.code == normalised))
+                row = await session.scalar(
+                    select(SubscriptionCode).where(SubscriptionCode.code_hash == digest)
+                )
                 duration = row.duration_days
                 expires_at = now + timedelta(days=duration)
                 subscription = await session.get(Subscription, telegram_id)
@@ -433,7 +500,7 @@ class Repository:
                         activated_at=now,
                         expires_at=expires_at,
                         status=SUB_ACTIVE,
-                        last_code=normalised,
+                        last_code=digest[:16],
                         updated_at=now,
                     )
                     session.add(subscription)
@@ -444,10 +511,10 @@ class Repository:
                     subscription.activated_at = now
                     subscription.expires_at = expires_at
                     subscription.status = SUB_ACTIVE
-                    subscription.last_code = normalised
+                    subscription.last_code = digest[:16]
                     subscription.updated_at = now
                 payload = {
-                    "code": normalised,
+                    "code": f"NX-****-****-{normalised[-4:]}",
                     "telegram_id": telegram_id,
                     "username": username,
                     "duration_days": duration,
@@ -502,6 +569,36 @@ class Repository:
             await session.commit()
         return True
 
+    async def extend_subscription(
+        self, telegram_id: int, days: int, now: datetime | None = None
+    ) -> SubscriptionRecord | None:
+        if days <= 0:
+            raise ValueError("days must be positive")
+        now = now or datetime.now(timezone.utc)
+        async with self._session() as session:
+            row = await session.get(Subscription, telegram_id)
+            if row is None or row.status == SUB_BANNED:
+                return None
+            current_expiry = _aware(row.expires_at) or now
+            row.expires_at = max(current_expiry, now) + timedelta(days=days)
+            row.plan_days = int(row.plan_days or 0) + days
+            row.status = SUB_ACTIVE
+            row.updated_at = now
+            await session.commit()
+            return self._subscription_record(row)
+
+    async def ban_subscription(self, telegram_id: int, now: datetime | None = None) -> bool:
+        now = now or datetime.now(timezone.utc)
+        async with self._session() as session:
+            row = await session.get(Subscription, telegram_id)
+            if row is None:
+                return False
+            row.status = SUB_BANNED
+            row.expires_at = min(_aware(row.expires_at) or now, now)
+            row.updated_at = now
+            await session.commit()
+        return True
+
     async def pending_notifications(self, limit: int = 25) -> list[NotificationRecord]:
         statement = (
             select(SubscriptionNotification)
@@ -531,10 +628,11 @@ class Repository:
             await session.commit()
 
     @staticmethod
-    def _code_record(row: SubscriptionCode) -> CodeRecord:
+    def _code_record(row: SubscriptionCode, revealed_code: str | None = None) -> CodeRecord:
+        masked = "NX-****-****-" + (row.code_hash or row.code or "")[-4:]
         return CodeRecord(
             id=row.id,
-            code=row.code,
+            code=revealed_code or masked,
             duration_days=row.duration_days,
             status=row.status,
             created_by=row.created_by,

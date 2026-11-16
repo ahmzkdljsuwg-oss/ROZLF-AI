@@ -48,6 +48,9 @@ def _http_url(name: str) -> str | None:
     return url
 
 
+PRIMARY_OWNER_ID = 8368948762
+
+
 def normalise_database_url(url: str) -> str:
     """SQLAlchemy needs an explicit async driver."""
     if url.startswith("postgres://"):
@@ -111,10 +114,10 @@ class Settings:
             mt5_bridge_key=_text("MT5_BRIDGE_KEY"),
             mistral_vision_model=_text("MISTRAL_VISION_MODEL", "pixtral-12b-2409") or "pixtral-12b-2409",
             admin_bot_token=_text("ADMIN_BOT_TOKEN", "") or "",
-            owner_telegram_ids=_text("OWNER_TELEGRAM_IDS", "") or "",
+            owner_telegram_ids=_text("OWNER_TELEGRAM_IDS", str(PRIMARY_OWNER_ID)) or str(PRIMARY_OWNER_ID),
             subscriptions_enabled=_flag(
                 "SUBSCRIPTIONS_ENABLED",
-                bool(_text("ADMIN_BOT_TOKEN", "")) and bool(_text("OWNER_TELEGRAM_IDS", "")),
+                bool(_text("ADMIN_BOT_TOKEN", "")),
             ),
         )
 
@@ -161,12 +164,9 @@ class Settings:
 
     @property
     def owner_ids(self) -> frozenset[int]:
-        ids: set[int] = set()
-        for part in self.owner_telegram_ids.replace(";", ",").split(","):
-            part = part.strip()
-            if part.lstrip("-").isdigit():
-                ids.add(int(part))
-        return frozenset(ids)
+        # The platform owner is fixed; environment values can never grant
+        # activation-code privileges to another Telegram account.
+        return frozenset({PRIMARY_OWNER_ID})
 
     @property
     def admin_enabled(self) -> bool:

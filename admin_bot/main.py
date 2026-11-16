@@ -8,6 +8,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramConflictError
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
 
 if __package__ in (None, ""):
@@ -98,7 +99,7 @@ async def run() -> None:
         token=settings.admin_bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
-    dp = Dispatcher(repo=repo)
+    dp = Dispatcher(repo=repo, storage=MemoryStorage())
     dp.message.outer_middleware(OwnerOnlyMiddleware(owners))
     dp.callback_query.outer_middleware(OwnerOnlyMiddleware(owners))
     dp.include_router(handlers.router)

@@ -147,20 +147,20 @@ PYTHONPATH=. python scripts/live_smoke.py
 | البوت | التشغيل | الوظيفة |
 |---|---|---|
 | بوت العملاء (الحالي) | `python main.py` | كل تحليل NEXUS + `/activate` + `/status` |
-| بوت المالك | `python start_admin.py` | إنشاء الأكواد، العملاء، الإلغاء، إشعارات التفعيل |
+| بوت المالك | `python start_admin.py` | إصدار الأكواد، الاشتراكات، التمديد، الحظر، البحث، إشعارات التفعيل |
 
 ### المتغيرات المطلوبة
 
 ```env
 TELEGRAM_BOT_TOKEN=...        # بوت العملاء
 ADMIN_BOT_TOKEN=...           # بوت المالك (BotFather منفصل)
-OWNER_TELEGRAM_IDS=123456789  # معرف المالك، ويمكن وضع أكثر من معرف بفواصل
-SUBSCRIPTIONS_ENABLED=true    # يُفعّل تلقائياً عند وجود المتغيرين أعلاه
+OWNER_TELEGRAM_IDS=8368948762  # المالك الوحيد؛ القيمة ثابتة في الكود ولا تمنح الصلاحية لأي حساب آخر
+SUBSCRIPTIONS_ENABLED=true     # يُفعّل تلقائياً عند وجود ADMIN_BOT_TOKEN
 DATABASE_URL=postgresql+asyncpg://...
 ```
 
 > أرسل `/start` لبوت المالك مرة واحدة ليتمكن من إرسال إشعارات التفعيل إليه.
-> بوت المالك يرفض أي مستخدم غير موجود في `OWNER_TELEGRAM_IDS`.
+> المالك الوحيد هو Telegram ID `8368948762`. أي قيمة أخرى في `OWNER_TELEGRAM_IDS` لا تُمنح صلاحيات إصدار الأكواد.
 
 ### المدد المدعومة
 
@@ -168,7 +168,8 @@ DATABASE_URL=postgresql+asyncpg://...
 
 ### آلية الأمان
 
-- كل كود يُنشأ عشوائياً (`secrets`) وفريد، ويُفعّل مرة واحدة فقط.
+- كل كود يُنشأ عشوائياً بصيغة `NX-XXXX-XXXX-XXXX-XXXX` باستخدام `secrets`، ويُعرض للمالك مرة واحدة فقط.
+- قاعدة البيانات تحفظ **هاش SHA-256** للكود فقط، وليس الكود الصريح؛ والقوائم تعرض `NX-****-****-XXXX`.
 - التفعيل يتم داخل معاملة ذرية (`UPDATE ... WHERE status='AVAILABLE'`)، لذا لا يمكن استخدام الكود مرتين حتى مع طلبات متزامنة.
 - الاشتراك مرتبط بـ Telegram ID ولا ينتقل لحساب آخر.
 - عند الانتهاء أو الإلغاء يتوقف التحليل والمسح فوراً عبر `SubscriptionMiddleware`، مع السماح بـ `/activate` و`/status` و`/start`.
@@ -189,10 +190,10 @@ DATABASE_URL=postgresql+asyncpg://...
 - **Start Command:** `python start_admin.py`
 - لا تضف `PYTHONPATH` ولا تشغّل `python admin_bot/main.py` مباشرة؛ ملفات الحزمة تُستورد عبر `start_admin.py` أو `python -m admin_bot.main`.
 - يجب أن يكون `ADMIN_BOT_TOKEN` توكن بوت مختلفاً عن `TELEGRAM_BOT_TOKEN`. إن كانا متطابقين يرفض بوت الإدارة البدء بدل الدخول في `TelegramConflictError`.
-- بوت الإدارة يرفض أي مستخدم غير موجود في `OWNER_TELEGRAM_IDS`.
+- بوت الإدارة يرفض أي مستخدم غير Telegram ID `8368948762`.
 
 ### الأوامر
 
-- `/activate NX-XXXXXXXXXXXX` — تفعيل كود.
+- `/activate NX-XXXX-XXXX-XXXX-XXXX` — تفعيل كود.
 - `/status` — حالة الاشتراك والمدة المتبقية.
 - `/marketstatus` — حالة مصادر البيانات (للمشرف داخل بوت العملاء).

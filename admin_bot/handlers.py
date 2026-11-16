@@ -6,9 +6,11 @@ import logging
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from admin_bot import keyboards
+from admin_bot.states import AdminStates
 from bot import formatting as fmt
 from database.repository import Repository
 
@@ -86,7 +88,20 @@ async def cb_codes(callback: CallbackQuery, repo: Repository) -> None:
     await callback.answer()
     status = "USED" if used else "AVAILABLE"
     records = await repo.list_codes(status=status)
-    await _edit(callback, fmt.admin_codes_text(records, used=used), keyboards.back_menu())
+    await _edit(
+        callback,
+        fmt.admin_codes_text(records, used=used),
+        keyboards.codes_menu(records, status),
+    )
+
+
+@router.callback_query(F.data.startswith("adm:disable:"))
+async def cb_disable_code(callback: CallbackQuery, repo: Repository) -> None:
+    code_id = int(callback.data.rsplit(":", 1)[1])
+    done = await repo.disable_code(code_id)
+    await callback.answer("تم إلغاء الكود" if done else "الكود غير متاح للإلغاء", show_alert=True)
+    records = await repo.list_codes(status="AVAILABLE")
+    await _edit(callback, fmt.admin_codes_text(records, used=False), keyboards.codes_menu(records))
 
 
 @router.callback_query(F.data == "adm:cust")
@@ -94,6 +109,95 @@ async def cb_customers(callback: CallbackQuery, repo: Repository) -> None:
     await callback.answer()
     records = await repo.list_subscriptions()
     await _edit(callback, fmt.admin_customers_text(records), keyboards.customers_menu(records))
+
+
+@router.callback_query(F.data == "adm:search")
+async def cb_search(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
+    await state.set_state(AdminStates.waiting_customer_id)
+    await _edit(callback, fmt.admin_search_prompt_text(), keyboards.search_cancel_menu())
+
+
+@router.message(AdminStates.waiting_customer_id)
+async def msg_search_customer(message: Message, repo: Repository, state: FSMContext) -> None:
+    raw = (message.text or "").strip()
+    if not raw.lstrip("-").isdigit():
+        await message.answer("⚠️ أرسل Telegram ID رقمياً فقط.", reply_markup=keyboards.search_cancel_menu())
+        return
+    telegram_id = int(raw)
+    await state.clear()
+    record = await repo.subscription_for(telegram_id)
+    await message.answer(
+        fmt.admin_customer_profile_text(record),
+        reply_markup=keyboards.customer_actions_menu(telegram_id),
+    )
+
+
+@router.callback_query(F.data.startswith("adm:view:"))
+async def cb_view_customer(callback: CallbackQuery, repo: Repository) -> None:
+    telegram_id = int(callback.data.rsplit(":", 1)[1])
+    await callback.answer()
+    record = await repo.subscription_for(telegram_id)
+    await _edit(
+        callback,
+        fmt.admin_customer_profile_text(record),
+        keyboards.customer_actions_menu(telegram_id),
+    )
+
+
+@router.callback_query(F.data.startswith("adm:ext:"))
+async def cb_extend(callback: CallbackQuery) -> None:
+    telegram_id = int(callback.data.rsplit(":", 1)[1])
+    await callback.answer()
+    await _edit(
+        callback,
+        f"⏳ <b>تمديد اشتراك</b> <code>{telegram_id}</code>\nاختر مدة الإضافة:",
+        keyboards.extend_duration_menu(telegram_id),
+    )
+
+
+@router.callback_query(F.data.startswith("adm:extdays:"))
+async def cb_extend_days(callback: CallbackQuery, repo: Repository) -> None:
+    _, _, raw_id, raw_days = callback.data.split(":")
+    telegram_id, days = int(raw_id), int(raw_days)
+    if days not in (1, 7, 30, 90, 365):
+        await callback.answer("مدة غير مدعومة", show_alert=True)
+        return
+    record = await repo.extend_subscription(telegram_id, days)
+    if record is None:
+        await callback.answer("لا يمكن تمديد هذا الحساب", show_alert=True)
+        return
+    await callback.answer(f"تمت إضافة {days} يوم")
+    await _edit(
+        callback,
+        "✅ <b>تم تمديد الاشتراك</b>\n\n" + fmt.admin_customer_profile_text(record),
+        keyboards.customer_actions_menu(telegram_id),
+    )
+
+
+@router.callback_query(F.data.startswith("adm:ban:"))
+async def cb_ban(callback: CallbackQuery, repo: Repository) -> None:
+    parts = callback.data.split(":")
+    if len(parts) == 4 and parts[2] == "yes":
+        telegram_id = int(parts[3])
+        done = await repo.ban_subscription(telegram_id)
+        await callback.answer("تم الحظر" if done else "غير موجود", show_alert=True)
+        record = await repo.subscription_for(telegram_id)
+        await _edit(
+            callback,
+            ("🚫 <b>تم حظر العميل ومنع جميع صلاحياته</b>\n\n" if done else "⚠️ <b>العميل غير موجود</b>\n\n")
+            + fmt.admin_customer_profile_text(record),
+            keyboards.customer_actions_menu(telegram_id),
+        )
+        return
+    telegram_id = int(parts[2])
+    await callback.answer()
+    await _edit(
+        callback,
+        f"⚠️ هل تريد حظر <code>{telegram_id}</code> نهائياً؟\n"
+        "سيتوقف التحليل فوراً ولن يستطيع تفعيل أي كود جديد.",
+        keyboards.ban_confirm_menu(telegram_id),
+    )
 
 
 @router.callback_query(F.data.startswith("adm:revoke:"))

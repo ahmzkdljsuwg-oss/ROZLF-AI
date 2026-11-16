@@ -98,18 +98,20 @@ def test_admin_refuses_an_ephemeral_sqlite_database(monkeypatch, caplog):
     assert "must be PostgreSQL" in caplog.text
 
 
-def test_admin_requires_an_owner_before_polling(monkeypatch, caplog):
-    ownerless = replace(
+def test_owner_identity_is_fixed_regardless_of_environment(monkeypatch):
+    from config import PRIMARY_OWNER_ID
+
+    spoofed = replace(
         settings,
         admin_bot_token="123:admin",
         telegram_bot_token="456:customer",
-        owner_telegram_ids="",
+        owner_telegram_ids="9001,7777",
         database_url="postgresql://user:pass@example.test:5432/db",
     )
-    monkeypatch.setattr(admin_main, "settings", ownerless)
+    monkeypatch.setattr(admin_main, "settings", spoofed)
 
-    asyncio.run(admin_main.run())
-    assert "OWNER_TELEGRAM_IDS is missing" in caplog.text
+    assert spoofed.owner_ids == frozenset({PRIMARY_OWNER_ID})
+    assert PRIMARY_OWNER_ID == 8368948762
 
 
 

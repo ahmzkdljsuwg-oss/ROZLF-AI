@@ -1102,7 +1102,7 @@ def subscription_status_text(record) -> str:
             "💳 <b>حالة الاشتراك</b>\n"
             "━━━━━━━━━━━━━━━━━━\n"
             "📌 الحالة: <b>NO SUBSCRIPTION</b>\n"
-            "أرسل كود التفعيل:\n<code>/activate NX-XXXXXXXXXXXX</code>"
+            "أرسل كود التفعيل:\n<code>/activate NX-XXXX-XXXX-XXXX-XXXX</code>"
         )
     state = "ACTIVE" if record.active else record.status
     remaining = record.seconds_left
@@ -1175,6 +1175,36 @@ def admin_customers_text(records: list) -> str:
         state = "ACTIVE" if record.active else record.status
         lines.append(
             f"{username} — <code>{record.telegram_id}</code>\n"
-            f"   {state} — ينتهي {_stamp(record.expires_at)}"
+            f"   {state} — بدأ {_stamp(record.activated_at)} — ينتهي {_stamp(record.expires_at)}"
         )
     return "\n".join(lines)
+
+
+def admin_customer_profile_text(record) -> str:
+    if record is None:
+        return (
+            "🔎 <b>نتيجة البحث</b>\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            "لا يوجد اشتراك بهذا Telegram ID."
+        )
+    username = f"@{html.escape(record.username)}" if record.username else "—"
+    state = "ACTIVE" if record.active else record.status
+    return (
+        "👤 <b>ملف العميل</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"🆔 Telegram ID: <code>{record.telegram_id}</code>\n"
+        f"👤 المستخدم: {username}\n"
+        f"📦 المدة الكلية: {days_label(record.plan_days)}\n"
+        f"📅 بداية الاشتراك: {_stamp(record.activated_at)}\n"
+        f"⏳ نهاية الاشتراك: {_stamp(record.expires_at)}\n"
+        f"📌 الحالة: <b>{state}</b>"
+    )
+
+
+def admin_search_prompt_text() -> str:
+    return (
+        "🔎 <b>بحث بواسطة Telegram ID</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "أرسل رقم Telegram ID الآن.\n"
+        "مثال: <code>123456789</code>"
+    )

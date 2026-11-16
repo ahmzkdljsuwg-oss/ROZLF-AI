@@ -67,7 +67,7 @@ class SubscriptionMiddleware(BaseMiddleware):
             "⛔ الاشتراك غير نشط.\n"
             "━━━━━━━━━━━━━━━━━━\n"
             "أرسل كود التفعيل بالأمر:\n"
-            "<code>/activate NX-XXXXXXXXXXXX</code>\n"
+            "<code>/activate NX-XXXX-XXXX-XXXX-XXXX</code>\n"
             "ولمعرفة حالتك: /status"
         )
         if hasattr(event, "data") and hasattr(event, "answer") and not hasattr(event, "text"):

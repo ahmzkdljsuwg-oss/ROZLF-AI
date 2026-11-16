@@ -347,6 +347,30 @@ async def cmd_llo(message: Message) -> None:
 @router.message(CommandStart())
 @router.message(Command("menu"))
 async def cmd_start(message: Message) -> None:
+    ctx = get_context()
+    user = getattr(message, "from_user", None)
+    user_id = getattr(user, "id", None)
+    if (
+        user_id is not None
+        and ctx.settings.subscriptions_enabled
+        and user_id not in ctx.settings.owner_ids
+    ):
+        try:
+            subscribed = await ctx.repo.is_subscribed(user_id)
+        except Exception:
+            logger.exception("subscription check failed at /start for %s", user_id)
+            subscribed = False
+        if not subscribed:
+            await message.answer(
+                "🔐 <b>ROZLF AI — التفعيل مطلوب</b>\n"
+                "━━━━━━━━━━━━━━━━━━\n"
+                "هذا الحساب غير مفعّل بعد.\n"
+                "أرسل كود التفعيل الذي حصلت عليه من الإدارة:\n"
+                "<code>/activate NX-XXXX-XXXX-XXXX-XXXX</code>\n\n"
+                "لمعرفة حالة الاشتراك: /status",
+                parse_mode="HTML",
+            )
+            return
     await _show_nexus_home(message)
 
 
@@ -366,7 +390,7 @@ async def cmd_activate(message: Message) -> None:
         await message.answer(
             "🔑 <b>تفعيل الاشتراك</b>\n"
             "أرسل الكود مع الأمر:\n"
-            "<code>/activate NX-XXXXXXXXXXXX</code>",
+            "<code>/activate NX-XXXX-XXXX-XXXX-XXXX</code>",
             parse_mode="HTML",
         )
         return
