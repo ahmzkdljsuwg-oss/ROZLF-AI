@@ -116,7 +116,9 @@ async def _panel_otc_assets() -> list[Asset]:
 @router.callback_query(F.data == "nx:analyse")
 async def cb_nx_analyse(callback: CallbackQuery) -> None:
     await callback.answer()
-    await _edit(callback, fmt.nexus_markets_text(), menus.nexus_markets_menu())
+    # Show only OTC favorites confirmed by the active ExpertOption inventory.
+    otc_assets = await _panel_otc_assets()
+    await _edit(callback, fmt.nexus_markets_text(), menus.nexus_markets_menu(otc_assets))
 
 
 @router.callback_query(F.data == "nx:home")
