@@ -95,6 +95,25 @@ def nexus_markets_menu() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def nexus_assets_menu(market: Market, assets, page: int = 0, per_page: int = 20) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    start = page * per_page
+    for index, asset in enumerate(assets[start:start + per_page], start=start):
+        label = asset.name or asset.symbol
+        if asset.name and asset.name.upper() != asset.symbol.upper():
+            label = f"{asset.name} · {asset.symbol}"
+        builder.row(_button(label, f"nx:pick:{market.value.upper()}:{index}"))
+    nav = []
+    if page > 0:
+        nav.append(_button("⬅️ السابق", f"nx:assets:{market.value.upper()}:{page - 1}"))
+    if start + per_page < len(assets):
+        nav.append(_button("التالي ➡️", f"nx:assets:{market.value.upper()}:{page + 1}"))
+    if nav:
+        builder.row(*nav)
+    builder.row(_button("🔙 الأسواق", "nx:analyse"), _button("🏠 الرئيسية", "menu:main"))
+    return builder.as_markup()
+
+
 def nexus_result_menu(market: Market) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(_button("خذ صفقة أخرى 🔄", f"nx:again:{market.value.upper()}"))

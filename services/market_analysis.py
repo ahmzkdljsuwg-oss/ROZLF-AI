@@ -43,23 +43,29 @@ class MarketAnalysis:
 
 
 class MarketAnalysisService:
-    def __init__(self, registry: DataSourceRegistry, settings: Settings, inventory=None, gemini=None, mistral=None) -> None:
+    def __init__(self, registry: DataSourceRegistry, settings: Settings, inventory=None,
+                 gemini=None, mistral=None, mode: str = "strong") -> None:
         self.registry = registry
         self.settings = settings
         self.inventory = inventory
+        self.mode = mode if mode in {"strict", "strong", "lo"} else "strong"
         self.reviewer = AIReviewer(gemini, mistral)
 
-    async def assets_for(self, market: Market) -> list[Asset]:
+    async def assets_for(self, market: Market, asset_key: str | None = None) -> list[Asset]:
         if market in (Market.FOREX, Market.GOLD):
-            return list(assets_for(market))[:MAX_ASSETS]
-        if self.inventory is not None:
-            return list(await self.inventory.assets(market, force=True))[:MAX_ASSETS]
-        return list(assets_for(market))[:MAX_ASSETS]
+            assets = list(assets_for(market))
+        elif self.inventory is not None:
+            assets = list(await self.inventory.assets(market, force=True))
+        else:
+            assets = list(assets_for(market))
+        if asset_key:
+            assets = [asset for asset in assets if asset.key == asset_key]
+        return assets[:MAX_ASSETS]
 
-    async def analyse(self, market: Market) -> MarketAnalysis:
+    async def analyse(self, market: Market, asset_key: str | None = None) -> MarketAnalysis:
         outcome = MarketAnalysis(market=market)
         try:
-            assets = await self.assets_for(market)
+            assets = await self.assets_for(market, asset_key)
         except DataUnavailable as exc:
             outcome.errors.append(exc.detail or exc.message)
             return outcome
@@ -69,7 +75,9 @@ class MarketAnalysisService:
 
         jobs: list[tuple[Asset, str]] = []
         for asset in assets:
-            frames = forecast_frames(asset.market.value, profile_for(asset.market).frames)
+            profile_frames = profile_for(asset.market).frames
+            frames = (tuple(profile_frames[:3]) if self.mode == "lo"
+                      else forecast_frames(asset.market.value, profile_frames))
             for frame in frames:
                 jobs.append((asset, frame))
         outcome.attempted = len(jobs)
@@ -92,27 +100,47 @@ class MarketAnalysisService:
 
         actionable = [item for item in results if item[0].direction in ("UP", "DOWN")]
         if actionable:
-            actionable.sort(key=lambda item: item[0].confidence, reverse=True)
+            actionable.sort(key=lambda item: _strength(item[0], self.mode), reverse=True)
             best, frame = actionable[0]
-            opposing = [
-                other for other, _ in actionable[1:]
-                if other.direction != best.direction
-                and other.confidence >= max(52.0, best.confidence - 8.0)
-            ]
-            if opposing:
-                outcome.result = best
-                outcome.conflict = (
-                    f"{best.direction} {best.confidence:.0f}% on {frame} conflicts with "
-                    f"{opposing[0].direction} {opposing[0].confidence:.0f}% on "
-                    f"{opposing[0].timeframe}"
-                )
-                return outcome
+            if self.mode == "lo":
+                opposing = [
+                    other for other, _ in actionable[1:]
+                    if other.direction != best.direction and _strength(other, "lo") >= 6.0
+                ]
+                if opposing and _strength(best, "lo") < 12.0:
+                    outcome.result = best
+                    outcome.conflict = (
+                        f"{best.direction} on {frame} conflicts with "
+                        f"{opposing[0].direction} on {opposing[0].timeframe}"
+                    )
+                    return outcome
+            else:
+                opposing = [
+                    other for other, _ in actionable[1:]
+                    if other.direction != best.direction
+                    and other.confidence >= max(52.0, best.confidence - 8.0)
+                ]
+                if opposing:
+                    outcome.result = best
+                    outcome.conflict = (
+                        f"{best.direction} {best.confidence:.0f}% on {frame} conflicts with "
+                        f"{opposing[0].direction} {opposing[0].confidence:.0f}% on "
+                        f"{opposing[0].timeframe}"
+                    )
+                    return outcome
             duration = timeframe(best.timeframe).seconds
-            reason = (
-                f"target candle {best.timeframe} chosen because its walk-forward "
-                f"hit rate passed the gate; confidence {best.confidence:.0f}%"
-            )
-            if duration is not None and best.confidence >= max(52.0, self.settings.min_confidence - 8.0):
+            if self.mode == "lo":
+                reason = (
+                    f"target candle {best.timeframe} chosen from live technical components; "
+                    "confidence is UNVERIFIED (no walk-forward calibration)"
+                )
+            else:
+                reason = (
+                    f"target candle {best.timeframe} chosen because its walk-forward "
+                    f"hit rate passed the gate; confidence {best.confidence:.0f}%"
+                )
+            passes = self.mode == "lo" or best.confidence >= max(52.0, self.settings.min_confidence - 8.0)
+            if duration is not None and passes:
                 outcome.result = best
                 outcome.duration_seconds = duration
                 outcome.duration_reason = reason
@@ -140,7 +168,10 @@ class MarketAnalysisService:
                     self.registry.fetch(asset, timeframe(frame)), timeout=FETCH_TIMEOUT
                 )
                 result = await asyncio.wait_for(
-                    asyncio.to_thread(analyze_market_data, data), timeout=ANALYSIS_TIMEOUT
+                    asyncio.to_thread(
+                        analyze_market_data, data, None, None, self.mode
+                    ),
+                    timeout=ANALYSIS_TIMEOUT,
                 )
                 return result, frame
             except (DataUnavailable, asyncio.TimeoutError) as exc:
@@ -149,6 +180,13 @@ class MarketAnalysisService:
             except Exception:
                 logger.exception("NEXUS analysis failed for %s %s", asset.key, frame)
                 return None
+
+
+def _strength(result: AnalysisResult, mode: str) -> float:
+    if mode != "lo":
+        return result.confidence
+    raw = result.next_candle.get("raw_score") if result.next_candle else None
+    return abs(float(raw)) if isinstance(raw, (int, float)) else result.evidence_score
 
 
 def _review_payload(result: AnalysisResult, duration: int, reason: str) -> dict:

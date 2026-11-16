@@ -14,7 +14,7 @@ from providers.inventory import MarketInventory
 from providers.registry import DataSourceRegistry
 from tests.conftest import FakeProvider, make_candles
 
-SMARTY_ROW = {"id": 240, "symbol": "SMRTY", "name": "SMARTY", "market": "smarty", "precision": 2}
+SMARTY_ROW = {"id": 240, "symbol": "SMRTY", "name": "SMARTY", "market": "smarty", "is_active": True, "precision": 2}
 
 
 class SmartyBridge(FakeProvider):

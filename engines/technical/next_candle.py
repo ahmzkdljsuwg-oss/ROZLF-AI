@@ -38,6 +38,7 @@ class NextCandleForecast:
     horizon_seconds: int
     calibration: str
     blockers: list[str] = field(default_factory=list)
+    verified: bool = False
 
     @property
     def actionable(self) -> bool:
@@ -198,6 +199,25 @@ def _bin_for(table: dict[str, Any], score: float) -> dict[str, Any] | None:
     return None
 
 
+def _technical_forecast(score: float, components: dict[str, float], target: datetime,
+                        timeframe_seconds: int, blockers: list[str]) -> NextCandleForecast:
+    """Uncalibrated LO-mode direction from agreement among independent components."""
+    directional = {name: value for name, value in components.items() if name != "volatility"}
+    agreeing = sum(1 for value in directional.values() if value * score > 0)
+    direction = "UP" if score > 0 else "DOWN" if score < 0 else "NO TRADE"
+    if direction == "NO TRADE" or abs(score) < 6.0 or agreeing < 2:
+        return NextCandleForecast(
+            "NO TRADE", score, None, None, [], components, target, timeframe_seconds,
+            "unverified", blockers or ["technical components are too balanced"], verified=False,
+        )
+    ranked = sorted(directional.items(), key=lambda item: -abs(item[1]))
+    reasons = [f"{name} {value:+.1f}" for name, value in ranked[:3]]
+    return NextCandleForecast(
+        direction, score, None, None, reasons, components, target, timeframe_seconds,
+        "unverified", [], verified=False,
+    )
+
+
 def forecast_from_frame(
     frame: pd.DataFrame,
     *,
@@ -207,8 +227,14 @@ def forecast_from_frame(
     now: datetime,
     target_open_at: datetime | None = None,
     calibration: dict[str, Any] | None = None,
+    require_calibration: bool = True,
 ) -> NextCandleForecast:
-    """Predict the next candle. Must be called before that candle opens."""
+    """Predict the next candle. Must be called before that candle opens.
+
+    ``require_calibration=False`` is the LO mode: raw technical components may
+    produce a direction, but confidence stays ``None`` (reported as UNVERIFIED)
+    because no walk-forward hit rate backs it.
+    """
     target = target_open_at or (now + timedelta(seconds=timeframe_seconds))
     if target.tzinfo is None:
         target = target.replace(tzinfo=timezone.utc)
@@ -226,6 +252,8 @@ def forecast_from_frame(
     arrays = _series(frame)
     score, components = score_at(frame, arrays)
     table, label = _table_for(calibration or load_calibration(), market, timeframe_code)
+    if not require_calibration:
+        return _technical_forecast(score, components, target, timeframe_seconds, [])
     if table is None:
         return NextCandleForecast(
             "NO TRADE", score, None, None, [], components, target, timeframe_seconds,
@@ -263,7 +291,7 @@ def forecast_from_frame(
         )
     return NextCandleForecast(
         predicted, score, round(probability_up, 1), round(confidence, 1),
-        reasons, components, target, timeframe_seconds, label,
+        reasons, components, target, timeframe_seconds, label, verified=True,
     )
 
 

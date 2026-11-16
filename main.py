@@ -239,6 +239,8 @@ async def _run_bot(state: dict) -> None:
                 [
                     BotCommand(command="start", description="فتح لوحة التحكم"),
                     BotCommand(command="markets", description="فتح قائمة الأسواق"),
+                    BotCommand(command="lo", description="تشغيل وضع LO للتوصيات المستمرة"),
+                    BotCommand(command="llo", description="العودة إلى التحليل القوي المعاير"),
                     BotCommand(command="status", description="حالة البيانات والذكاء الاصطناعي"),
                     BotCommand(command="scan", description="فتح الماسح التلقائي"),
                     BotCommand(command="stats", description="الإحصائيات"),

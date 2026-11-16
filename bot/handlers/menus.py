@@ -37,6 +37,9 @@ _PENDING_MIN: dict[int, float] = {}
 _RECS_CACHE: dict[int, tuple[float, str]] = {}
 _MT5_CACHE: dict[str, tuple[float, list[Asset]]] = {}
 _NEXUS_LAST: dict[tuple[int, str], tuple[tuple, float]] = {}
+_NEXUS_ASSETS: dict[tuple[int, str], list[Asset]] = {}
+_NEXUS_PICK: dict[tuple[int, str], str] = {}
+ASSET_PICK_MARKETS = {"OTC", "SMARTY"}
 NEXUS_MARKETS = {"OTC", "SMARTY", "FOOTBALL", "LUXURY", "AI", "CRICKET", "FOREX"}
 TRADE_DURATION_CHOICES: tuple[int, ...] = (30, 60, 120, 180, 300)
 MT5_DURATIONS: tuple[int, ...] = (60, 300, 900, 1800, 3600)
@@ -131,15 +134,87 @@ async def cb_nx_more(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.startswith("nx:market:"))
 async def cb_nx_market(callback: CallbackQuery) -> None:
-    await _nexus_analyse(callback, callback.data.split(":", 2)[2].upper())
+    market_name = callback.data.split(":", 2)[2].upper()
+    if market_name in ASSET_PICK_MARKETS:
+        await _nexus_assets(callback, market_name, 0)
+        return
+    await _nexus_analyse(callback, market_name)
+
+
+@router.callback_query(F.data.startswith("nx:assets:"))
+async def cb_nx_assets(callback: CallbackQuery) -> None:
+    _, _, market_name, page = callback.data.split(":", 3)
+    await _nexus_assets(callback, market_name.upper(), int(page))
+
+
+@router.callback_query(F.data.startswith("nx:pick:"))
+async def cb_nx_pick(callback: CallbackQuery) -> None:
+    _, _, market_name, index = callback.data.split(":", 3)
+    market_name = market_name.upper()
+    await callback.answer()
+    choices = _NEXUS_ASSETS.get((callback.from_user.id, market_name), [])
+    position = int(index)
+    if position >= len(choices):
+        await callback.answer("انتهت صلاحية القائمة، افتح السوق من جديد", show_alert=True)
+        return
+    await _nexus_analyse(callback, market_name, asset_key=choices[position].key)
 
 
 @router.callback_query(F.data.startswith("nx:again:"))
 async def cb_nx_again(callback: CallbackQuery) -> None:
-    await _nexus_analyse(callback, callback.data.split(":", 2)[2].upper())
+    market_name = callback.data.split(":", 2)[2].upper()
+    await _nexus_analyse(callback, market_name, asset_key=_NEXUS_PICK.get((callback.from_user.id, market_name)))
 
 
-async def _nexus_analyse(callback: CallbackQuery, market_name: str) -> None:
+async def _nexus_assets(callback: CallbackQuery, market_name: str, page: int) -> None:
+    if market_name not in ASSET_PICK_MARKETS:
+        await callback.answer("سوق غير معروف", show_alert=True)
+        return
+    market = Market[market_name]
+    await callback.answer()
+    ctx = get_context()
+    inventory = getattr(ctx, "inventory", None)
+    try:
+        if inventory is None:
+            raise DataUnavailable("INVENTORY_MISSING", "جسر ExpertOption غير مهيأ في هذا الخادم.")
+        assets = list(await inventory.assets(market, force=True))
+    except DataUnavailable as exc:
+        await _edit(
+            callback,
+            fmt.nexus_data_unavailable_text(market.value, exc.detail or exc.message),
+            menus.nexus_result_menu(market),
+        )
+        return
+    except Exception:  # noqa: BLE001 - discovery failure must be shown, not hidden
+        logger.exception("asset discovery failed for %s", market_name)
+        await _edit(
+            callback,
+            fmt.nexus_data_unavailable_text(market.value, "تعذر جلب قائمة الأصول من المصدر."),
+            menus.nexus_result_menu(market),
+        )
+        return
+    active = [asset for asset in assets if asset.market is market]
+    if not active:
+        await _edit(
+            callback,
+            fmt.nexus_data_unavailable_text(market.value, f"لا توجد أصول {market.label} نشطة على حساب ExpertOption."),
+            menus.nexus_result_menu(market),
+        )
+        return
+    _NEXUS_ASSETS[(callback.from_user.id, market_name)] = active
+    per_page = 20
+    pages = max(1, (len(active) + per_page - 1) // per_page)
+    page = min(max(page, 0), pages - 1)
+    lines = [
+        "NEXUS AI 🤖",
+        f"📊 السوق: <b>{market.label}</b>",
+        "",
+        f"اختر الأصل الفعلي ({len(active)} أصل نشط من المصدر):",
+    ]
+    await _edit(callback, "\n".join(lines), menus.nexus_assets_menu(market, active, page, per_page))
+
+
+async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: str | None = None) -> None:
     if market_name not in NEXUS_MARKETS:
         await callback.answer("سوق غير معروف", show_alert=True)
         return
@@ -156,14 +231,18 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str) -> None:
             "⏳ جارٍ قراءة الشموع المغلقة والشمعة الحالية، وحساب المؤشرات واختيار المدة تلقائياً...",
         )
         ctx = get_context()
+        mode = await _user_mode(ctx, user_id)
         service = MarketAnalysisService(
             ctx.registry,
             ctx.settings,
             getattr(ctx, "inventory", None),
             gemini=getattr(ctx, "gemini", None),
             mistral=getattr(ctx, "mistral", None),
+            mode=mode,
         )
-        outcome = await service.analyse(market)
+        outcome = await service.analyse(market, asset_key=asset_key)
+        if asset_key:
+            _NEXUS_PICK[(user_id, market_name)] = asset_key
 
         if outcome.result is None:
             detail = outcome.errors[0] if outcome.errors else None
@@ -177,6 +256,8 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str) -> None:
             text = fmt.nexus_signal_text(
                 market.value, "NO TRADE", timeframe(result.timeframe).seconds, None,
                 result.target_open_at, result.reasons,
+                asset=result.asset_display, confidence_verified=result.confidence_verified,
+                mode=mode,
             )
             if reason:
                 text += f"\n\n<i>{reason}</i>"
@@ -190,6 +271,7 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str) -> None:
             round(result.price, 8),
             round(result.confidence, 1),
             outcome.duration_seconds,
+            mode,
         )
         previous = _NEXUS_LAST.get((user_id, market.value))
         if previous is not None and previous[0] == fingerprint and (time.monotonic() - previous[1]) < 600:
@@ -220,9 +302,63 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str) -> None:
             fmt.nexus_signal_text(
                 market.value, result.direction, outcome.duration_seconds,
                 result.confidence, result.target_open_at, result.reasons,
+                asset=result.asset_display, confidence_verified=result.confidence_verified,
+                mode=mode,
             ),
             menus.nexus_result_menu(market),
         )
+
+
+async def _user_mode(ctx, user_id: int) -> str:
+    getter = getattr(ctx.repo, "get_analysis_mode", None)
+    if getter is None:
+        return "strong"
+    try:
+        return await getter(user_id)
+    except Exception:  # noqa: BLE001 - a mode lookup must not block analysis
+        logger.exception("could not read analysis mode for %s", user_id)
+        return "strong"
+
+
+@router.message(Command("lo"))
+async def cmd_lo(message: Message) -> None:
+    ctx = get_context()
+    setter = getattr(ctx.repo, "set_analysis_mode", None)
+    if setter is None:
+        await message.answer("LO MODE غير متاح: قاعدة البيانات لا تدعم حفظ الوضع.")
+        return
+    await setter(message.from_user.id, "lo")
+    for key in [key for key in _NEXUS_LAST if key[0] == message.from_user.id]:
+        _NEXUS_LAST.pop(key, None)
+    await message.answer(
+        "NEXUS AI 🤖\n"
+        "LO MODE: ON\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "التحليل الآن يستخدم المحركات الفنية والشموع المغلقة مباشرة.\n"
+        "الاتجاه UP/DOWN يُختار عند اتفاق الأدلة، والثقة تُعرض UNVERIFIED\n"
+        "لأنه لا توجد معايرة Walk-Forward لهذا الوضع.\n"
+        "عند تعارض الأدلة أو فشل البيانات: NO TRADE / DATA UNAVAILABLE.",
+        reply_markup=menus.nexus_home_menu(),
+    )
+
+
+@router.message(Command("llo"))
+async def cmd_llo(message: Message) -> None:
+    ctx = get_context()
+    setter = getattr(ctx.repo, "set_analysis_mode", None)
+    if setter is None:
+        await message.answer("STRONG ANALYSIS غير متاح: قاعدة البيانات لا تدعم حفظ الوضع.")
+        return
+    await setter(message.from_user.id, "strong")
+    await message.answer(
+        "NEXUS AI 🤖\n"
+        "STRONG ANALYSIS: ON\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "تمت العودة إلى محرك Walk-Forward المعاير.\n"
+        "لا يصدر UP أو DOWN إلا إذا اجتاز السوق والفريم شروط المعايرة،\n"
+        "وإلا فالنتيجة NO TRADE مع سبب واضح.",
+        reply_markup=menus.nexus_home_menu(),
+    )
 
 
 @router.message(CommandStart())

@@ -1,6 +1,7 @@
 """Central message formatting (HTML). All user-facing text lives here."""
 from __future__ import annotations
 
+import html
 from datetime import datetime, timezone
 
 from config import Settings
@@ -1030,11 +1031,18 @@ def nexus_markets_text() -> str:
 
 def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
                        confidence: float | None, target_open_at=None,
-                       reasons: list[str] | None = None) -> str:
+                       reasons: list[str] | None = None, asset: str | None = None,
+                       confidence_verified: bool = True,
+                       mode: str = "strong") -> str:
     trade = {"UP": "فوق", "DOWN": "تحت"}.get(direction, "NO TRADE")
     duration = duration_label(expiry_seconds) if expiry_seconds else "—"
     clock = f" · {target_open_at:%H:%M} UTC" if target_open_at is not None else ""
-    conf = f"{confidence:.0f}%" if confidence is not None else "—"
+    if confidence_verified and confidence is not None:
+        conf = f"{confidence:.0f}%"
+    elif direction in ("UP", "DOWN"):
+        conf = "UNVERIFIED"
+    else:
+        conf = "—"
     names = {
         "trend": "الاتجاه", "momentum": "الزخم", "price_action": "حركة السعر",
         "location": "موقع السعر", "close_pressure": "ضغط الإغلاق",
@@ -1045,9 +1053,13 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
         label, _, value = reason.partition(" ")
         shown.append(f"{names.get(label, label)} {value}".strip())
     evidence = " · ".join(shown) or "لا توجد أدلة كافية"
+    mode_line = "🧪 LO MODE · UNCALIBRATED\n" if mode == "lo" else ""
+    asset_line = f"💱 الأصل: <b>{html.escape(asset)}</b>\n" if asset else ""
     return (
         "NEXUS AI 🤖\n"
+        f"{mode_line}"
         f"📊 السوق: <b>{market_label(market)}</b>\n"
+        f"{asset_line}"
         f"⏱️ الشمعة المستهدفة: <b>{duration}</b>{clock}\n"
         f"📈 الصفقة: <b>{trade}</b>\n"
         f"🎯 الثقة: <b>{conf}</b>\n"

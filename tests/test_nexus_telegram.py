@@ -8,7 +8,7 @@ from bot.handlers import menus as handlers
 from bot.keyboards import menus
 from engines.technical.analyzer import AnalysisResult
 from providers.base import DataUnavailable, utc_now
-from providers.catalog import Market
+from providers.catalog import Market, dynamic_asset
 from services.market_analysis import MarketAnalysis, MarketAnalysisService
 from tests.conftest import FakeProvider
 from providers.registry import DataSourceRegistry
@@ -121,11 +121,17 @@ async def test_market_analysis_selects_auto_duration_and_never_repeats(monkeypat
     from bot import context
 
     repo = FakeRepo()
+    otc_asset = dynamic_asset("EURUSD_OTC", Market.OTC, bridge_id=1)
+
+    class OneAsset:
+        async def assets(self, market, force=False):
+            return [otc_asset]
+
     ctx = SimpleNamespace(
         registry=DataSourceRegistry([]),
         settings=SimpleNamespace(min_confidence=60.0, scan_interval=90, scanner_enabled=False),
         repo=repo,
-        inventory=None,
+        inventory=OneAsset(),
     )
     monkeypatch.setattr(context, "_context", ctx, raising=False)
     outcome = MarketAnalysis(
@@ -140,7 +146,7 @@ async def test_market_analysis_selects_auto_duration_and_never_repeats(monkeypat
         def __init__(self, *args, **kwargs):
             pass
 
-        async def analyse(self, market):
+        async def analyse(self, market, asset_key=None):
             return outcome
 
     monkeypatch.setattr(handlers, "MarketAnalysisService", FakeService)
@@ -148,6 +154,10 @@ async def test_market_analysis_selects_auto_duration_and_never_repeats(monkeypat
 
     callback = FakeCallback("nx:market:OTC")
     await handlers.cb_nx_market(callback)
+    assert "اختر الأصل" in callback.message.edits[-1][0]
+    pick = FakeCallback("nx:pick:OTC:0", user_id=42)
+    pick.message = callback.message
+    await handlers.cb_nx_pick(pick)
     text, keyboard = callback.message.edits[-1]
     assert "NEXUS AI 🤖" in text
     assert "📊 السوق: <b>OTC</b>" in text
@@ -189,7 +199,7 @@ async def test_market_analysis_conflict_returns_no_trade(monkeypatch):
         def __init__(self, *args, **kwargs):
             pass
 
-        async def analyse(self, market):
+        async def analyse(self, market, asset_key=None):
             return outcome
 
     monkeypatch.setattr(handlers, "MarketAnalysisService", FakeService)
@@ -218,7 +228,7 @@ async def test_market_analysis_data_unavailable_renders_no_recommendation(monkey
         def __init__(self, *args, **kwargs):
             pass
 
-        async def analyse(self, market):
+        async def analyse(self, market, asset_key=None):
             return outcome
 
     monkeypatch.setattr(handlers, "MarketAnalysisService", FakeService)
@@ -248,7 +258,7 @@ async def test_every_dynamic_market_shows_data_unavailable_without_its_source(mo
         def __init__(self, *args, **kwargs):
             pass
 
-        async def analyse(self, market):
+        async def analyse(self, market, asset_key=None):
             assert market.value == market_key.lower()
             return outcome
 
@@ -267,7 +277,7 @@ async def test_gemini_and_mistral_review_run_inside_automatic_analysis(monkeypat
     import services.market_analysis as market_analysis
     from ai.review import AIReviewer
 
-    monkeypatch.setattr(market_analysis, "analyze_market_data", lambda data: _result("UP", 80.0))
+    monkeypatch.setattr(market_analysis, "analyze_market_data", lambda data, *args, **kwargs: _result("UP", 80.0))
 
     class FakeAI:
         configured = True
@@ -295,3 +305,44 @@ async def test_gemini_and_mistral_review_run_inside_automatic_analysis(monkeypat
     blocked = await service.analyse(Market.FOREX)
     assert not blocked.actionable
     assert "DOWN" in blocked.conflict
+
+
+def test_otc_discovery_keeps_only_active_same_market_rows():
+    from providers.inventory import MarketInventory
+
+    rows = [
+        {"id": 1, "symbol": "EURUSD_OTC", "market": "otc", "is_active": True},
+        {"id": 2, "symbol": "GBPUSD_OTC", "market": "otc", "is_active": False},
+        {"id": 3, "symbol": "EURUSD", "market": "forex", "is_active": True},
+        {"id": 4, "symbol": "SMARTY", "market": "smarty", "is_active": True},
+        {"id": 5, "symbol": "AUDUSD_OTC", "market": "otc"},
+    ]
+    assets = MarketInventory._to_assets(rows, Market.OTC, active_only=True)
+    assert [asset.symbol for asset in assets] == ["EURUSD_OTC"]
+    assert assets[0].market is Market.OTC
+
+
+@pytest.mark.asyncio
+async def test_selected_asset_is_the_only_one_analysed(settings):
+    from providers.inventory import MarketInventory
+
+    class Bridge:
+        async def fetch_assets(self, market):
+            return [
+                {"id": 11, "symbol": "EURUSD_OTC", "market": "otc", "is_active": True},
+                {"id": 12, "symbol": "GBPUSD_OTC", "market": "otc", "is_active": True},
+            ]
+
+    inventory = MarketInventory(Bridge(), ttl=0)
+    service = MarketAnalysisService(DataSourceRegistry([]), settings, inventory)
+    chosen = await service.assets_for(Market.OTC, asset_key="OTC_11")
+    assert [asset.bridge_id for asset in chosen] == [11]
+
+
+def test_card_shows_real_asset_and_unverified_confidence():
+    text = fmt.nexus_signal_text(
+        "otc", "UP", 60, 0.0, asset="EUR/USD OTC", confidence_verified=False, mode="lo",
+    )
+    assert "💱 الأصل: <b>EUR/USD OTC</b>" in text
+    assert "LO MODE" in text
+    assert "UNVERIFIED" in text

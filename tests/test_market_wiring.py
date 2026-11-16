@@ -43,11 +43,11 @@ class FakeBridge(FakeProvider):
 
 
 OTC_ROWS = [
-    {"id": 179, "symbol": "EURUSD_OTC", "name": "EUR/USD OTC", "market": "otc", "precision": 5},
-    {"id": 185, "symbol": "AUDUSD_OTC", "name": "AUD/USD OTC", "market": "otc", "precision": 5},
+    {"id": 179, "symbol": "EURUSD_OTC", "name": "EUR/USD OTC", "market": "otc", "is_active": True, "precision": 5},
+    {"id": 185, "symbol": "AUDUSD_OTC", "name": "AUD/USD OTC", "market": "otc", "is_active": True, "precision": 5},
 ]
 SMARTY_ROWS = [
-    {"id": 240, "symbol": "SMRTY", "name": "SMARTY", "market": "smarty", "precision": 2},
+    {"id": 240, "symbol": "SMRTY", "name": "SMARTY", "market": "smarty", "is_active": True, "precision": 2},
 ]
 
 

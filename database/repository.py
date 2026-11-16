@@ -9,7 +9,7 @@ from sqlalchemy import func, inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from config import Settings, normalise_database_url
-from database.models import Base, Signal, UserSettings
+from database.models import Base, Signal, UserMode, UserSettings
 
 STATUS_ACTIVE = "ACTIVE"
 STATUS_WIN = "WIN"
@@ -270,6 +270,24 @@ class Repository:
             row.scanner_enabled = 1 if settings.get("scanner_enabled", True) else 0
             row.updated_at = datetime.now(timezone.utc)
             await session.commit()
+
+    async def get_analysis_mode(self, user_id: int) -> str:
+        async with self._session() as session:
+            row = await session.get(UserMode, user_id)
+            return row.mode if row and row.mode in {"strong", "lo"} else "strong"
+
+    async def set_analysis_mode(self, user_id: int, mode: str) -> str:
+        if mode not in {"strong", "lo"}:
+            raise ValueError("mode must be 'strong' or 'lo'")
+        async with self._session() as session:
+            row = await session.get(UserMode, user_id)
+            if row is None:
+                row = UserMode(user_id=user_id, mode=mode, updated_at=datetime.now(timezone.utc))
+                session.add(row)
+            row.mode = mode
+            row.updated_at = datetime.now(timezone.utc)
+            await session.commit()
+        return mode
 
     @staticmethod
     def _to_record(row: Signal) -> SignalRecord:

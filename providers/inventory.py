@@ -76,7 +76,7 @@ class MarketInventory:
                     rows = await self._smarty_rows()
                 except Exception:  # noqa: BLE001 - report the original failure, not the fallback
                     raise exc from None
-            assets = self._to_assets(rows, market, active_only=market is Market.CRICKET)
+            assets = self._to_assets(rows, market, active_only=True)
         except DataUnavailable as exc:
             discovery = Discovery(
                 market=market, ok=False, assets=[], error=exc.message, code=exc.code, at=utc_now()
@@ -145,7 +145,12 @@ class MarketInventory:
         assets: list[Asset] = []
         seen: set[str] = set()
         for row in rows:
-            if active_only and not bool(row.get("is_active", True)):
+            if active_only:
+                active = row.get("is_active")
+                if not (active is True or str(active).strip().lower() == "true"):
+                    continue
+            row_market = str(row.get("market") or "").strip().lower()
+            if row_market and row_market != market.value:
                 continue
             symbol = str(row.get("symbol") or "").strip().upper()
             if not symbol or symbol in seen:

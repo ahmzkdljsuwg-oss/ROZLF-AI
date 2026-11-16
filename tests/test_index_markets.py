@@ -14,9 +14,9 @@ from providers.registry import DataSourceRegistry
 from tests.conftest import FakeProvider, make_candles
 
 INDEX_ROWS = (
-    {"id": 285, "symbol": "AI_INDEX_OTC_R", "name": "AI Index", "market": "ai", "precision": 5},
-    {"id": 278, "symbol": "FOOTBALL_INDEX_OTC_R", "name": "Football Index", "market": "football", "precision": 5},
-    {"id": 286, "symbol": "LUXURY_INDEX_OTC_R", "name": "Luxury Index", "market": "luxury", "precision": 5},
+    {"id": 285, "symbol": "AI_INDEX_OTC_R", "name": "AI Index", "market": "ai", "is_active": True, "precision": 5},
+    {"id": 278, "symbol": "FOOTBALL_INDEX_OTC_R", "name": "Football Index", "market": "football", "is_active": True, "precision": 5},
+    {"id": 286, "symbol": "LUXURY_INDEX_OTC_R", "name": "Luxury Index", "market": "luxury", "is_active": True, "precision": 5},
 )
 
 

@@ -59,6 +59,8 @@ class AnalysisResult:
     next_candle: dict = field(default_factory=dict)
     target_open_at: datetime | None = None
     target_timeframe: str = ""
+    confidence_verified: bool = True
+    analysis_mode: str = "strong"
 
     def as_dict(self) -> dict:
         data = asdict(self)
@@ -76,6 +78,7 @@ def analyze_market_data(
     market_data: MarketData,
     now: datetime | None = None,
     duration_seconds: int | None = None,
+    analysis_mode: str = "strong",
 ) -> AnalysisResult:
     if not market_data.validation.ok:
         raise DataUnavailable("INVALID_DATA", f"Refusing to analyse invalid candles: {market_data.validation.summary}")
@@ -127,6 +130,7 @@ def analyze_market_data(
         timeframe_seconds=market_data.timeframe.seconds,
         now=now,
         target_open_at=target_open,
+        require_calibration=analysis_mode != "lo",
     )
     ind = compute_indicators(frame)
     smc = analyze_smc(frame, ind["atr"])
@@ -174,9 +178,23 @@ def analyze_market_data(
     if cancellation_reason:
         warnings.append(cancellation_reason)
 
-    # The next-candle forecast is authoritative: it either supplies a
-    # walk-forward calibrated direction or refuses to trade.
-    if forecast.direction in ("UP", "DOWN") and forecast.confidence is not None:
+    # STRONG mode is authoritative only when the walk-forward bucket is verified.
+    # LO mode accepts a direction from the raw technical components and reports
+    # its confidence as UNVERIFIED instead of inventing a hit rate.
+    if analysis_mode == "lo":
+        if forecast.direction in ("UP", "DOWN"):
+            direction = forecast.direction
+            confidence = 0.0
+            reasons = forecast.reasons + [
+                f"technical evidence {evidence.confidence:.0f}% (uncalibrated)",
+            ]
+            blocks = forecast.blockers
+        else:
+            direction = "NO TRADE"
+            confidence = 0.0
+            reasons = forecast.blockers or evidence.blockers[:3]
+            blocks = forecast.blockers or evidence.blockers
+    elif forecast.direction in ("UP", "DOWN") and forecast.confidence is not None:
         direction = forecast.direction
         confidence = forecast.confidence
         reasons = forecast.reasons + [
@@ -297,7 +315,7 @@ def analyze_market_data(
         blockers=blocks,
         data_quality_score=float(evidence.data_quality.get("score", 0)),
         win_probability=(round(forecast.confidence / 100, 4)
-                         if forecast.confidence is not None else None),
+                         if forecast.confidence is not None and forecast.verified else None),
         strategy_labels=evidence.strategy_labels,
         market_profile=profile.name,
         alligator_ma=alligator_ma.as_dict(),
@@ -306,6 +324,8 @@ def analyze_market_data(
         next_candle=forecast.as_dict(),
         target_open_at=forecast.target_open_at,
         target_timeframe=market_data.timeframe.code,
+        confidence_verified=forecast.verified if analysis_mode != "lo" else False,
+        analysis_mode=analysis_mode,
     )
     LOG.info(
         "ROZLF DECISION market=%s asset=%s tf=%s duration=%s direction=%s confidence=%.1f "
