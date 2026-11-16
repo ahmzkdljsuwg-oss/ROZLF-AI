@@ -10,7 +10,7 @@ from config import Settings
 from engines.markets import profile_for
 from engines.technical.analyzer import AnalysisResult, analyze_market_data
 from engines.technical.next_candle import forecast_frames
-from providers.base import DataUnavailable
+from providers.base import DataUnavailable, utc_now
 from providers.catalog import Asset, Market, assets_for, timeframe
 from providers.registry import DataSourceRegistry
 
@@ -92,6 +92,13 @@ class MarketAnalysisService:
                 outcome.errors.append(str(item))
             elif item is not None:
                 results.append(item)
+        if not results and market is Market.SMARTY and all(frame != "1min" for _, frame in jobs):
+            # Some sessions expose 1-minute bars while fast frames are offline.
+            # Analyse the actual 1-minute frame. Never synthesize smaller candles.
+            outcome.attempted += 1
+            fallback = await self._one(assets[0], "1min", semaphore)
+            if fallback is not None:
+                results.append(fallback)
         outcome.fetched = len(results)
         if not results:
             if not outcome.errors:
@@ -99,6 +106,15 @@ class MarketAnalysisService:
             return outcome
 
         actionable = [item for item in results if item[0].direction in ("UP", "DOWN")]
+        if market is Market.SMARTY and actionable:
+            now = utc_now()
+            usable = [item for item in actionable
+                      if item[0].target_open_at is not None and item[0].target_open_at > now]
+            if not usable:
+                outcome.result = actionable[0][0]
+                outcome.conflict = "بدأت الشمعة المستهدفة قبل اكتمال التحليل"
+                return outcome
+            actionable = usable
         if actionable:
             actionable.sort(key=lambda item: _strength(item[0], self.mode), reverse=True)
             best, frame = actionable[0]
@@ -155,6 +171,9 @@ class MarketAnalysisService:
                         best.reasons.append(
                             "AI review confirmed by " + ", ".join(v.model for v in review.verdicts)
                         )
+                if market is Market.SMARTY and best.target_open_at is not None and best.target_open_at <= utc_now():
+                    outcome.conflict = "بدأت الشمعة المستهدفة قبل اكتمال التحليل"
+                    outcome.duration_seconds = None
                 return outcome
             outcome.errors.append("best setup did not pass the confidence or duration filter")
         results.sort(key=lambda item: item[0].confidence, reverse=True)

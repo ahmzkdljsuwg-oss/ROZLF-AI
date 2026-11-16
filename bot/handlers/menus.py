@@ -20,7 +20,7 @@ from engines.signals.duration import auto_frames, choose_auto_duration
 from engines.markets import profile_for
 from engines.signals.generator import DURATION_LABELS, supported_durations
 from services.market_analysis import MarketAnalysisService
-from providers.base import DataUnavailable
+from providers.base import DataUnavailable, utc_now
 from providers.catalog import (
     SMARTY_ASSET, TIMEFRAMES, Asset, Market, assets_for, get_asset, register_dynamic, timeframe,
 )
@@ -295,12 +295,36 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
             outcome.duration_seconds,
             mode,
         )
+        if market is Market.SMARTY:
+            # Consecutive candles may have identical prices and directions.
+            # Suppress only a repeat for the same target.
+            fingerprint += (result.target_open_at,)
+            if result.target_open_at is not None and result.target_open_at <= utc_now():
+                await _edit(
+                    callback,
+                    fmt.nexus_signal_text(
+                        market.value, "NO TRADE", None, None, asset=result.asset_display,
+                        reasons=["بدأت الشمعة المستهدفة قبل إرسال النتيجة"], mode=mode,
+                    ),
+                    menus.nexus_result_menu(),
+                )
+                return
         previous = _NEXUS_LAST.get((user_id, market.value))
         if previous is not None and previous[0] == fingerprint and (time.monotonic() - previous[1]) < 600:
             await _edit(callback, fmt.nexus_unchanged_text(market.value), menus.nexus_result_menu())
             return
 
         _NEXUS_LAST[(user_id, market.value)] = (fingerprint, time.monotonic())
+        await _edit(
+            callback,
+            fmt.nexus_signal_text(
+                market.value, result.direction, outcome.duration_seconds,
+                result.confidence, result.target_open_at, result.reasons,
+                asset=result.asset_display, confidence_verified=result.confidence_verified,
+                mode=mode,
+            ),
+            menus.nexus_result_menu(),
+        )
         try:
             await ctx.repo.add_signal(
                 user_id=user_id,
@@ -319,16 +343,6 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
             )
         except Exception:  # noqa: BLE001 - a persistence fault must not hide a valid analysis
             logger.exception("could not persist NEXUS signal")
-        await _edit(
-            callback,
-            fmt.nexus_signal_text(
-                market.value, result.direction, outcome.duration_seconds,
-                result.confidence, result.target_open_at, result.reasons,
-                asset=result.asset_display, confidence_verified=result.confidence_verified,
-                mode=mode,
-            ),
-            menus.nexus_result_menu(),
-        )
 
 
 async def _user_mode(ctx, user_id: int) -> str:

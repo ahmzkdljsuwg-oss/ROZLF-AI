@@ -5,14 +5,14 @@ import pytest
 
 from bot import formatting as fmt
 from engines.technical.analyzer import analyze_market_data
-from providers.catalog import Market, assets_for
+from providers.catalog import Market, assets_for, timeframe
 
 from tests.conftest import make_candles
 from tests.test_evidence_engine import _market
 
 
 def _result(asset, tf, duration, drift=0.00008, seed=3):
-    candles = make_candles(240, drift=drift, noise=0.00035, seed=seed)
+    candles = make_candles(240, drift=drift, noise=0.00035, seed=seed, tf_seconds=timeframe(tf).seconds)
     return analyze_market_data(_market(asset, candles, tf=tf), duration_seconds=duration)
 
 

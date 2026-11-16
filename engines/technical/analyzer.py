@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, replace
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 from engines.markets import profile_for
 from engines.technical.evidence import evaluate_evidence
 from engines.technical.indicators import compute_indicators, frame_from_candles
 from engines.technical.next_candle import forecast_from_frame, target_open_for
+from engines.technical.regime_candle import TARGET_OFFSET, diagnose_regime
 from engines.technical.smc import analyze_smc
 from engines.strategies.alligator_ma import assess_alligator_ma
 from engines.strategies.engine import evaluate_strategies
@@ -106,6 +107,11 @@ def analyze_market_data(
         candles=usable,
         validation=replace(market_data.validation, bar_count=len(usable)),
     )
+    seconds = market_data.timeframe.seconds
+    is_smarty = market_data.asset.market is Market.SMARTY
+    if is_smarty and usable[-1].time + timedelta(seconds=TARGET_OFFSET * seconds) <= now:
+        raise DataUnavailable("MISSING_RECENT_CANDLE", "آخر شمعة مغلقة لـSMARTY متأخرة عن توقيت السوق")
+
     current = market_data.candles[-1]
     closed_times = {candle.time for candle in usable}
     current_candle = {}
@@ -122,7 +128,13 @@ def analyze_market_data(
         }
     frame = frame_from_candles(usable)
     live_frame = frame_from_candles(market_data.candles)
-    target_open = target_open_for(live_frame, market_data.timeframe.seconds, now)
+    target_open = target_open_for(live_frame, seconds, now)
+    regime = None
+    if is_smarty:
+        # The future target must immediately follow the currently forming slot,
+        # even if the feed has not published that slot yet.
+        target_open = usable[-1].time + timedelta(seconds=TARGET_OFFSET * seconds)
+        regime = diagnose_regime(frame, seconds)
     # Calibrations were trained on completed candles only. Using the forming
     # candle here changes the feature distribution and invalidates the measured
     # hit rates, especially on 5s/15s/30s frames. Keep the live frame solely
@@ -225,6 +237,19 @@ def analyze_market_data(
         reasons = (forecast.blockers or evidence.blockers or technical_reasons)[:4]
     if not reasons and evidence.blockers:
         reasons = evidence.blockers[:4]
+    if regime is not None and direction == "NO TRADE":
+        # Expose the market state, but do not promote the experimental direction
+        # or present its technical evidence as a calibrated confidence.
+        regime_labels = {
+            "TREND": "ترند", "RANGE": "حركة عرضية",
+            "VOLATILE": "تذبذب عالٍ", "MIXED": "اتجاه غير واضح",
+            "UNREADY": "الشموع غير كافية لتصنيف السوق",
+        }
+        summary = f"حالة SMARTY: {regime_labels[regime.regime]}"
+        if reasons:
+            reasons = [f"{summary} · {reasons[0]}", *reasons[1:]]
+        else:
+            reasons = [summary]
     invalidation = [signal.invalidation for signal in confirmed[:3]]
 
     # Expiry is the market's own volatility map, never the candle frame.
@@ -325,7 +350,8 @@ def analyze_market_data(
         alligator_ma=alligator_ma.as_dict(),
         current_candle=current_candle,
         closed_candles=len(usable),
-        next_candle=forecast.as_dict(),
+        next_candle={**forecast.as_dict(), **({"regime": regime.regime, "regime_reason": regime.reason}
+                                           if regime is not None else {})},
         target_open_at=forecast.target_open_at,
         target_timeframe=market_data.timeframe.code,
         confidence_verified=forecast.verified if analysis_mode != "lo" else False,
