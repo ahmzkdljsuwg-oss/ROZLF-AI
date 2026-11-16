@@ -1,0 +1,525 @@
+{
+  "generated_at": "2026-11-16T06:26:02.636437+00:00",
+  "source": "ExpertOption bridge /verify/history (real OHLC, read-only)",
+  "method": "expanding walk-forward; features use bars <= i, label is bar i+1 only",
+  "assets": {
+    "otc:5min": {
+      "AUDUSD_OTC": {
+        "candles": 1500,
+        "first": "2026-11-11T01:30:00+00:00",
+        "last": "2026-11-16T06:25:00+00:00"
+      },
+      "USDCAD_OTC": {
+        "candles": 1500,
+        "first": "2026-11-11T01:30:00+00:00",
+        "last": "2026-11-16T06:25:00+00:00"
+      },
+      "NZDUSD_OTC": {
+        "candles": 1500,
+        "first": "2026-11-11T01:30:00+00:00",
+        "last": "2026-11-16T06:25:00+00:00"
+      }
+    },
+    "smarty:5min": {
+      "SMRTY": {
+        "candles": 1500,
+        "first": "2026-11-11T01:25:00+00:00",
+        "last": "2026-11-16T06:20:00+00:00"
+      }
+    },
+    "football:5min": {
+      "FOOTBALL_INDEX_OTC_R": {
+        "candles": 1500,
+        "first": "2026-11-11T01:30:00+00:00",
+        "last": "2026-11-16T06:25:00+00:00"
+      }
+    },
+    "luxury:5min": {
+      "LUXURY_INDEX_OTC_R": {
+        "candles": 1500,
+        "first": "2026-11-11T01:30:00+00:00",
+        "last": "2026-11-16T06:25:00+00:00"
+      }
+    },
+    "ai:5min": {
+      "AI_INDEX_OTC_R": {
+        "candles": 1500,
+        "first": "2026-11-11T01:30:00+00:00",
+        "last": "2026-11-16T06:25:00+00:00"
+      }
+    },
+    "cricket:5min": {
+      "CRICKET_INDEX_OTC_R": {
+        "candles": 1500,
+        "first": "2026-11-11T01:30:00+00:00",
+        "last": "2026-11-16T06:25:00+00:00"
+      }
+    },
+    "forex:5min": {
+      "EURUSD": {
+        "candles": 1500,
+        "first": "2026-11-09T01:25:00+00:00",
+        "last": "2026-11-16T06:25:00+00:00"
+      },
+      "USDJPY": {
+        "candles": 1500,
+        "first": "2026-11-11T01:30:00+00:00",
+        "last": "2026-11-16T06:25:00+00:00"
+      },
+      "GBPUSD": {
+        "candles": 1500,
+        "first": "2026-11-11T01:30:00+00:00",
+        "last": "2026-11-16T06:25:00+00:00"
+      }
+    },
+    "gold:5min": {
+      "XAUUSD": {
+        "candles": 1500,
+        "first": "2026-11-11T01:30:00+00:00",
+        "last": "2026-11-16T06:25:00+00:00"
+      }
+    }
+  },
+  "results": {
+    "ai:5min": {
+      "samples": 1279,
+      "baseline_always_up": 49.16,
+      "strategies": {
+        "trend": {
+          "signals": 895,
+          "wins": 446,
+          "draws": 11,
+          "hit_rate": 49.83,
+          "coverage": 69.98
+        },
+        "momentum": {
+          "signals": 740,
+          "wins": 351,
+          "draws": 15,
+          "hit_rate": 47.43,
+          "coverage": 57.86
+        },
+        "price_action": {
+          "signals": 843,
+          "wins": 393,
+          "draws": 18,
+          "hit_rate": 46.62,
+          "coverage": 65.91
+        },
+        "location_reversion": {
+          "signals": 717,
+          "wins": 335,
+          "draws": 13,
+          "hit_rate": 46.72,
+          "coverage": 56.06
+        },
+        "combo_raw": {
+          "signals": 831,
+          "wins": 399,
+          "draws": 14,
+          "hit_rate": 48.01,
+          "coverage": 64.97
+        }
+      },
+      "combo_walk_forward": {
+        "signals": 270,
+        "wins": 132,
+        "draws": 5,
+        "hit_rate": 48.89,
+        "coverage": 21.11
+      },
+      "walk_forward_rows": {
+        "signals": 270,
+        "wins": 132,
+        "draws": 5,
+        "hit_rate": 48.89,
+        "coverage": 21.11
+      }
+    },
+    "cricket:5min": {
+      "samples": 1279,
+      "baseline_always_up": 49.45,
+      "strategies": {
+        "trend": {
+          "signals": 873,
+          "wins": 457,
+          "draws": 6,
+          "hit_rate": 52.35,
+          "coverage": 68.26
+        },
+        "momentum": {
+          "signals": 798,
+          "wins": 391,
+          "draws": 6,
+          "hit_rate": 49.0,
+          "coverage": 62.39
+        },
+        "price_action": {
+          "signals": 833,
+          "wins": 406,
+          "draws": 4,
+          "hit_rate": 48.74,
+          "coverage": 65.13
+        },
+        "location_reversion": {
+          "signals": 763,
+          "wins": 381,
+          "draws": 6,
+          "hit_rate": 49.93,
+          "coverage": 59.66
+        },
+        "combo_raw": {
+          "signals": 867,
+          "wins": 432,
+          "draws": 6,
+          "hit_rate": 49.83,
+          "coverage": 67.79
+        }
+      },
+      "combo_walk_forward": {
+        "signals": 409,
+        "wins": 203,
+        "draws": 2,
+        "hit_rate": 49.63,
+        "coverage": 31.98
+      },
+      "walk_forward_rows": {
+        "signals": 409,
+        "wins": 203,
+        "draws": 2,
+        "hit_rate": 49.63,
+        "coverage": 31.98
+      }
+    },
+    "football:5min": {
+      "samples": 1279,
+      "baseline_always_up": 51.03,
+      "strategies": {
+        "trend": {
+          "signals": 888,
+          "wins": 459,
+          "draws": 11,
+          "hit_rate": 51.69,
+          "coverage": 69.43
+        },
+        "momentum": {
+          "signals": 807,
+          "wins": 418,
+          "draws": 14,
+          "hit_rate": 51.8,
+          "coverage": 63.1
+        },
+        "price_action": {
+          "signals": 823,
+          "wins": 421,
+          "draws": 13,
+          "hit_rate": 51.15,
+          "coverage": 64.35
+        },
+        "location_reversion": {
+          "signals": 792,
+          "wins": 409,
+          "draws": 12,
+          "hit_rate": 51.64,
+          "coverage": 61.92
+        },
+        "combo_raw": {
+          "signals": 844,
+          "wins": 437,
+          "draws": 14,
+          "hit_rate": 51.78,
+          "coverage": 65.99
+        }
+      },
+      "combo_walk_forward": {
+        "signals": 103,
+        "wins": 54,
+        "draws": 1,
+        "hit_rate": 52.43,
+        "coverage": 8.05
+      },
+      "walk_forward_rows": {
+        "signals": 103,
+        "wins": 54,
+        "draws": 1,
+        "hit_rate": 52.43,
+        "coverage": 8.05
+      }
+    },
+    "forex:5min": {
+      "samples": 3837,
+      "baseline_always_up": 48.48,
+      "strategies": {
+        "trend": {
+          "signals": 2644,
+          "wins": 1357,
+          "draws": 36,
+          "hit_rate": 51.32,
+          "coverage": 68.91
+        },
+        "momentum": {
+          "signals": 2376,
+          "wins": 1187,
+          "draws": 34,
+          "hit_rate": 49.96,
+          "coverage": 61.92
+        },
+        "price_action": {
+          "signals": 2588,
+          "wins": 1287,
+          "draws": 40,
+          "hit_rate": 49.73,
+          "coverage": 67.45
+        },
+        "location_reversion": {
+          "signals": 2193,
+          "wins": 1124,
+          "draws": 29,
+          "hit_rate": 51.25,
+          "coverage": 57.15
+        },
+        "combo_raw": {
+          "signals": 2616,
+          "wins": 1327,
+          "draws": 40,
+          "hit_rate": 50.73,
+          "coverage": 68.18
+        }
+      },
+      "combo_walk_forward": {
+        "signals": 1019,
+        "wins": 518,
+        "draws": 15,
+        "hit_rate": 50.83,
+        "coverage": 26.56
+      },
+      "walk_forward_rows": {
+        "signals": 1019,
+        "wins": 518,
+        "draws": 15,
+        "hit_rate": 50.83,
+        "coverage": 26.56
+      }
+    },
+    "gold:5min": {
+      "samples": 1279,
+      "baseline_always_up": 47.34,
+      "strategies": {
+        "trend": {
+          "signals": 912,
+          "wins": 478,
+          "draws": 0,
+          "hit_rate": 52.41,
+          "coverage": 71.31
+        },
+        "momentum": {
+          "signals": 796,
+          "wins": 406,
+          "draws": 1,
+          "hit_rate": 51.01,
+          "coverage": 62.24
+        },
+        "price_action": {
+          "signals": 878,
+          "wins": 458,
+          "draws": 1,
+          "hit_rate": 52.16,
+          "coverage": 68.65
+        },
+        "location_reversion": {
+          "signals": 824,
+          "wins": 452,
+          "draws": 1,
+          "hit_rate": 54.85,
+          "coverage": 64.43
+        },
+        "combo_raw": {
+          "signals": 873,
+          "wins": 458,
+          "draws": 0,
+          "hit_rate": 52.46,
+          "coverage": 68.26
+        }
+      },
+      "combo_walk_forward": {
+        "signals": 540,
+        "wins": 271,
+        "draws": 1,
+        "hit_rate": 50.19,
+        "coverage": 42.22
+      },
+      "walk_forward_rows": {
+        "signals": 540,
+        "wins": 271,
+        "draws": 1,
+        "hit_rate": 50.19,
+        "coverage": 42.22
+      }
+    },
+    "luxury:5min": {
+      "samples": 1279,
+      "baseline_always_up": 52.04,
+      "strategies": {
+        "trend": {
+          "signals": 832,
+          "wins": 428,
+          "draws": 2,
+          "hit_rate": 51.44,
+          "coverage": 65.05
+        },
+        "momentum": {
+          "signals": 771,
+          "wins": 396,
+          "draws": 1,
+          "hit_rate": 51.36,
+          "coverage": 60.28
+        },
+        "price_action": {
+          "signals": 845,
+          "wins": 435,
+          "draws": 1,
+          "hit_rate": 51.48,
+          "coverage": 66.07
+        },
+        "location_reversion": {
+          "signals": 807,
+          "wins": 417,
+          "draws": 2,
+          "hit_rate": 51.67,
+          "coverage": 63.1
+        },
+        "combo_raw": {
+          "signals": 847,
+          "wins": 436,
+          "draws": 2,
+          "hit_rate": 51.48,
+          "coverage": 66.22
+        }
+      },
+      "combo_walk_forward": {
+        "signals": 455,
+        "wins": 249,
+        "draws": 2,
+        "hit_rate": 54.73,
+        "coverage": 35.57
+      },
+      "walk_forward_rows": {
+        "signals": 455,
+        "wins": 249,
+        "draws": 2,
+        "hit_rate": 54.73,
+        "coverage": 35.57
+      }
+    },
+    "otc:5min": {
+      "samples": 3837,
+      "baseline_always_up": 48.87,
+      "strategies": {
+        "trend": {
+          "signals": 2685,
+          "wins": 1352,
+          "draws": 19,
+          "hit_rate": 50.35,
+          "coverage": 69.98
+        },
+        "momentum": {
+          "signals": 2311,
+          "wins": 1130,
+          "draws": 18,
+          "hit_rate": 48.9,
+          "coverage": 60.23
+        },
+        "price_action": {
+          "signals": 2486,
+          "wins": 1202,
+          "draws": 19,
+          "hit_rate": 48.35,
+          "coverage": 64.79
+        },
+        "location_reversion": {
+          "signals": 2180,
+          "wins": 1057,
+          "draws": 20,
+          "hit_rate": 48.49,
+          "coverage": 56.82
+        },
+        "combo_raw": {
+          "signals": 2566,
+          "wins": 1266,
+          "draws": 18,
+          "hit_rate": 49.34,
+          "coverage": 66.88
+        }
+      },
+      "combo_walk_forward": {
+        "signals": 1332,
+        "wins": 666,
+        "draws": 12,
+        "hit_rate": 50.0,
+        "coverage": 34.71
+      },
+      "walk_forward_rows": {
+        "signals": 1332,
+        "wins": 666,
+        "draws": 12,
+        "hit_rate": 50.0,
+        "coverage": 34.71
+      }
+    },
+    "smarty:5min": {
+      "samples": 1279,
+      "baseline_always_up": 52.0,
+      "strategies": {
+        "trend": {
+          "signals": 952,
+          "wins": 488,
+          "draws": 5,
+          "hit_rate": 51.26,
+          "coverage": 74.43
+        },
+        "momentum": {
+          "signals": 760,
+          "wins": 368,
+          "draws": 3,
+          "hit_rate": 48.42,
+          "coverage": 59.42
+        },
+        "price_action": {
+          "signals": 818,
+          "wins": 401,
+          "draws": 1,
+          "hit_rate": 49.02,
+          "coverage": 63.96
+        },
+        "location_reversion": {
+          "signals": 710,
+          "wins": 346,
+          "draws": 3,
+          "hit_rate": 48.73,
+          "coverage": 55.51
+        },
+        "combo_raw": {
+          "signals": 864,
+          "wins": 432,
+          "draws": 2,
+          "hit_rate": 50.0,
+          "coverage": 67.55
+        }
+      },
+      "combo_walk_forward": {
+        "signals": 320,
+        "wins": 158,
+        "draws": 2,
+        "hit_rate": 49.38,
+        "coverage": 25.02
+      },
+      "walk_forward_rows": {
+        "signals": 320,
+        "wins": 158,
+        "draws": 2,
+        "hit_rate": 49.38,
+        "coverage": 25.02
+      }
+    }
+  }
+}

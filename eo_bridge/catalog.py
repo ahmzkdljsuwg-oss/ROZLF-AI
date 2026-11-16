@@ -81,6 +81,8 @@ def classify(raw: dict[str, Any]) -> str:
     for market, hints in INDEX_NAME_HINTS.items():
         if any(hint in symbol for hint in hints):
             return market
+    if symbol.endswith("_OTC") or symbol.endswith("_OTC_R"):
+        return "otc"
     if raw.get("is_otc"):
         return "otc"
     if symbol in GOLD_SYMBOLS:

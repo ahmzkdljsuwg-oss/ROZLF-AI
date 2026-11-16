@@ -22,13 +22,13 @@ def _candles(count: int = 260) -> list[Candle]:
 
 def test_no_lookahead_future_candles_do_not_change_earlier_trades():
     candles = _candles()
-    cutoff = 180
+    cutoff = 210
     mutated = list(candles)
     for index in range(cutoff, len(mutated)):
         candle = mutated[index]
         mutated[index] = Candle(candle.time, candle.open * 1.1, candle.high * 1.1, candle.low * 1.1, candle.close * 1.1)
 
-    config = BacktestConfig(ASSET, TF, 300, warmup_bars=150)
+    config = BacktestConfig(ASSET, TF, 300, warmup_bars=200)
     base = run_backtest(config, candles, "test")
     other = run_backtest(config, mutated, "test")
     horizon = candles[cutoff].time

@@ -92,3 +92,32 @@ def eurusd() -> Asset:
 @pytest.fixture
 def btc_otc() -> Asset:
     return dynamic_asset("BTCUSD_OTC", Market.OTC, precision=2, bridge_id=999)
+
+
+@pytest.fixture(autouse=True)
+def _synthetic_calibration(monkeypatch):
+    """Deterministic calibration for engine tests; production loads the real file."""
+    import engines.technical.next_candle as nc
+
+    bins = []
+    edges = (0.0, 4.0, 8.0, 12.0, 16.0, 20.0, 26.0, 34.0, 46.0, 64.0, 100.0)
+    for index, (low, high) in enumerate(zip(edges, edges[1:])):
+        up = (55 + index * 2) / 100
+        bins.append({"low": low, "high": high, "n": 100, "up_wins": int(up * 100), "draws": 0})
+
+    def table(offset=0):
+        rows = []
+        for index, row in enumerate(bins):
+            up = (55 + index * 2 + offset) / 100
+            rows.append({**row, "up_wins": round(up * row["n"])})
+        return {"enabled": True, "bins": rows, "walk_forward": {"hit_rate": 60.0, "signals": 200}}
+
+    markets = {}
+    for market in ("otc", "smarty", "football", "luxury", "ai", "cricket", "forex", "gold"):
+        markets[market] = {
+            frame: table(0 if frame in ("1min", "30sec", "15min", "30min") else 1)
+            for frame in ("30sec", "1min", "5min", "15min", "30min", "1h")
+        }
+    monkeypatch.setattr(nc, "load_calibration", lambda: {
+        "version": 1, "markets": markets, "min_samples": 30,
+    })

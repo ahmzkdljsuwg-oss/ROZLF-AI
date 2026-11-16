@@ -1029,17 +1029,29 @@ def nexus_markets_text() -> str:
 
 
 def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
-                       confidence: float | None, entry_at=None) -> str:
+                       confidence: float | None, target_open_at=None,
+                       reasons: list[str] | None = None) -> str:
     trade = {"UP": "فوق", "DOWN": "تحت"}.get(direction, "NO TRADE")
     duration = duration_label(expiry_seconds) if expiry_seconds else "—"
-    clock = f" · دخول {entry_at:%H:%M} UTC" if entry_at is not None else ""
+    clock = f" · {target_open_at:%H:%M} UTC" if target_open_at is not None else ""
     conf = f"{confidence:.0f}%" if confidence is not None else "—"
+    names = {
+        "trend": "الاتجاه", "momentum": "الزخم", "price_action": "حركة السعر",
+        "location": "موقع السعر", "close_pressure": "ضغط الإغلاق",
+        "volatility": "التقلب", "technical evidence": "دليل فني",
+    }
+    shown = []
+    for reason in (reasons or [])[:3]:
+        label, _, value = reason.partition(" ")
+        shown.append(f"{names.get(label, label)} {value}".strip())
+    evidence = " · ".join(shown) or "لا توجد أدلة كافية"
     return (
         "NEXUS AI 🤖\n"
         f"📊 السوق: <b>{market_label(market)}</b>\n"
-        f"⏱️ الوقت: <b>{duration}</b>{clock}\n"
+        f"⏱️ الشمعة المستهدفة: <b>{duration}</b>{clock}\n"
         f"📈 الصفقة: <b>{trade}</b>\n"
-        f"🎯 الثقة: <b>{conf}</b>"
+        f"🎯 الثقة: <b>{conf}</b>\n"
+        f"🔍 سبب التوقع: <i>{evidence}</i>"
     )
 
 

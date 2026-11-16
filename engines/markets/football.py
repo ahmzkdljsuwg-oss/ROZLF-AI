@@ -7,7 +7,7 @@ from providers.catalog import Market
 PROFILE = MarketProfile(
     market=Market.FOOTBALL,
     name="FOOTBALL INDEX",
-    frames=("30sec", "1min", "5min"),
+    frames=("30sec", "1min", "5min", "15min", "30min", "1h"),
     min_bars=90,
     adx_floor=18.0,
     min_separation=0.56,

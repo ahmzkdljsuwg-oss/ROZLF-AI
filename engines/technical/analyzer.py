@@ -8,6 +8,7 @@ import logging
 from engines.markets import profile_for
 from engines.technical.evidence import evaluate_evidence
 from engines.technical.indicators import compute_indicators, frame_from_candles
+from engines.technical.next_candle import forecast_from_frame, target_open_for
 from engines.technical.smc import analyze_smc
 from engines.strategies.alligator_ma import assess_alligator_ma
 from engines.strategies.engine import evaluate_strategies
@@ -55,10 +56,15 @@ class AnalysisResult:
     alligator_ma: dict = field(default_factory=dict)
     current_candle: dict = field(default_factory=dict)
     closed_candles: int = 0
+    next_candle: dict = field(default_factory=dict)
+    target_open_at: datetime | None = None
+    target_timeframe: str = ""
 
     def as_dict(self) -> dict:
         data = asdict(self)
         data["generated_at"] = self.generated_at.isoformat()
+        if self.target_open_at is not None:
+            data["target_open_at"] = self.target_open_at.isoformat()
         return data
 
 
@@ -112,6 +118,16 @@ def analyze_market_data(
             "time": current.time.isoformat(),
         }
     frame = frame_from_candles(usable)
+    live_frame = frame_from_candles(market_data.candles)
+    target_open = target_open_for(live_frame, market_data.timeframe.seconds, now)
+    forecast = forecast_from_frame(
+        live_frame,
+        market=market_data.asset.market.value,
+        timeframe_code=market_data.timeframe.code,
+        timeframe_seconds=market_data.timeframe.seconds,
+        now=now,
+        target_open_at=target_open,
+    )
     ind = compute_indicators(frame)
     smc = analyze_smc(frame, ind["atr"])
     report = evaluate_strategies(
@@ -157,6 +173,21 @@ def analyze_market_data(
     warnings.extend(evidence.warnings)
     if cancellation_reason:
         warnings.append(cancellation_reason)
+
+    # The next-candle forecast is authoritative: it either supplies a
+    # walk-forward calibrated direction or refuses to trade.
+    if forecast.direction in ("UP", "DOWN") and forecast.confidence is not None:
+        direction = forecast.direction
+        confidence = forecast.confidence
+        reasons = forecast.reasons + [
+            f"technical evidence {evidence.confidence:.0f}%",
+        ]
+        blocks = forecast.blockers
+    else:
+        direction = "NO TRADE"
+        confidence = 0.0
+        reasons = forecast.reasons or evidence.blockers[:3]
+        blocks = forecast.blockers or evidence.blockers
     score_up = sum(
         max(0.0, signal.score) for signal in report.signals if signal.direction == "UP"
     )
@@ -165,7 +196,11 @@ def analyze_market_data(
     )
     confirmed = report.confirmed(direction) if direction in ("UP", "DOWN") else []
     opposed = report.opposed(direction) if direction in ("UP", "DOWN") else []
-    reasons = [signal.reason for signal in confirmed][:6]
+    technical_reasons = [signal.reason for signal in confirmed][:4]
+    if direction in ("UP", "DOWN"):
+        reasons = (forecast.reasons + technical_reasons)[:4] or reasons
+    else:
+        reasons = (forecast.blockers or evidence.blockers or technical_reasons)[:4]
     if not reasons and evidence.blockers:
         reasons = evidence.blockers[:4]
     invalidation = [signal.invalidation for signal in confirmed[:3]]
@@ -259,14 +294,18 @@ def analyze_market_data(
         cancellation_reason=cancellation_reason,
         session=report.session,
         confidence_components=evidence.components,
-        blockers=evidence.blockers,
+        blockers=blocks,
         data_quality_score=float(evidence.data_quality.get("score", 0)),
-        win_probability=evidence.win_probability,
+        win_probability=(round(forecast.confidence / 100, 4)
+                         if forecast.confidence is not None else None),
         strategy_labels=evidence.strategy_labels,
         market_profile=profile.name,
         alligator_ma=alligator_ma.as_dict(),
         current_candle=current_candle,
         closed_candles=len(usable),
+        next_candle=forecast.as_dict(),
+        target_open_at=forecast.target_open_at,
+        target_timeframe=market_data.timeframe.code,
     )
     LOG.info(
         "ROZLF DECISION market=%s asset=%s tf=%s duration=%s direction=%s confidence=%.1f "

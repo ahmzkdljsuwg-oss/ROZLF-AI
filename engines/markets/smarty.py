@@ -7,7 +7,7 @@ from providers.catalog import Market
 PROFILE = MarketProfile(
     market=Market.SMARTY,
     name="SMARTY",
-    frames=("5sec", "15sec", "30sec", "1min", "5min"),
+    frames=("5sec", "15sec", "30sec", "1min", "5min", "15min", "30min", "1h"),
     min_bars=90,
     adx_floor=20.0,
     min_separation=0.60,

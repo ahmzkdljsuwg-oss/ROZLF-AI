@@ -174,7 +174,10 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str) -> None:
         result = outcome.result
         if not outcome.actionable:
             reason = outcome.conflict or "; ".join(outcome.errors[:1]) or None
-            text = fmt.nexus_signal_text(market.value, "NO TRADE", None, None)
+            text = fmt.nexus_signal_text(
+                market.value, "NO TRADE", timeframe(result.timeframe).seconds, None,
+                result.target_open_at, result.reasons,
+            )
             if reason:
                 text += f"\n\n<i>{reason}</i>"
             await _edit(callback, text, menus.nexus_result_menu(market))
@@ -214,7 +217,10 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str) -> None:
             logger.exception("could not persist NEXUS signal")
         await _edit(
             callback,
-            fmt.nexus_signal_text(market.value, result.direction, outcome.duration_seconds, result.confidence, result.generated_at),
+            fmt.nexus_signal_text(
+                market.value, result.direction, outcome.duration_seconds,
+                result.confidence, result.target_open_at, result.reasons,
+            ),
             menus.nexus_result_menu(market),
         )
 

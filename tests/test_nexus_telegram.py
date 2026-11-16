@@ -80,7 +80,7 @@ def test_nexus_card_matches_required_format():
     text = fmt.nexus_signal_text("otc", "UP", 60, 78.4)
     assert "NEXUS AI 🤖" in text
     assert "📊 السوق: <b>OTC</b>" in text
-    assert "⏱️ الوقت: <b>1 MIN</b>" in text
+    assert "⏱️ الشمعة المستهدفة: <b>1 MIN</b>" in text
     assert "📈 الصفقة: <b>فوق</b>" in text
     assert "🎯 الثقة: <b>78%</b>" in text
     down = fmt.nexus_signal_text("forex", "DOWN", 300, 64.0)
@@ -151,7 +151,7 @@ async def test_market_analysis_selects_auto_duration_and_never_repeats(monkeypat
     text, keyboard = callback.message.edits[-1]
     assert "NEXUS AI 🤖" in text
     assert "📊 السوق: <b>OTC</b>" in text
-    assert "⏱️ الوقت: <b>1 MIN</b>" in text
+    assert "⏱️ الشمعة المستهدفة: <b>1 MIN</b>" in text
     assert "📈 الصفقة: <b>فوق</b>" in text
     assert "🎯 الثقة: <b>78%</b>" in text
     assert "خذ صفقة أخرى 🔄" in [b.text for row in keyboard.inline_keyboard for b in row]
@@ -268,7 +268,6 @@ async def test_gemini_and_mistral_review_run_inside_automatic_analysis(monkeypat
     from ai.review import AIReviewer
 
     monkeypatch.setattr(market_analysis, "analyze_market_data", lambda data: _result("UP", 80.0))
-    monkeypatch.setattr(market_analysis, "choose_auto_duration", lambda *args: (60, "test setup"))
 
     class FakeAI:
         configured = True

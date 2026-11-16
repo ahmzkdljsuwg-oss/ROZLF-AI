@@ -7,8 +7,9 @@ from dataclasses import dataclass, field
 
 from ai.review import AIReviewer
 from config import Settings
-from engines.signals.duration import auto_frames, choose_auto_duration
+from engines.markets import profile_for
 from engines.technical.analyzer import AnalysisResult, analyze_market_data
+from engines.technical.next_candle import forecast_frames
 from providers.base import DataUnavailable
 from providers.catalog import Asset, Market, assets_for, timeframe
 from providers.registry import DataSourceRegistry
@@ -68,7 +69,8 @@ class MarketAnalysisService:
 
         jobs: list[tuple[Asset, str]] = []
         for asset in assets:
-            for frame in auto_frames(asset):
+            frames = forecast_frames(asset.market.value, profile_for(asset.market).frames)
+            for frame in frames:
                 jobs.append((asset, frame))
         outcome.attempted = len(jobs)
         semaphore = asyncio.Semaphore(4)
@@ -105,7 +107,11 @@ class MarketAnalysisService:
                     f"{opposing[0].timeframe}"
                 )
                 return outcome
-            duration, reason = choose_auto_duration(best, _asset_by_key(assets, best.asset_key))
+            duration = timeframe(best.timeframe).seconds
+            reason = (
+                f"target candle {best.timeframe} chosen because its walk-forward "
+                f"hit rate passed the gate; confidence {best.confidence:.0f}%"
+            )
             if duration is not None and best.confidence >= max(52.0, self.settings.min_confidence - 8.0):
                 outcome.result = best
                 outcome.duration_seconds = duration
@@ -143,10 +149,6 @@ class MarketAnalysisService:
             except Exception:
                 logger.exception("NEXUS analysis failed for %s %s", asset.key, frame)
                 return None
-
-
-def _asset_by_key(assets: list[Asset], key: str) -> Asset:
-    return next((asset for asset in assets if asset.key == key), assets[0])
 
 
 def _review_payload(result: AnalysisResult, duration: int, reason: str) -> dict:
