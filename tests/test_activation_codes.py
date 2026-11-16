@@ -40,6 +40,17 @@ class Callback:
         self.answers.append(text)
 
 
+class FakeState:
+    def __init__(self):
+        self.current = None
+
+    async def set_state(self, value):
+        self.current = value
+
+    async def clear(self):
+        self.current = None
+
+
 def issued_code(callback: Callback) -> str:
     text, _ = callback.message.sent[-1]
     match = re.search(r"(NX-[A-Z0-9]{4}(?:-[A-Z0-9]{4}){3})", text)
@@ -177,6 +188,24 @@ async def test_admin_panel_lists_extends_and_bans_customers(repo):
     banned = Callback("adm:ban:yes:7501", user_id=PRIMARY_OWNER_ID)
     await admin_handlers.cb_ban(banned, repo)
     assert await repo.is_subscribed(7501) is False
+
+
+@pytest.mark.asyncio
+async def test_owner_can_search_a_customer_by_telegram_id(repo):
+    admin = Callback("adm:days:7", user_id=PRIMARY_OWNER_ID)
+    await admin_handlers.cb_days(admin, repo)
+    await repo.activate_code(issued_code(admin), 7701, username="searchable")
+
+    state = FakeState()
+    prompt = Callback("adm:search", user_id=PRIMARY_OWNER_ID)
+    await admin_handlers.cb_search(prompt, state)
+    assert state.current is not None
+    assert "Telegram ID" in prompt.message.sent[-1][0]
+
+    reply = Message(user_id=PRIMARY_OWNER_ID, text="7701")
+    await admin_handlers.msg_search_customer(reply, repo, state)
+    assert state.current is None
+    assert "7701" in reply.sent[-1][0]
 
 
 @pytest.mark.asyncio

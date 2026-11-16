@@ -34,19 +34,19 @@
 - `bot/handlers/menus.py` — شاشة طلب الكود عند `/start` للحساب غير المفعّل.
 - `bot/formatting.py`, `bot/middleware/subscription.py` — صيغة الكود الجديدة.
 - `.env.example`, `README.md` — توثيق المالك الوحيد والهاش.
-- `tests/test_activation_codes.py` — 10 اختبارات جديدة.
+- `tests/test_activation_codes.py` — 11 اختباراً جديداً.
 - `tests/test_subscriptions.py`, `tests/test_admin_startup.py` — تحديث التوقعات.
 
 ## 3. نتائج الاختبارات (مُنفَّذة فعلياً)
 
 ```
 .venv/bin/python -m pytest tests/test_activation_codes.py -q
-10 passed in 5.47s
+11 passed in 2.93s
 ```
 
 ```
 .venv/bin/python -m pytest -q
-413 passed, 3 skipped
+414 passed, 3 skipped
 ```
 
 ## 4. تغطية السيناريوهات الثمانية
@@ -62,7 +62,7 @@
 | 7 | توقف الميزات المحمية بعد الانتهاء | `test_expired_subscription_stops_protected_features` | PASS |
 | 8 | بوت التداول يعمل دون تأثر | `test_customer_bot_stays_functional_alongside_activation` + كامل الحزمة | PASS |
 
-اختبارات إضافية: لوحة المالك (عرض/تمديد/حظر) — `test_admin_panel_lists_extends_and_bans_customers`، وهجرة الأكواد القديمة مرة واحدة فقط — `test_legacy_plaintext_codes_are_migrated_idempotently`.
+اختبارات إضافية: لوحة المالك (عرض/تمديد/حظر) — `test_admin_panel_lists_extends_and_bans_customers`، والبحث بـ Telegram ID — `test_owner_can_search_a_customer_by_telegram_id`، وهجرة الأكواد القديمة مرة واحدة فقط — `test_legacy_plaintext_codes_are_migrated_idempotently`.
 
 ## 5. قيود معروفة
 
