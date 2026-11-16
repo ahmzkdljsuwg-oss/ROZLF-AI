@@ -182,6 +182,15 @@ DATABASE_URL=postgresql+asyncpg://...
 3. تأكد أن كل خدمة تعمل بنسخة Polling واحدة فقط.
 4. لا تنشر قبل موافقة المالك.
 
+### إعداد خدمة NEXUS-ADMIN على Railway
+
+- **Root Directory:** جذر المستودع (`/` أو اتركه فارغاً)، وليس `admin_bot/`.
+- **Builder:** Dockerfile الموجود في جذر المستودع.
+- **Start Command:** `python start_admin.py`
+- لا تضف `PYTHONPATH` ولا تشغّل `python admin_bot/main.py` مباشرة؛ ملفات الحزمة تُستورد عبر `start_admin.py` أو `python -m admin_bot.main`.
+- يجب أن يكون `ADMIN_BOT_TOKEN` توكن بوت مختلفاً عن `TELEGRAM_BOT_TOKEN`. إن كانا متطابقين يرفض بوت الإدارة البدء بدل الدخول في `TelegramConflictError`.
+- بوت الإدارة يرفض أي مستخدم غير موجود في `OWNER_TELEGRAM_IDS`.
+
 ### الأوامر
 
 - `/activate NX-XXXXXXXXXXXX` — تفعيل كود.

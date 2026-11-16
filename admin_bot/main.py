@@ -10,13 +10,23 @@ from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramConflictError
 from aiogram.types import BotCommand
 
-from admin_bot import handlers
-from admin_bot.middleware import OwnerOnlyMiddleware
+if __package__ in (None, ""):
+    raise SystemExit(
+        "admin_bot is a package. Start it with 'python -m admin_bot.main' "
+        "or 'python start_admin.py', not by executing admin_bot/main.py directly."
+    )
+
+from . import handlers
+from .middleware import OwnerOnlyMiddleware
 from bot import formatting as fmt
 from config import settings
 from database.repository import Repository
 
 logger = logging.getLogger("rozlf.admin")
+
+# A second process polling the same token is rejected by Telegram; fail clearly
+# instead of thrashing between replicas.
+MAX_CONFLICT_RETRIES = 3
 
 
 def setup_logging() -> None:
@@ -58,6 +68,12 @@ async def run() -> None:
     if not settings.admin_bot_token:
         logger.error("ADMIN_BOT_TOKEN is missing; admin bot cannot start")
         return
+    if settings.admin_bot_token == settings.telegram_bot_token:
+        logger.error(
+            "ADMIN_BOT_TOKEN is identical to TELEGRAM_BOT_TOKEN; "
+            "use a separate BotFather token or Telegram will reject polling"
+        )
+        return
     owners = settings.owner_ids
     if not owners:
         logger.error("OWNER_TELEGRAM_IDS is missing; refusing to start an unprotected admin bot")
@@ -97,7 +113,14 @@ async def run() -> None:
                 break
             except TelegramConflictError:
                 attempt += 1
-                logger.error("admin bot token is polling elsewhere; retrying in 20s")
+                if attempt >= MAX_CONFLICT_RETRIES:
+                    logger.critical(
+                        "admin bot token is already polling in another process; "
+                        "refusing to run a duplicate after %s attempts",
+                        attempt,
+                    )
+                    raise
+                logger.error("admin bot token is polling elsewhere; retrying in 20s (%s/%s)", attempt, MAX_CONFLICT_RETRIES)
                 await asyncio.sleep(20)
     finally:
         notifier.cancel()

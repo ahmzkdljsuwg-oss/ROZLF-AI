@@ -37,6 +37,32 @@
 - سلوك PostgreSQL الحقيقي تحت تزامن عالٍ (تم اختبار الذرية على SQLite؛ عبارة `UPDATE ... WHERE status='AVAILABLE'` هي نفسها على PostgreSQL).
 - نشر Railway (ممنوع قبل موافقة المالك).
 
+## إصلاح بدء خدمة NEXUS-ADMIN (2026-11-16)
+
+تم إصلاح الاستيراد والتحقق من الوصول إلى Polling:
+
+| الاختبار | النتيجة |
+|---|---|
+| `import admin_bot.main` بعد إزالة PYTHONPATH | PASS |
+| تشغيل `start_admin.py` من مجلد خارج المشروع | PASS |
+| `python -m admin_bot.main` | PASS |
+| تنفيذ `admin_bot/main.py` مباشرة يعطي رسالة واضحة بالطريقة الصحيحة | PASS |
+| رفض التشغيل عند تطابق `ADMIN_BOT_TOKEN` مع `TELEGRAM_BOT_TOKEN` | PASS |
+| وصول Dispatcher إلى `Start polling` و`getUpdates` ضد Telegram API وهمي محلي | PASS |
+| اختبارات بدء الإدارة الجديدة | 5 passed |
+
+سجل اختبار Polling الحقيقي:
+
+```text
+ROZLF admin bot ready for owners=[9001]
+INFO:aiogram.dispatcher:Start polling
+INFO:aiogram.dispatcher:Run polling for bot @admin_smoke_bot id=123
+POST /bot123:abc/getUpdates 200
+```
+
+> هذا الاختبار استخدم Telegram Bot API محلياً وهمياً، وليس توكن الإنتاج.
+
+
 ## أوامر التحقق
 
 ```bash
