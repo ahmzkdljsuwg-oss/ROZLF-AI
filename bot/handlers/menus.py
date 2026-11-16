@@ -426,6 +426,15 @@ async def cmd_start(message: Message) -> None:
                 parse_mode="HTML",
             )
             return
+    # /start restores the normal calibrated mode. /lo remains an explicit
+    # opt-in until the user returns to the standard start screen.
+    if user_id is not None and (message.text or "").split(maxsplit=1)[0].split("@")[0] == "/start":
+        setter = getattr(ctx.repo, "set_analysis_mode", None)
+        if setter is not None:
+            try:
+                await setter(user_id, "strong")
+            except Exception:
+                logger.exception("could not restore normal mode for %s", user_id)
     await _show_nexus_home(message)
 
 
@@ -433,7 +442,7 @@ async def cmd_start(message: Message) -> None:
 async def cmd_markets(message: Message) -> None:
     await message.answer(
         fmt.nexus_markets_text(),
-        reply_markup=menus.nexus_markets_menu(),
+        reply_markup=menus.nexus_markets_menu(await _panel_otc_assets()),
         disable_web_page_preview=True,
     )
 
