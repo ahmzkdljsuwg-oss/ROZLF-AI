@@ -1,4 +1,6 @@
+.dockerignore
 .git
+.gitignore
 .venv
 venv
 __pycache__
@@ -7,7 +9,14 @@ __pycache__
 *.db
 *.sqlite3
 *.zip
+*.ipa
+*.mp4
 .env
 .env.*
 !.env.example
 eo_bridge/.env
+artifacts
+forexbro_original
+nexus-ai
+nexus-ai-trading
+tests

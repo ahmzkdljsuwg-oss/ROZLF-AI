@@ -139,6 +139,21 @@ class Settings:
         return normalise_database_url(self.database_url)
 
     @property
+    def database_is_persistent(self) -> bool:
+        return normalise_database_url(self.database_url).startswith(
+            ("postgresql+asyncpg://", "postgresql://", "postgres://")
+        )
+
+    @property
+    def admin_bot_token_looks_valid(self) -> bool:
+        token = self.admin_bot_token
+        return ":" in token and token.split(":", 1)[0].isdigit()
+
+    @property
+    def bot_tokens_are_distinct(self) -> bool:
+        return bool(self.admin_bot_token) and self.admin_bot_token != self.telegram_bot_token
+
+    @property
     def allowed_chat_ids(self) -> frozenset[int]:
         if self.telegram_chat_id is None:
             return frozenset()
@@ -177,6 +192,8 @@ class Settings:
             problems.append("TELEGRAM_BOT_TOKEN does not look like a BotFather token")
         if self.telegram_chat_id is None:
             problems.append("TELEGRAM_CHAT_ID is missing: /id onboarding is open to any user")
+        if self.subscriptions_enabled and not self.database_is_persistent:
+            problems.append("DATABASE_URL is not PostgreSQL: subscriptions will not survive a redeploy")
         return problems
 
     @property

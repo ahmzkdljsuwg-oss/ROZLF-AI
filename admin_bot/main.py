@@ -68,6 +68,9 @@ async def run() -> None:
     if not settings.admin_bot_token:
         logger.error("ADMIN_BOT_TOKEN is missing; admin bot cannot start")
         return
+    if not settings.admin_bot_token_looks_valid:
+        logger.error("ADMIN_BOT_TOKEN does not look like a BotFather token; admin bot cannot start")
+        return
     if settings.admin_bot_token == settings.telegram_bot_token:
         logger.error(
             "ADMIN_BOT_TOKEN is identical to TELEGRAM_BOT_TOKEN; "
@@ -78,9 +81,19 @@ async def run() -> None:
     if not owners:
         logger.error("OWNER_TELEGRAM_IDS is missing; refusing to start an unprotected admin bot")
         return
+    if not settings.database_is_persistent:
+        logger.critical(
+            "DATABASE_URL must be PostgreSQL for the subscription admin service; "
+            "SQLite is ephemeral and would lose codes and subscriptions on redeploy"
+        )
+        return
 
     repo = Repository(settings)
-    await repo.init()
+    try:
+        await repo.init()
+    except Exception as exc:
+        logger.critical("admin database connection failed (%s); admin bot cannot start", type(exc).__name__)
+        return
     bot = Bot(
         token=settings.admin_bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
