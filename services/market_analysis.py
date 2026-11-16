@@ -160,7 +160,10 @@ class MarketAnalysisService:
                 outcome.result = best
                 outcome.duration_seconds = duration
                 outcome.duration_reason = reason
-                if self.reviewer.configured():
+                # LO is a fast, explicitly unverified technical mode. External AI
+                # reviewers can rate-limit (429) and delay the target candle.
+                # Keep the independent AI veto for calibrated/strong mode only.
+                if self.mode != "lo" and self.reviewer.configured():
                     review = await self.reviewer.review(
                         best.direction, _review_payload(best, duration, reason)
                     )
