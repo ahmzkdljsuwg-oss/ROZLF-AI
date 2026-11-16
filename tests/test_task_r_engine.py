@@ -60,6 +60,6 @@ def test_no_trade_card_has_no_invented_numbers():
 
 def test_welcome_screen_is_the_single_nexus_panel():
     lines = [line for line in fmt.NEXUS_WELCOME.splitlines() if line.strip()]
-    assert lines[0] == "WELCOME BACK 👋"
-    assert "NEXUS AI 🤖" in fmt.NEXUS_WELCOME
+    assert lines == ["أهلاً بك في <b>NEXUS AI</b> 📊✨", "اضغط على الزر أدناه للبدء 👇"]
+    assert "NEXUS AI" in fmt.NEXUS_WELCOME
     assert not hasattr(fmt, "welcome_text")

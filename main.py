@@ -24,6 +24,7 @@ from bot.keyboards import menus as keyboards
 from bot.middleware.auth import AccessMiddleware
 from bot.middleware.subscription import SubscriptionMiddleware
 from config import normalise_database_url, settings
+from providers.catalog import Market
 from database.repository import Repository
 from engines.signals.generator import SignalGenerator
 from providers.eobridge import ExpertOptionBridgeProvider
@@ -65,7 +66,7 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
             "ai": live.ai_health() if live else settings.describe().get("ai", {}),
             "bridge_configured": bool(settings.bridge_url and settings.eo_bridge_key),
             "build": os.getenv("ROZLF_BUILD_SHA") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "unknown",
-            "menu_version": "NEXUS-M5",
+            "menu_version": keyboards.NEXUS_MENU_VERSION,
             "menu_button": state.get("menu_button", "pending"),
             "nexus_home": [
                 {"text": button.text, "callback": button.callback_data}
@@ -74,7 +75,9 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
             ],
             "nexus_markets": [
                 {"text": button.text, "callback": button.callback_data}
-                for row in keyboards.nexus_markets_menu().inline_keyboard
+                for row in keyboards.nexus_markets_menu(
+                    live.inventory.cached_assets(Market.OTC) if live and live.inventory else ()
+                ).inline_keyboard
                 for button in row
             ],
             "menu": [
@@ -243,7 +246,7 @@ async def _run_bot(state: dict) -> None:
             for row in keyboards.nexus_home_menu().inline_keyboard
             for button in row
         )
-        logger.info("ROZLF MENU NEXUS-M5 READY: %s", menu_fingerprint)
+        logger.info("ROZLF MENU %s READY: %s", keyboards.NEXUS_MENU_VERSION, menu_fingerprint)
         try:
             await bot.set_my_commands(
                 [
@@ -251,8 +254,13 @@ async def _run_bot(state: dict) -> None:
                     BotCommand(command="markets", description="فتح قائمة الأسواق"),
                     BotCommand(command="lo", description="تشغيل وضع LO للتوصيات المستمرة"),
                     BotCommand(command="llo", description="العودة إلى التحليل القوي المعاير"),
-                    BotCommand(command="status", description="حالة الاشتراك والمدة المتبقية"),
-                    BotCommand(command="activate", description="تفعيل الاشتراك بكود"),
+                    *(
+                        [
+                            BotCommand(command="status", description="حالة الاشتراك والمدة المتبقية"),
+                            BotCommand(command="activate", description="تفعيل الاشتراك بكود"),
+                        ] if settings.subscriptions_enabled else
+                        [BotCommand(command="status", description="حالة النظام ومصادر البيانات")]
+                    ),
                     BotCommand(command="scan", description="فتح الماسح التلقائي"),
                     BotCommand(command="stats", description="الإحصائيات"),
                     BotCommand(command="id", description="عرض CHAT ID"),

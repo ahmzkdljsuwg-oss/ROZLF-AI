@@ -51,7 +51,7 @@ def test_confidence_is_not_fixed():
 
 
 def test_home_is_the_single_nexus_panel():
-    assert "WELCOME BACK" in fmt.NEXUS_WELCOME
+    assert "أهلاً بك" in fmt.NEXUS_WELCOME
     assert "NEXUS AI" in fmt.NEXUS_WELCOME
 
 

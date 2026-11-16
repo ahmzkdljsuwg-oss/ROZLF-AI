@@ -40,7 +40,7 @@ _NEXUS_LAST: dict[tuple[int, str], tuple[tuple, float]] = {}
 _NEXUS_ASSETS: dict[tuple[int, str], list[Asset]] = {}
 _NEXUS_PICK: dict[tuple[int, str], str] = {}
 ASSET_PICK_MARKETS = {"OTC", "SMARTY"}
-NEXUS_MARKETS = {"OTC", "SMARTY", "FOOTBALL", "LUXURY", "AI", "CRICKET", "FOREX"}
+NEXUS_MARKETS = {"OTC", "SMARTY", "FOOTBALL", "LUXURY", "AI", "CRICKET", "FOREX", "GOLD"}
 TRADE_DURATION_CHOICES: tuple[int, ...] = (30, 60, 120, 180, 300)
 MT5_DURATIONS: tuple[int, ...] = (60, 300, 900, 1800, 3600)
 
@@ -97,10 +97,26 @@ async def _show_nexus_home(message: Message) -> None:
     )
 
 
+async def _panel_keyboard():
+    try:
+        inventory = getattr(get_context(), "inventory", None)
+    except RuntimeError:
+        inventory = None
+    assets = []
+    if inventory is not None:
+        try:
+            assets = await asyncio.wait_for(inventory.assets(Market.OTC), timeout=2.0)
+        except (DataUnavailable, TimeoutError):
+            pass
+        except Exception as exc:
+            logger.warning("could not load panel shortcuts: %s", type(exc).__name__)
+    return menus.nexus_markets_menu(assets)
+
+
 @router.callback_query(F.data == "nx:analyse")
 async def cb_nx_analyse(callback: CallbackQuery) -> None:
     await callback.answer()
-    await _edit(callback, fmt.nexus_markets_text(), menus.nexus_markets_menu())
+    await _edit(callback, fmt.nexus_markets_text(), await _panel_keyboard())
 
 
 @router.callback_query(F.data == "nx:home")
@@ -122,6 +138,21 @@ async def cb_nx_market(callback: CallbackQuery) -> None:
         await _nexus_assets(callback, market_name, 0)
         return
     await _nexus_analyse(callback, market_name)
+
+
+@router.callback_query(F.data == "nx:classic:smarty")
+async def cb_nx_classic_smarty(callback: CallbackQuery) -> None:
+    await _nexus_analyse(callback, "SMARTY")
+
+
+@router.callback_query(F.data.startswith("nx:asset:"))
+async def cb_nx_classic_asset(callback: CallbackQuery) -> None:
+    # The analyser revalidates this exact OTC key against live inventory before use.
+    key = callback.data.split(":", 2)[2]
+    if not key.startswith("OTC_"):
+        await callback.answer("الأصل غير متاح", show_alert=True)
+        return
+    await _nexus_analyse(callback, "OTC", asset_key=key)
 
 
 @router.callback_query(F.data.startswith("nx:assets:"))
@@ -165,7 +196,7 @@ async def _nexus_assets(callback: CallbackQuery, market_name: str, page: int) ->
         await _edit(
             callback,
             fmt.nexus_data_unavailable_text(market.value, exc.detail or exc.message),
-            menus.nexus_result_menu(market),
+            menus.nexus_result_menu(),
         )
         return
     except Exception:  # noqa: BLE001 - discovery failure must be shown, not hidden
@@ -173,7 +204,7 @@ async def _nexus_assets(callback: CallbackQuery, market_name: str, page: int) ->
         await _edit(
             callback,
             fmt.nexus_data_unavailable_text(market.value, "تعذر جلب قائمة الأصول من المصدر."),
-            menus.nexus_result_menu(market),
+            menus.nexus_result_menu(),
         )
         return
     active = [asset for asset in assets if asset.market is market]
@@ -181,20 +212,14 @@ async def _nexus_assets(callback: CallbackQuery, market_name: str, page: int) ->
         await _edit(
             callback,
             fmt.nexus_data_unavailable_text(market.value, f"لا توجد أصول {market.label} نشطة على حساب ExpertOption."),
-            menus.nexus_result_menu(market),
+            menus.nexus_result_menu(),
         )
         return
     _NEXUS_ASSETS[(callback.from_user.id, market_name)] = active
     per_page = 20
     pages = max(1, (len(active) + per_page - 1) // per_page)
     page = min(max(page, 0), pages - 1)
-    lines = [
-        "NEXUS AI 🤖",
-        f"📊 السوق: <b>{market.label}</b>",
-        "",
-        f"اختر الأصل الفعلي ({len(active)} أصل نشط من المصدر):",
-    ]
-    await _edit(callback, "\n".join(lines), menus.nexus_assets_menu(market, active, page, per_page))
+    await _edit(callback, f"📊 اختر الأصل · {market.label}", menus.nexus_assets_menu(market, active, page, per_page))
 
 
 async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: str | None = None) -> None:
@@ -210,8 +235,7 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
     async with _analysis_lock(user_id):
         await _edit(
             callback,
-            f"NEXUS AI 🤖\n📊 السوق: <b>{market.label}</b>\n\n"
-            "⏳ جارٍ قراءة الشموع المغلقة والشمعة الحالية، وحساب المؤشرات واختيار المدة تلقائياً...",
+            f"⏳ جارٍ تحليل {market.label}…",
         )
         ctx = get_context()
         mode = await _user_mode(ctx, user_id)
@@ -230,7 +254,7 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
         if outcome.result is None:
             detail = outcome.errors[0] if outcome.errors else None
             await _edit(callback, fmt.nexus_data_unavailable_text(market.value, detail),
-                        menus.nexus_result_menu(market))
+                        menus.nexus_result_menu())
             return
 
         result = outcome.result
@@ -243,8 +267,8 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
                 mode=mode,
             )
             if reason:
-                text += f"\n\n<i>{reason}</i>"
-            await _edit(callback, text, menus.nexus_result_menu(market))
+                text += f"\n\n<i>{html.escape(reason)}</i>"
+            await _edit(callback, text, menus.nexus_result_menu())
             return
 
         fingerprint = (
@@ -258,7 +282,7 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
         )
         previous = _NEXUS_LAST.get((user_id, market.value))
         if previous is not None and previous[0] == fingerprint and (time.monotonic() - previous[1]) < 600:
-            await _edit(callback, fmt.nexus_unchanged_text(market.value), menus.nexus_result_menu(market))
+            await _edit(callback, fmt.nexus_unchanged_text(market.value), menus.nexus_result_menu())
             return
 
         _NEXUS_LAST[(user_id, market.value)] = (fingerprint, time.monotonic())
@@ -288,7 +312,7 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
                 asset=result.asset_display, confidence_verified=result.confidence_verified,
                 mode=mode,
             ),
-            menus.nexus_result_menu(market),
+            menus.nexus_result_menu(),
         )
 
 
@@ -378,7 +402,7 @@ async def cmd_start(message: Message) -> None:
 async def cmd_markets(message: Message) -> None:
     await message.answer(
         fmt.nexus_markets_text(),
-        reply_markup=menus.nexus_markets_menu(),
+        reply_markup=await _panel_keyboard(),
         disable_web_page_preview=True,
     )
 
@@ -422,7 +446,7 @@ async def cmd_activate(message: Message) -> None:
 @router.message(Command("status"))
 async def cmd_subscription_status(message: Message) -> None:
     if not get_context().settings.subscriptions_enabled:
-        await message.answer("✅ التحليل مفتوح للجميع بدون اشتراك. استخدم /start أو /lo.")
+        await _send_status(message)
         return
     try:
         record = await get_context().repo.subscription_for(message.from_user.id)
@@ -586,7 +610,7 @@ async def _show_duration_method(callback: CallbackQuery, asset: Asset) -> None:
 @router.callback_query(F.data == "analysis")
 async def cb_analysis(callback: CallbackQuery) -> None:
     await callback.answer()
-    await _edit(callback, fmt.nexus_markets_text(), menus.nexus_markets_menu())
+    await _edit(callback, fmt.nexus_markets_text(), await _panel_keyboard())
 
 
 def _mt5_provider(ctx):
@@ -1375,13 +1399,13 @@ async def cb_auto(callback: CallbackQuery) -> None:
 @router.callback_query(F.data == "analyze")
 async def cb_analyze(callback: CallbackQuery) -> None:
     await callback.answer()
-    await _edit(callback, fmt.nexus_markets_text(), menus.nexus_markets_menu())
+    await _edit(callback, fmt.nexus_markets_text(), await _panel_keyboard())
 
 
 @router.callback_query(F.data == "markets")
 async def cb_markets(callback: CallbackQuery) -> None:
     await callback.answer()
-    await _edit(callback, fmt.nexus_markets_text(), menus.nexus_markets_menu())
+    await _edit(callback, fmt.nexus_markets_text(), await _panel_keyboard())
 
 
 async def _show_trend(callback: CallbackQuery) -> None:

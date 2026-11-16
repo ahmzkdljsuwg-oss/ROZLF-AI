@@ -63,7 +63,8 @@ def test_home_has_the_single_nexus_entry():
 def test_markets_menu_lists_every_market_and_keeps_mt5_reachable():
     markup = menus.nexus_markets_menu()
     texts = [b.text for row in markup.inline_keyboard for b in row]
-    for label in ("1️⃣ OTC", "2️⃣ SMARTY", "3️⃣ FOOTBALL", "4️⃣ LUXURY", "5️⃣ AI INDEX", "6️⃣ CRICKET", "7️⃣ FOREX"):
+    for label in ("Football Index ⚽", "Smarty 🧠", "Gold 🪙", "OTC 🌙", "Luxury Index 💎",
+                  "AI Index 🤖", "Cricket Index 🏏", "Forex 💱", "MT5 📈"):
         assert label in texts
     forex = menus.market_menu(Market.FOREX)
     assert any(b.callback_data == "mt5:list" for row in forex.inline_keyboard for b in row)

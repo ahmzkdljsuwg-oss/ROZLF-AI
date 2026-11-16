@@ -34,14 +34,14 @@ def test_single_nexus_home_menu_has_real_callbacks():
     home = menus.nexus_home_menu()
     data = [b.callback_data for row in home.inline_keyboard for b in row]
     texts = [b.text for row in home.inline_keyboard for b in row]
-    assert texts == ["حلل 🤖"]
+    assert texts == ["ابدأ استلام الإشارات 🚀"]
     assert data == ["nx:analyse"]
 
     markets = menus.nexus_markets_menu()
     market_data = [b.callback_data for row in markets.inline_keyboard for b in row]
-    assert market_data[:7] == [
-        "nx:market:OTC", "nx:market:SMARTY", "nx:market:FOOTBALL",
-        "nx:market:LUXURY", "nx:market:AI", "nx:market:CRICKET", "nx:market:FOREX",
+    assert market_data[:9] == [
+        "nx:market:FOOTBALL", "nx:classic:smarty", "nx:market:GOLD", "nx:market:OTC",
+        "nx:market:LUXURY", "nx:market:AI", "nx:market:CRICKET", "nx:market:FOREX", "mt5:list",
     ]
     assert "nx:more" in market_data
 
@@ -91,7 +91,7 @@ def test_analysis_text_says_data_unavailable_when_needed():
 
 
 def test_welcome_text_is_the_single_nexus_home(settings):
-    assert "WELCOME BACK" in fmt.NEXUS_WELCOME
+    assert "أهلاً بك" in fmt.NEXUS_WELCOME
     assert "NEXUS AI" in fmt.NEXUS_WELCOME
     assert not hasattr(fmt, "welcome_text")
 

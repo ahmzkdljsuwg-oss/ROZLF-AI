@@ -128,11 +128,11 @@ async def test_revoked_subscription_loses_access(repo):
 
 
 @pytest.mark.asyncio
-async def test_client_activate_and_status_handlers(repo, monkeypatch):
+async def test_client_activate_and_status_handlers(repo, monkeypatch, settings):
     from bot import context
 
     code = await repo.create_activation_code(7, created_by=9001)
-    monkeypatch.setattr(context, "_context", SimpleNamespace(repo=repo), raising=False)
+    monkeypatch.setattr(context, "_context", SimpleNamespace(repo=repo, settings=replace(settings, subscriptions_enabled=True)), raising=False)
 
     missing = Message("/activate", user_id=8101)
     await handlers.cmd_activate(missing)

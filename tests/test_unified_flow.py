@@ -149,7 +149,7 @@ async def test_smarty_and_otc_use_the_real_asset_picker(monkeypatch):
     callback = FakeCallback("nx:market:SMARTY")
     await handlers._nexus_assets(callback, "SMARTY", 0)
     text, keyboard = callback.message.edits[0]
-    assert "1 أصل نشط" in text
+    assert text == "📊 اختر الأصل · SMARTY"
     labels = [b.text for row in keyboard.inline_keyboard for b in row]
     assert any("SMRTY" in label for label in labels)
     assert "nx:pick:SMARTY:0" in _ids(keyboard)
@@ -195,7 +195,8 @@ async def test_otc_unavailable_never_substitutes_forex(monkeypatch):
 def test_markets_hub_uses_only_the_canonical_callbacks():
     data = _ids(handlers.menus.nexus_markets_menu())
     assert "nx:market:FOREX" in data and "nx:market:OTC" in data
-    assert all(item.startswith(("nx:market:", "nx:more")) for item in data)
+    assert "mt5:list" in data
+    assert all(item.startswith(("nx:market:", "nx:more", "nx:classic:smarty", "mt5:list")) for item in data)
 
 
 async def test_manual_duration_lists_only_supported_values(monkeypatch):

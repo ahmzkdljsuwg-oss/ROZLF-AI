@@ -85,7 +85,7 @@ async def test_market_callback_lists_assets(monkeypatch):
     assert "nx:pick:SMARTY:0" in [b.callback_data for row in keyboard.inline_keyboard for b in row]
 
 
-REQUIRED_MENU = ["حلل 🤖"]
+REQUIRED_MENU = ["ابدأ استلام الإشارات 🚀"]
 
 
 async def test_start_renders_exact_new_menu(monkeypatch, settings):
@@ -97,10 +97,10 @@ async def test_start_renders_exact_new_menu(monkeypatch, settings):
     text, keyboard = message.answers[0]
     assert [button.text for row in keyboard.inline_keyboard for button in row] == REQUIRED_MENU
     assert "NEXUS AI" in text
-    assert "WELCOME BACK" in text
+    assert "أهلاً بك" in text
 
 
-@pytest.mark.parametrize("market_name", ["OTC", "SMARTY", "FOOTBALL", "LUXURY", "AI", "CRICKET", "FOREX"])
+@pytest.mark.parametrize("market_name", ["OTC", "SMARTY", "FOOTBALL", "LUXURY", "AI", "CRICKET", "FOREX", "GOLD"])
 async def test_every_market_button_dispatches_to_the_unified_flow(monkeypatch, market_name):
     _fake_context(monkeypatch)
     seen = []
@@ -156,11 +156,11 @@ async def test_markets_hub_callback():
     callback = FakeCallback("markets")
     await handlers.cb_markets(callback)
     text, keyboard = callback.message.edits[0]
-    assert "NEXUS AI" in text
+    assert text == "📊 اختر السوق المراد تحليله:"
     data = [b.callback_data for row in keyboard.inline_keyboard for b in row]
-    assert data[:7] == [
-        "nx:market:OTC", "nx:market:SMARTY", "nx:market:FOOTBALL",
-        "nx:market:LUXURY", "nx:market:AI", "nx:market:CRICKET", "nx:market:FOREX",
+    assert data[:9] == [
+        "nx:market:FOOTBALL", "nx:classic:smarty", "nx:market:GOLD", "nx:market:OTC",
+        "nx:market:LUXURY", "nx:market:AI", "nx:market:CRICKET", "nx:market:FOREX", "mt5:list",
     ]
     assert data[-1] == "nx:more"
 

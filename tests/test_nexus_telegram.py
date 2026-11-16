@@ -66,27 +66,67 @@ def _result(direction="UP", confidence=78.0, price=1.10123):
 
 def test_nexus_home_and_market_stack_order():
     home = menus.nexus_home_menu()
-    assert [b.text for row in home.inline_keyboard for b in row] == ["حلل 🤖"]
+    assert [b.text for row in home.inline_keyboard for b in row] == ["ابدأ استلام الإشارات 🚀"]
     markets = menus.nexus_markets_menu()
     rows = [[b.text for b in row] for row in markets.inline_keyboard]
-    assert [row[0] for row in rows[:7]] == [
-        "1️⃣ OTC", "2️⃣ SMARTY", "3️⃣ FOOTBALL", "4️⃣ LUXURY",
-        "5️⃣ AI INDEX", "6️⃣ CRICKET", "7️⃣ FOREX",
+    assert [row[0] for row in rows[:9]] == [
+        "Football Index ⚽", "Smarty 🧠", "Gold 🪙", "OTC 🌙", "Luxury Index 💎",
+        "AI Index 🤖", "Cricket Index 🏏", "Forex 💱", "MT5 📈",
     ]
-    assert all(len(row) == 1 for row in rows[:7])
+    assert all(len(row) == 1 for row in rows[:9])
+
+
+@pytest.mark.asyncio
+async def test_classic_panel_picks_real_assets_in_video_order(monkeypatch):
+    from bot import context
+
+    assets = [
+        dynamic_asset("MCD_OTC", Market.OTC, bridge_id=61),
+        dynamic_asset("AAPL_OTC", Market.OTC, bridge_id=38),
+        dynamic_asset("USDNGN_OTC_R", Market.OTC, bridge_id=55),
+        dynamic_asset("EURUSD", Market.OTC, bridge_id=23),
+        dynamic_asset("XAGUSD_OTC", Market.OTC, bridge_id=31),
+        dynamic_asset("GBPUSD", Market.FOREX),
+    ]
+
+    class Inventory:
+        async def assets(self, market):
+            assert market is Market.OTC
+            return assets
+
+    monkeypatch.setattr(context, "_context", SimpleNamespace(inventory=Inventory()))
+    seen = []
+
+    async def analyse(callback, market, asset_key=None):
+        seen.append((market, asset_key))
+
+    monkeypatch.setattr(handlers, "_nexus_analyse", analyse)
+    callback = FakeCallback("nx:analyse")
+    await handlers.cb_nx_analyse(callback)
+    text, keyboard = callback.message.edits[-1]
+    rows = keyboard.inline_keyboard
+    assert text == "📊 اختر السوق المراد تحليله:"
+    assert all(len(row) == 1 for row in rows)
+    assert [row[0].text for row in rows[:8]] == [
+        "Football Index ⚽", "Smarty 🧠", "USD/NGN (OTC) 🇳🇬",
+        "EUR/USD (OTC) 🇪🇺", "Gold 🪙", "Silver ⚪", "Apple 🍎", "McDonald's 🍔",
+    ]
+    assert all("GBP/USD (OTC)" not in row[0].text for row in rows)
+    await handlers.cb_nx_classic_asset(FakeCallback(rows[2][0].callback_data))
+    await handlers.cb_nx_classic_smarty(FakeCallback(rows[1][0].callback_data))
+    assert seen == [("OTC", "OTC_55"), ("SMARTY", None)]
 
 
 def test_nexus_card_matches_required_format():
     text = fmt.nexus_signal_text("otc", "UP", 60, 78.4)
-    assert "NEXUS AI 🤖" in text
-    assert "📊 السوق: <b>OTC</b>" in text
-    assert "⏱️ الشمعة المستهدفة: <b>1 MIN</b>" in text
-    assert "📈 الصفقة: <b>فوق</b>" in text
+    assert "السوق:" in text
+    assert "الوقت: <b>1 دقيقة</b> ⏱️" in text
+    assert "الصفقة: <b>شراء / Buy 🟢</b>" in text
     assert "🎯 الثقة: <b>78%</b>" in text
     down = fmt.nexus_signal_text("forex", "DOWN", 300, 64.0)
-    assert "📈 الصفقة: <b>تحت</b>" in down
+    assert "الصفقة: <b>بيع / Sell 🔴</b>" in down
     no_trade = fmt.nexus_signal_text("forex", "NO TRADE", None, None)
-    assert "📈 الصفقة: <b>NO TRADE</b>" in no_trade
+    assert "الصفقة: <b>NO TRADE ⚪</b>" in no_trade
 
 
 @pytest.mark.asyncio
@@ -159,12 +199,13 @@ async def test_market_analysis_selects_auto_duration_and_never_repeats(monkeypat
     pick.message = callback.message
     await handlers.cb_nx_pick(pick)
     text, keyboard = callback.message.edits[-1]
-    assert "NEXUS AI 🤖" in text
-    assert "📊 السوق: <b>OTC</b>" in text
-    assert "⏱️ الشمعة المستهدفة: <b>1 MIN</b>" in text
-    assert "📈 الصفقة: <b>فوق</b>" in text
+    assert "السوق:" in text
+    assert "الوقت: <b>1 دقيقة</b> ⏱️" in text
+    assert "الصفقة: <b>شراء / Buy 🟢</b>" in text
     assert "🎯 الثقة: <b>78%</b>" in text
-    assert "خذ صفقة أخرى 🔄" in [b.text for row in keyboard.inline_keyboard for b in row]
+    assert [[(b.text, b.callback_data) for b in row] for row in keyboard.inline_keyboard] == [
+        [("خذ صفقة أخرى 🔄", "nx:analyse")]
+    ]
     assert len(repo.signals) == 1
     assert repo.signals[0]["expiry_seconds"] == 60
 
@@ -206,7 +247,7 @@ async def test_market_analysis_conflict_returns_no_trade(monkeypatch):
     callback = FakeCallback("nx:market:FOREX")
     await handlers.cb_nx_market(callback)
     text, _ = callback.message.edits[-1]
-    assert "📈 الصفقة: <b>NO TRADE</b>" in text
+    assert "الصفقة: <b>NO TRADE ⚪</b>" in text
     assert "conflicts" in text
     assert ctx.repo.signals == []
 
@@ -268,7 +309,9 @@ async def test_every_dynamic_market_shows_data_unavailable_without_its_source(mo
     text, keyboard = callback.message.edits[-1]
     assert "DATA UNAVAILABLE" in text
     assert "NO TRADE" in text
-    assert "خذ صفقة أخرى 🔄" in [b.text for row in keyboard.inline_keyboard for b in row]
+    assert [[(b.text, b.callback_data) for b in row] for row in keyboard.inline_keyboard] == [
+        [("خذ صفقة أخرى 🔄", "nx:analyse")]
+    ]
     assert ctx.repo.signals == []
 
 
@@ -343,6 +386,6 @@ def test_card_shows_real_asset_and_unverified_confidence():
     text = fmt.nexus_signal_text(
         "otc", "UP", 60, 0.0, asset="EUR/USD OTC", confidence_verified=False, mode="lo",
     )
-    assert "💱 الأصل: <b>EUR/USD OTC</b>" in text
+    assert "السوق: <b>EUR/USD OTC</b>" in text
     assert "LO MODE" in text
     assert "UNVERIFIED" in text

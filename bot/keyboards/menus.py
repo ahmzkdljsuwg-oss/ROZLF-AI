@@ -1,6 +1,9 @@
 """Inline keyboard builders. Every button maps to a real callback handler."""
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable
+
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -45,39 +48,103 @@ TRADE_DURATION_LABELS: dict[int, str] = {
 }
 
 
+NEXUS_MENU_VERSION = "TELEGRAM-CLASSIC-1"
+
 NEXUS_MARKET_ORDER: tuple[tuple[str, str], ...] = (
-    ("1️⃣ OTC", "nx:market:OTC"),
-    ("2️⃣ SMARTY", "nx:market:SMARTY"),
-    ("3️⃣ FOOTBALL", "nx:market:FOOTBALL"),
-    ("4️⃣ LUXURY", "nx:market:LUXURY"),
-    ("5️⃣ AI INDEX", "nx:market:AI"),
-    ("6️⃣ CRICKET", "nx:market:CRICKET"),
-    ("7️⃣ FOREX", "nx:market:FOREX"),
+    ("Football Index ⚽", "nx:market:FOOTBALL"),
+    ("Smarty 🧠", "nx:classic:smarty"),
+    ("Gold 🪙", "nx:market:GOLD"),
+    ("OTC 🌙", "nx:market:OTC"),
+    ("Luxury Index 💎", "nx:market:LUXURY"),
+    ("AI Index 🤖", "nx:market:AI"),
+    ("Cricket Index 🏏", "nx:market:CRICKET"),
+    ("Forex 💱", "nx:market:FOREX"),
+    ("MT5 📈", "mt5:list"),
+)
+
+# Video order, using only matches from the active bridge inventory.
+_CLASSIC_ASSETS = (
+    ("USD/NGN (OTC) 🇳🇬", ("USDNGN",)),
+    ("EUR/USD (OTC) 🇪🇺", ("EURUSD",)),
+    ("GBP/USD (OTC) 🇬🇧", ("GBPUSD",)),
+    ("USD/JPY (OTC) 🇯🇵", ("USDJPY",)),
+    ("Silver ⚪", ("SILVER", "XAGUSD", "XAG")),
+    ("Bitcoin/USD ⚡", ("BITCOINUSD", "BTCUSD", "BITCOIN", "BTC")),
+    ("Ethereum/USD 💎", ("ETHEREUMUSD", "ETHUSD", "ETHEREUM", "ETH")),
+    ("Apple 🍎", ("APPLE", "APPLEINC", "AAPL")),
+    ("Google 🔍 (Alphabet)", ("GOOGLE", "ALPHABET", "GOOGLEALPHABET", "GOOG", "GOOGL")),
+    ("Facebook 👤", ("FACEBOOK", "META", "METAPLATFORMS", "FB")),
+    ("Amazon 📦", ("AMAZON", "AMAZONCOM", "AMZN")),
+    ("Tesla 🚗", ("TESLA", "TESLAINC", "TSLA")),
+    ("Brent Oil 🛢️", ("BRENTOIL", "BRENT", "UKOIL", "XBRUSD")),
+    ("EUR/JPY 💵", ("EURJPY",)),
+    ("AUD/CAD 🇦🇺", ("AUDCAD",)),
+    ("Intel (OTC) 💻", ("INTEL", "INTELCORP", "INTC")),
+    ("Netflix 🎬", ("NETFLIX", "NFLX")),
+    ("Boeing ✈️", ("BOEING", "THEBOEINGCOMPANY", "BA")),
+    ("McDonald's 🍔", ("MCDONALDS", "MCD")),
 )
 
 
+def _classic_key(value: str) -> str:
+    value = re.sub(r"\bOTC\b(?:[ _.-]+[RD])?", "", value.upper().replace("_", " "))
+    value = re.sub(r"OTC$", "", value)
+    return re.sub(r"[^A-Z0-9]", "", value)
+
+
+def _classic_asset_labels(assets: Iterable[Asset]) -> dict[str, Asset]:
+    by_key: dict[str, Asset] = {}
+    for asset in assets:
+        if asset.market is not Market.OTC:
+            continue
+        for value in (asset.symbol, asset.name, asset.bridge_symbol):
+            if value:
+                by_key.setdefault(_classic_key(value), asset)
+    result: dict[str, Asset] = {}
+    for label, aliases in _CLASSIC_ASSETS:
+        for alias in aliases:
+            if alias in by_key:
+                result[label] = by_key[alias]
+                break
+    return result
+
+
+def nexus_asset_callback(asset: Asset) -> str:
+    return f"nx:asset:{asset.key}"
+
+
 def nexus_home_menu() -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.row(_button("حلل 🤖", "nx:analyse"))
-    return builder.as_markup()
+    return InlineKeyboardMarkup(inline_keyboard=[[_button("ابدأ استلام الإشارات 🚀", "nx:analyse")]])
 
 
-def nexus_markets_menu() -> InlineKeyboardMarkup:
+def nexus_markets_menu(assets: Iterable[Asset] = ()) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    for text, data in NEXUS_MARKET_ORDER:
-        builder.row(_button(text, data))
-    builder.row(_button("🛠 أدوات إضافية", "nx:more"))
+    favorites = _classic_asset_labels(assets)
+    for label, data in NEXUS_MARKET_ORDER[:2]:
+        builder.row(_button(label, data))
+    for index, (label, _) in enumerate(_CLASSIC_ASSETS):
+        if index == 4:
+            builder.row(_button(*NEXUS_MARKET_ORDER[2]))
+        asset = favorites.get(label)
+        if asset is not None:
+            data = nexus_asset_callback(asset)
+            if len(data.encode("utf-8")) <= 64:
+                builder.row(_button(label, data))
+    for label, data in NEXUS_MARKET_ORDER[3:]:
+        builder.row(_button(label, data))
+    builder.row(_button("أدوات إضافية 🛠️", "nx:more"))
     return builder.as_markup()
 
 
 def nexus_assets_menu(market: Market, assets, page: int = 0, per_page: int = 20) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     start = page * per_page
+    classic_labels = {asset.key: label for label, asset in _classic_asset_labels(assets).items()}
     for index, asset in enumerate(assets[start:start + per_page], start=start):
         label = asset.name or asset.symbol
         if asset.name and asset.name.upper() != asset.symbol.upper():
             label = f"{asset.name} · {asset.symbol}"
-        builder.row(_button(label, f"nx:pick:{market.value.upper()}:{index}"))
+        builder.row(_button(classic_labels.get(asset.key, label), f"nx:pick:{market.value.upper()}:{index}"))
     nav = []
     if page > 0:
         nav.append(_button("⬅️ السابق", f"nx:assets:{market.value.upper()}:{page - 1}"))
@@ -89,10 +156,9 @@ def nexus_assets_menu(market: Market, assets, page: int = 0, per_page: int = 20)
     return builder.as_markup()
 
 
-def nexus_result_menu(market: Market) -> InlineKeyboardMarkup:
+def nexus_result_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(_button("خذ صفقة أخرى 🔄", f"nx:again:{market.value.upper()}"))
-    builder.row(_button("📊 كل الأسواق", "nx:analyse"), _button("🏠 الرئيسية", "nx:home"))
+    builder.row(_button("خذ صفقة أخرى 🔄", "nx:analyse"))
     return builder.as_markup()
 
 

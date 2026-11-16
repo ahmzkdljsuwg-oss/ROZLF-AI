@@ -178,10 +178,10 @@ async def test_telegram_market_path_uses_saved_mode(monkeypatch, repo, market_na
         assert seen["asset_key"]
     text, _ = callback.message.edits[-1]
     assert seen["mode"] == mode
-    assert "NEXUS AI" in text
+    assert "السوق:" in text
     if mode == "lo":
         assert "UNVERIFIED" in text
     else:
         assert "61%" in text
     if market_name == "SMARTY":
-        assert "5 SEC" in text
+        assert "5 ثوانٍ" in text

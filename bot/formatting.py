@@ -972,21 +972,12 @@ def image_analysis_text(model_text: str) -> str:
     )
 
 
-NEXUS_WELCOME = (
-    "WELCOME BACK 👋\n\n"
-    "<b>NEXUS AI 🤖</b>\n"
-    "ذكاء اصطناعي لتحليل الأسواق واختيار أفضل الفرص.\n\n"
-    "<i>تحليل وإشارات فقط — لا ينفّذ البوت أي صفقات.</i>"
-)
+NEXUS_WELCOME = ("أهلاً بك في <b>NEXUS AI</b> 📊✨\n\n"
+                 "اضغط على الزر أدناه للبدء 👇")
 
 
 def nexus_markets_text() -> str:
-    return (
-        "<b>NEXUS AI 🤖</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "اختر السوق الذي تريد تحليله.\n"
-        "كل سوق يُحلَّل بمصدر بياناته المستقل، والمدة تُختار تلقائياً."
-    )
+    return "📊 اختر السوق المراد تحليله:"
 
 
 def nexus_tools_text() -> str:
@@ -1003,37 +994,36 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
                        reasons: list[str] | None = None, asset: str | None = None,
                        confidence_verified: bool = True,
                        mode: str = "strong") -> str:
-    trade = {"UP": "فوق", "DOWN": "تحت"}.get(direction, "NO TRADE")
-    duration = duration_label(expiry_seconds) if expiry_seconds else "—"
-    clock = f" · {target_open_at:%H:%M} UTC" if target_open_at is not None else ""
-    if confidence_verified and confidence is not None:
-        conf = f"{confidence:.0f}%"
-    elif direction in ("UP", "DOWN"):
-        conf = "UNVERIFIED"
+    trade = {"UP": "شراء / Buy 🟢", "DOWN": "بيع / Sell 🔴"}.get(direction, "NO TRADE ⚪")
+    if not expiry_seconds:
+        duration = "—"
+    elif expiry_seconds == 60:
+        duration = "1 دقيقة"
+    elif expiry_seconds == 120:
+        duration = "2 دقيقة"
+    elif expiry_seconds % 60 == 0:
+        minutes = expiry_seconds // 60
+        duration = f"{minutes} دقائق" if minutes <= 10 else f"{minutes} دقيقة"
     else:
-        conf = "—"
-    names = {
-        "trend": "الاتجاه", "momentum": "الزخم", "price_action": "حركة السعر",
-        "location": "موقع السعر", "close_pressure": "ضغط الإغلاق",
-        "volatility": "التقلب", "technical evidence": "دليل فني",
-    }
-    shown = []
-    for reason in (reasons or [])[:3]:
-        label, _, value = reason.partition(" ")
-        shown.append(f"{names.get(label, label)} {value}".strip())
-    evidence = " · ".join(shown) or "لا توجد أدلة كافية"
-    mode_line = "🧪 LO MODE · UNCALIBRATED\n" if mode == "lo" else ""
-    asset_line = f"💱 الأصل: <b>{html.escape(asset)}</b>\n" if asset else ""
-    return (
-        "NEXUS AI 🤖\n"
-        f"{mode_line}"
-        f"📊 السوق: <b>{market_label(market)}</b>\n"
-        f"{asset_line}"
-        f"⏱️ الشمعة المستهدفة: <b>{duration}</b>{clock}\n"
-        f"📈 الصفقة: <b>{trade}</b>\n"
-        f"🎯 الثقة: <b>{conf}</b>\n"
-        f"🔍 سبب التوقع: <i>{evidence}</i>"
-    )
+        duration = f"{expiry_seconds} ثوانٍ" if 3 <= expiry_seconds <= 10 else f"{expiry_seconds} ثانية"
+    clock = f" · {target_open_at:%H:%M:%S} UTC" if target_open_at is not None else ""
+    names = {"football": "Football Index ⚽", "smarty": "Smarty 🧠", "gold": "Gold 🪙",
+             "luxury": "Luxury Index 💎", "ai": "AI Index 🤖", "cricket": "Cricket Index 🏏"}
+    market_name = names.get(market.lower(), asset or market_label(market))
+    lines = [
+        f"السوق: <b>{html.escape(market_name)}</b> 📊",
+        f"الوقت: <b>{duration}</b> ⏱️{clock}",
+        f"الصفقة: <b>{trade}</b>",
+    ]
+    if mode == "lo":
+        lines.append("🧪 LO MODE · UNCALIBRATED")
+    if confidence_verified and confidence is not None:
+        lines.append(f"🎯 الثقة: <b>{confidence:.0f}%</b>")
+    elif direction in ("UP", "DOWN"):
+        lines.append("🎯 الثقة: UNVERIFIED")
+    if direction not in ("UP", "DOWN") and reasons:
+        lines.append(f"<i>{html.escape(reasons[0])}</i>")
+    return "\n\n".join(lines)
 
 
 def nexus_data_unavailable_text(market: str, detail: str | None = None) -> str:
@@ -1048,7 +1038,7 @@ def nexus_data_unavailable_text(market: str, detail: str | None = None) -> str:
         "لن يصدر البوت أي توصية من بيانات غير موثوقة.",
     ]
     if detail:
-        lines.append(f"<i>{detail}</i>")
+        lines.append(f"<i>{html.escape(detail)}</i>")
     return "\n".join(lines)
 
 
