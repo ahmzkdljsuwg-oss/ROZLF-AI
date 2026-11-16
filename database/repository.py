@@ -2,14 +2,24 @@
 from __future__ import annotations
 
 import json
+import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, inspect, select, text
+from sqlalchemy import func, inspect, select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from config import Settings, normalise_database_url
-from database.models import Base, Signal, UserMode, UserSettings
+from database.models import (
+    Base,
+    Signal,
+    Subscription,
+    SubscriptionCode,
+    SubscriptionNotification,
+    UserMode,
+    UserSettings,
+)
 
 STATUS_ACTIVE = "ACTIVE"
 STATUS_WIN = "WIN"
@@ -22,6 +32,65 @@ def _aware(value: datetime | None) -> datetime | None:
     if value is None:
         return None
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
+CODE_AVAILABLE = "AVAILABLE"
+CODE_USED = "USED"
+CODE_DISABLED = "DISABLED"
+SUB_ACTIVE = "ACTIVE"
+SUB_EXPIRED = "EXPIRED"
+SUB_REVOKED = "REVOKED"
+
+_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+@dataclass
+class CodeRecord:
+    id: int
+    code: str
+    duration_days: int
+    status: str
+    created_by: int
+    created_at: datetime
+    used_by: int | None = None
+    used_at: datetime | None = None
+
+
+@dataclass
+class SubscriptionRecord:
+    telegram_id: int
+    username: str | None
+    first_name: str | None
+    plan_days: int
+    activated_at: datetime
+    expires_at: datetime
+    status: str
+    last_code: str
+    updated_at: datetime
+
+    @property
+    def active(self) -> bool:
+        return self.status == SUB_ACTIVE and self.expires_at > datetime.now(timezone.utc)
+
+    @property
+    def seconds_left(self) -> int:
+        return max(0, int((self.expires_at - datetime.now(timezone.utc)).total_seconds()))
+
+
+@dataclass
+class ActivationResult:
+    status: str
+    message: str
+    code: str | None = None
+    subscription: SubscriptionRecord | None = None
+
+
+@dataclass
+class NotificationRecord:
+    id: int
+    event: str
+    payload: dict
+    created_at: datetime
 
 
 @dataclass
@@ -288,6 +357,205 @@ class Repository:
             row.updated_at = datetime.now(timezone.utc)
             await session.commit()
         return mode
+
+    async def create_activation_code(self, duration_days: int, created_by: int) -> CodeRecord:
+        if duration_days <= 0:
+            raise ValueError("duration_days must be positive")
+        now = datetime.now(timezone.utc)
+        for _ in range(12):
+            code = "NX-" + "".join(secrets.choice(_CODE_ALPHABET) for _ in range(12))
+            async with self._session() as session:
+                row = SubscriptionCode(
+                    code=code,
+                    duration_days=duration_days,
+                    status=CODE_AVAILABLE,
+                    created_by=created_by,
+                    created_at=now,
+                )
+                session.add(row)
+                try:
+                    await session.commit()
+                except IntegrityError:
+                    await session.rollback()
+                    continue
+                await session.refresh(row)
+                return self._code_record(row)
+        raise RuntimeError("could not generate a unique activation code")
+
+    async def list_codes(self, status: str | None = None, limit: int = 50) -> list[CodeRecord]:
+        statement = select(SubscriptionCode).order_by(SubscriptionCode.created_at.desc()).limit(limit)
+        if status is not None:
+            statement = statement.where(SubscriptionCode.status == status)
+        async with self._session() as session:
+            rows = (await session.scalars(statement)).all()
+            return [self._code_record(row) for row in rows]
+
+    async def activate_code(
+        self,
+        code: str,
+        telegram_id: int,
+        username: str | None = None,
+        first_name: str | None = None,
+        now: datetime | None = None,
+    ) -> ActivationResult:
+        normalised = (code or "").strip().upper()
+        now = now or datetime.now(timezone.utc)
+        async with self._session() as session:
+            async with session.begin():
+                claimed = await session.execute(
+                    update(SubscriptionCode)
+                    .where(
+                        SubscriptionCode.code == normalised,
+                        SubscriptionCode.status == CODE_AVAILABLE,
+                        SubscriptionCode.used_by.is_(None),
+                    )
+                    .values(status=CODE_USED, used_by=telegram_id, used_at=now)
+                )
+                if claimed.rowcount != 1:
+                    existing = await session.scalar(
+                        select(SubscriptionCode).where(SubscriptionCode.code == normalised)
+                    )
+                    if existing is None:
+                        return ActivationResult("INVALID", "الكود غير موجود.")
+                    if existing.status == CODE_DISABLED:
+                        return ActivationResult("DISABLED", "هذا الكود معطل.")
+                    return ActivationResult("USED", "هذا الكود مستخدم مسبقاً ولا يمكن تفعيله مرة أخرى.")
+                row = await session.scalar(select(SubscriptionCode).where(SubscriptionCode.code == normalised))
+                duration = row.duration_days
+                expires_at = now + timedelta(days=duration)
+                subscription = await session.get(Subscription, telegram_id)
+                if subscription is None:
+                    subscription = Subscription(
+                        telegram_id=telegram_id,
+                        username=username,
+                        first_name=first_name,
+                        plan_days=duration,
+                        activated_at=now,
+                        expires_at=expires_at,
+                        status=SUB_ACTIVE,
+                        last_code=normalised,
+                        updated_at=now,
+                    )
+                    session.add(subscription)
+                else:
+                    subscription.username = username or subscription.username
+                    subscription.first_name = first_name or subscription.first_name
+                    subscription.plan_days = duration
+                    subscription.activated_at = now
+                    subscription.expires_at = expires_at
+                    subscription.status = SUB_ACTIVE
+                    subscription.last_code = normalised
+                    subscription.updated_at = now
+                payload = {
+                    "code": normalised,
+                    "telegram_id": telegram_id,
+                    "username": username,
+                    "duration_days": duration,
+                    "activated_at": now.isoformat(),
+                    "expires_at": expires_at.isoformat(),
+                    "status": SUB_ACTIVE,
+                }
+                session.add(
+                    SubscriptionNotification(
+                        event="ACTIVATED",
+                        payload=json.dumps(payload, ensure_ascii=False),
+                        created_at=now,
+                    )
+                )
+                await session.flush()
+                record = self._subscription_record(subscription)
+                return ActivationResult("ACTIVATED", "تم تفعيل الاشتراك.", normalised, record)
+
+    async def subscription_for(self, telegram_id: int, now: datetime | None = None) -> SubscriptionRecord | None:
+        now = now or datetime.now(timezone.utc)
+        async with self._session() as session:
+            row = await session.get(Subscription, telegram_id)
+            if row is None:
+                return None
+            record = self._subscription_record(row)
+            if record.status == SUB_ACTIVE and record.expires_at <= now:
+                row.status = SUB_EXPIRED
+                row.updated_at = now
+                await session.commit()
+                record = self._subscription_record(row)
+            return record
+
+    async def is_subscribed(self, telegram_id: int, now: datetime | None = None) -> bool:
+        record = await self.subscription_for(telegram_id, now)
+        return bool(record and record.active)
+
+    async def list_subscriptions(self, limit: int = 100) -> list[SubscriptionRecord]:
+        statement = select(Subscription).order_by(Subscription.expires_at.desc()).limit(limit)
+        async with self._session() as session:
+            rows = (await session.scalars(statement)).all()
+            return [self._subscription_record(row) for row in rows]
+
+    async def revoke_subscription(self, telegram_id: int, now: datetime | None = None) -> bool:
+        now = now or datetime.now(timezone.utc)
+        async with self._session() as session:
+            row = await session.get(Subscription, telegram_id)
+            if row is None:
+                return False
+            row.status = SUB_REVOKED
+            row.expires_at = min(_aware(row.expires_at), now)
+            row.updated_at = now
+            await session.commit()
+        return True
+
+    async def pending_notifications(self, limit: int = 25) -> list[NotificationRecord]:
+        statement = (
+            select(SubscriptionNotification)
+            .where(SubscriptionNotification.sent_at.is_(None))
+            .order_by(SubscriptionNotification.created_at)
+            .limit(limit)
+        )
+        async with self._session() as session:
+            rows = (await session.scalars(statement)).all()
+            return [
+                NotificationRecord(
+                    id=row.id,
+                    event=row.event,
+                    payload=json.loads(row.payload or "{}"),
+                    created_at=_aware(row.created_at),
+                )
+                for row in rows
+            ]
+
+    async def mark_notification_sent(self, notification_id: int, error: str | None = None) -> None:
+        async with self._session() as session:
+            row = await session.get(SubscriptionNotification, notification_id)
+            if row is None:
+                return
+            row.sent_at = datetime.now(timezone.utc)
+            row.error = error
+            await session.commit()
+
+    @staticmethod
+    def _code_record(row: SubscriptionCode) -> CodeRecord:
+        return CodeRecord(
+            id=row.id,
+            code=row.code,
+            duration_days=row.duration_days,
+            status=row.status,
+            created_by=row.created_by,
+            created_at=_aware(row.created_at),
+            used_by=row.used_by,
+            used_at=_aware(row.used_at),
+        )
+
+    @staticmethod
+    def _subscription_record(row: Subscription) -> SubscriptionRecord:
+        return SubscriptionRecord(
+            telegram_id=row.telegram_id,
+            username=row.username,
+            first_name=row.first_name,
+            plan_days=row.plan_days,
+            activated_at=_aware(row.activated_at),
+            expires_at=_aware(row.expires_at),
+            status=row.status,
+            last_code=row.last_code,
+            updated_at=_aware(row.updated_at),
+        )
 
     @staticmethod
     def _to_record(row: Signal) -> SignalRecord:

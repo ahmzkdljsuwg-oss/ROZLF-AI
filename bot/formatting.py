@@ -1060,3 +1060,121 @@ def nexus_unchanged_text(market: str) -> str:
         "🎯 الثقة: —\n\n"
         "🔄 لم تتغير ظروف السوق منذ آخر توصية، لذلك لن يكرر البوت نفس النتيجة."
     )
+
+
+DURATION_DAYS_LABELS = {
+    1: "يوم واحد",
+    7: "7 أيام",
+    30: "30 يوماً",
+    90: "90 يوماً",
+    365: "سنة واحدة",
+}
+
+
+def days_label(days: int) -> str:
+    return DURATION_DAYS_LABELS.get(days, f"{days} يوم")
+
+
+def _stamp(value: datetime | None) -> str:
+    if value is None:
+        return "—"
+    return value.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+
+def subscription_activated_text(record) -> str:
+    username = f"@{html.escape(record.username)}" if record.username else "—"
+    return (
+        "✅ <b>تم تفعيل اشتراك NEXUS AI</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"👤 الحساب: {username}\n"
+        f"🆔 Telegram ID: <code>{record.telegram_id}</code>\n"
+        f"📦 المدة: <b>{days_label(record.plan_days)}</b>\n"
+        f"📅 بداية التفعيل: {_stamp(record.activated_at)}\n"
+        f"⏳ تاريخ الانتهاء: {_stamp(record.expires_at)}\n"
+        f"📌 الحالة: <b>ACTIVE</b>\n\n"
+        "جميع وظائف التحليل والأسواق متاحة الآن."
+    )
+
+
+def subscription_status_text(record) -> str:
+    if record is None:
+        return (
+            "💳 <b>حالة الاشتراك</b>\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            "📌 الحالة: <b>NO SUBSCRIPTION</b>\n"
+            "أرسل كود التفعيل:\n<code>/activate NX-XXXXXXXXXXXX</code>"
+        )
+    state = "ACTIVE" if record.active else record.status
+    remaining = record.seconds_left
+    hours = remaining // 3600
+    minutes = (remaining % 3600) // 60
+    remaining_text = f"{hours} ساعة و{minutes} دقيقة" if remaining else "—"
+    return (
+        "💳 <b>حالة الاشتراك</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"🆔 Telegram ID: <code>{record.telegram_id}</code>\n"
+        f"📦 المدة: {days_label(record.plan_days)}\n"
+        f"📅 التفعيل: {_stamp(record.activated_at)}\n"
+        f"⏳ الانتهاء: {_stamp(record.expires_at)}\n"
+        f"📌 الحالة: <b>{state}</b>\n"
+        f"⌛ المتبقي: {remaining_text}"
+    )
+
+
+def activation_failed_text(result) -> str:
+    return f"❌ <b>تعذر التفعيل</b>\n{html.escape(result.message)}\n\nالحالة: <b>{result.status}</b>"
+
+
+def admin_notification_text(payload: dict) -> str:
+    username = payload.get("username")
+    username_text = f"@{html.escape(username)}" if username else "—"
+    return (
+        "🔔 <b>تم تفعيل كود اشتراك</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"🔑 الكود: <code>{html.escape(str(payload.get('code', '—')))}</code>\n"
+        f"👤 المستخدم: {username_text}\n"
+        f"🆔 Telegram ID: <code>{payload.get('telegram_id', '—')}</code>\n"
+        f"📦 المدة: {days_label(int(payload.get('duration_days', 0)))} ({payload.get('duration_days', '—')} يوم)\n"
+        f"📅 تاريخ التفعيل: {payload.get('activated_at', '—')}\n"
+        f"⏳ تاريخ الانتهاء: {payload.get('expires_at', '—')}\n"
+        f"📌 حالة التفعيل: <b>{payload.get('status', 'ACTIVE')}</b>"
+    )
+
+
+def admin_code_text(record) -> str:
+    return (
+        "✅ <b>تم إنشاء كود تفعيل جديد</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"🔑 <code>{html.escape(record.code)}</code>\n"
+        f"📦 المدة: {days_label(record.duration_days)}\n"
+        "📌 الاستخدام: مرة واحدة فقط\n"
+        f"🕒 الإنشاء: {_stamp(record.created_at)}"
+    )
+
+
+def admin_codes_text(records: list, used: bool) -> str:
+    title = "🗂 <b>الأكواد المستخدمة</b>" if used else "📋 <b>الأكواد المتاحة</b>"
+    if not records:
+        return f"{title}\n━━━━━━━━━━━━━━━━━━\nلا توجد أكواد."
+    lines = [title, "━━━━━━━━━━━━━━━━━━"]
+    for record in records[:20]:
+        line = f"<code>{html.escape(record.code)}</code> — {days_label(record.duration_days)}"
+        if used:
+            line += f"\n   👤 <code>{record.used_by}</code> — {_stamp(record.used_at)}"
+        lines.append(line)
+    lines.append(f"\nالإجمالي المعروض: {min(len(records), 20)}")
+    return "\n".join(lines)
+
+
+def admin_customers_text(records: list) -> str:
+    if not records:
+        return "👥 <b>العملاء</b>\n━━━━━━━━━━━━━━━━━━\nلا يوجد عملاء بعد."
+    lines = ["👥 <b>العملاء والاشتراكات</b>", "━━━━━━━━━━━━━━━━━━"]
+    for record in records[:20]:
+        username = f"@{html.escape(record.username)}" if record.username else "—"
+        state = "ACTIVE" if record.active else record.status
+        lines.append(
+            f"{username} — <code>{record.telegram_id}</code>\n"
+            f"   {state} — ينتهي {_stamp(record.expires_at)}"
+        )
+    return "\n".join(lines)

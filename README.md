@@ -139,3 +139,51 @@ PYTHONPATH=. python scripts/live_smoke.py
 ## 9. NEXUS AI TELEGRAM FLOW
 
 `/start` opens the NEXUS home screen with the single `حلل 🤖` button. The seven markets are listed as separate vertical buttons and analysed automatically from their own source only. When a market has no verified feed the bot answers `DATA UNAVAILABLE` and issues no recommendation. Existing advanced tools remain reachable through `🛠 أدوات إضافية`. Gemini and Mistral review every automatic recommendation inside the same analysis path and a disagreement (or `NO TRADE`) blocks the signal.
+
+## 10. نظام الاشتراكات وبوت الإدارة (NEXUS AI)
+
+النظام يستخدم **بوتين مستقلين** وقاعدة بيانات واحدة:
+
+| البوت | التشغيل | الوظيفة |
+|---|---|---|
+| بوت العملاء (الحالي) | `python main.py` | كل تحليل NEXUS + `/activate` + `/status` |
+| بوت المالك | `python start_admin.py` | إنشاء الأكواد، العملاء، الإلغاء، إشعارات التفعيل |
+
+### المتغيرات المطلوبة
+
+```env
+TELEGRAM_BOT_TOKEN=...        # بوت العملاء
+ADMIN_BOT_TOKEN=...           # بوت المالك (BotFather منفصل)
+OWNER_TELEGRAM_IDS=123456789  # معرف المالك، ويمكن وضع أكثر من معرف بفواصل
+SUBSCRIPTIONS_ENABLED=true    # يُفعّل تلقائياً عند وجود المتغيرين أعلاه
+DATABASE_URL=postgresql+asyncpg://...
+```
+
+> أرسل `/start` لبوت المالك مرة واحدة ليتمكن من إرسال إشعارات التفعيل إليه.
+> بوت المالك يرفض أي مستخدم غير موجود في `OWNER_TELEGRAM_IDS`.
+
+### المدد المدعومة
+
+يوم واحد · 7 أيام · 30 يوماً · 90 يوماً · سنة واحدة.
+
+### آلية الأمان
+
+- كل كود يُنشأ عشوائياً (`secrets`) وفريد، ويُفعّل مرة واحدة فقط.
+- التفعيل يتم داخل معاملة ذرية (`UPDATE ... WHERE status='AVAILABLE'`)، لذا لا يمكن استخدام الكود مرتين حتى مع طلبات متزامنة.
+- الاشتراك مرتبط بـ Telegram ID ولا ينتقل لحساب آخر.
+- عند الانتهاء أو الإلغاء يتوقف التحليل والمسح فوراً عبر `SubscriptionMiddleware`، مع السماح بـ `/activate` و`/status` و`/start`.
+- حالة الاشتراك تُحسب من قاعدة البيانات عند كل طلب، لذلك تبقى صحيحة بعد إعادة تشغيل البوتين.
+- فشل إشعار المالك لا يفقد التفعيل؛ يُحفظ في `subscription_notifications` ويُعاد إرساله.
+
+### النشر على Railway (خدمتان)
+
+1. أنشئ خدمة العملاء من نفس المستودع، وأضف متغيراتها.
+2. أنشئ خدمة ثانية من نفس المستودع، وفي **Settings → Config-as-code** حدد `railway.admin.json`، وأضف نفس `DATABASE_URL` و`ADMIN_BOT_TOKEN` و`OWNER_TELEGRAM_IDS`.
+3. تأكد أن كل خدمة تعمل بنسخة Polling واحدة فقط.
+4. لا تنشر قبل موافقة المالك.
+
+### الأوامر
+
+- `/activate NX-XXXXXXXXXXXX` — تفعيل كود.
+- `/status` — حالة الاشتراك والمدة المتبقية.
+- `/marketstatus` — حالة مصادر البيانات (للمشرف داخل بوت العملاء).

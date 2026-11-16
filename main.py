@@ -22,6 +22,7 @@ from bot.context import AppContext, set_context
 from bot.handlers import menus
 from bot.keyboards import menus as keyboards
 from bot.middleware.auth import AccessMiddleware
+from bot.middleware.subscription import SubscriptionMiddleware
 from config import normalise_database_url, settings
 from database.repository import Repository
 from engines.signals.generator import SignalGenerator
@@ -183,8 +184,10 @@ async def _run_bot(state: dict) -> None:
     set_context(ctx)
 
     async def notify_signal(record) -> None:
-        chat_id = settings.telegram_chat_id or record.user_id
+        chat_id = record.user_id if settings.subscriptions_enabled else (settings.telegram_chat_id or record.user_id)
         if not chat_id:
+            return
+        if settings.subscriptions_enabled and not await repo.is_subscribed(chat_id):
             return
         try:
             await bot.send_message(chat_id, fmt.signal_text(record), disable_web_page_preview=True)
@@ -192,8 +195,10 @@ async def _run_bot(state: dict) -> None:
             logger.exception("failed sending scanner signal to %s", chat_id)
 
     async def notify_verification(record) -> None:
-        chat_id = settings.telegram_chat_id or record.user_id
+        chat_id = record.user_id if settings.subscriptions_enabled else (settings.telegram_chat_id or record.user_id)
         if not chat_id:
+            return
+        if settings.subscriptions_enabled and not await repo.is_subscribed(chat_id):
             return
         try:
             await bot.send_message(chat_id, fmt.verification_text(record), disable_web_page_preview=True)
@@ -204,9 +209,14 @@ async def _run_bot(state: dict) -> None:
     scanner = AutoScanner(generator, repo, registry, settings, notifier=notify_signal, inventory=inventory)
     ctx.tracker = tracker
     ctx.scanner = scanner
-    access = AccessMiddleware(settings)
-    dp.message.outer_middleware(access)
-    dp.callback_query.outer_middleware(access)
+    if settings.subscriptions_enabled:
+        gate = SubscriptionMiddleware(settings, repo)
+        dp.message.outer_middleware(gate)
+        dp.callback_query.outer_middleware(gate)
+    else:
+        access = AccessMiddleware(settings)
+        dp.message.outer_middleware(access)
+        dp.callback_query.outer_middleware(access)
     dp.include_router(menus.router)
 
     async def verification_loop() -> None:
@@ -241,7 +251,8 @@ async def _run_bot(state: dict) -> None:
                     BotCommand(command="markets", description="فتح قائمة الأسواق"),
                     BotCommand(command="lo", description="تشغيل وضع LO للتوصيات المستمرة"),
                     BotCommand(command="llo", description="العودة إلى التحليل القوي المعاير"),
-                    BotCommand(command="status", description="حالة البيانات والذكاء الاصطناعي"),
+                    BotCommand(command="status", description="حالة الاشتراك والمدة المتبقية"),
+                    BotCommand(command="activate", description="تفعيل الاشتراك بكود"),
                     BotCommand(command="scan", description="فتح الماسح التلقائي"),
                     BotCommand(command="stats", description="الإحصائيات"),
                     BotCommand(command="id", description="عرض CHAT ID"),

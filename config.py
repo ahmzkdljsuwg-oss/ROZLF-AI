@@ -82,6 +82,9 @@ class Settings:
     mt5_bridge_url: str | None = None
     mt5_bridge_key: str | None = None
     mistral_vision_model: str = "pixtral-12b-2409"
+    admin_bot_token: str = ""
+    owner_telegram_ids: str = ""
+    subscriptions_enabled: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -107,6 +110,12 @@ class Settings:
             mt5_bridge_url=_http_url("MT5_BRIDGE_URL"),
             mt5_bridge_key=_text("MT5_BRIDGE_KEY"),
             mistral_vision_model=_text("MISTRAL_VISION_MODEL", "pixtral-12b-2409") or "pixtral-12b-2409",
+            admin_bot_token=_text("ADMIN_BOT_TOKEN", "") or "",
+            owner_telegram_ids=_text("OWNER_TELEGRAM_IDS", "") or "",
+            subscriptions_enabled=_flag(
+                "SUBSCRIPTIONS_ENABLED",
+                bool(_text("ADMIN_BOT_TOKEN", "")) and bool(_text("OWNER_TELEGRAM_IDS", "")),
+            ),
         )
 
     @property
@@ -134,6 +143,19 @@ class Settings:
         if self.telegram_chat_id is None:
             return frozenset()
         return frozenset({self.telegram_chat_id})
+
+    @property
+    def owner_ids(self) -> frozenset[int]:
+        ids: set[int] = set()
+        for part in self.owner_telegram_ids.replace(";", ",").split(","):
+            part = part.strip()
+            if part.lstrip("-").isdigit():
+                ids.add(int(part))
+        return frozenset(ids)
+
+    @property
+    def admin_enabled(self) -> bool:
+        return bool(self.admin_bot_token) and bool(self.owner_ids)
 
     @property
     def mistral_enabled(self) -> bool:
@@ -178,6 +200,9 @@ class Settings:
             "database": "postgresql" if "postgresql" in self.async_database_url else "sqlite",
             "scanner_enabled": self.scanner_enabled,
             "min_confidence": self.min_confidence,
+            "subscriptions_enabled": self.subscriptions_enabled,
+            "admin_bot": self.admin_enabled,
+            "owner_ids": len(self.owner_ids),
         }
 
 

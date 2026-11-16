@@ -359,6 +359,49 @@ async def cmd_markets(message: Message) -> None:
     )
 
 
+@router.message(Command("activate"))
+async def cmd_activate(message: Message) -> None:
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].strip():
+        await message.answer(
+            "🔑 <b>تفعيل الاشتراك</b>\n"
+            "أرسل الكود مع الأمر:\n"
+            "<code>/activate NX-XXXXXXXXXXXX</code>",
+            parse_mode="HTML",
+        )
+        return
+    ctx = get_context()
+    user = message.from_user
+    try:
+        result = await ctx.repo.activate_code(
+            parts[1].strip(),
+            user.id,
+            username=user.username,
+            first_name=user.first_name,
+        )
+    except Exception:
+        logger.exception("activation failed for %s", user.id)
+        await message.answer("⚠️ تعذر التحقق من الكود الآن. حاول بعد قليل.")
+        return
+    if result.status == "ACTIVATED" and result.subscription is not None:
+        await message.answer(
+            fmt.subscription_activated_text(result.subscription),
+            reply_markup=menus.nexus_home_menu(),
+        )
+        return
+    await message.answer(fmt.activation_failed_text(result))
+
+
+@router.message(Command("status"))
+async def cmd_subscription_status(message: Message) -> None:
+    try:
+        record = await get_context().repo.subscription_for(message.from_user.id)
+    except Exception:
+        logger.exception("subscription status lookup failed")
+        record = None
+    await message.answer(fmt.subscription_status_text(record))
+
+
 @router.message(Command("id"))
 async def cmd_id(message: Message) -> None:
     await message.answer(
@@ -391,7 +434,7 @@ async def cmd_scan(message: Message) -> None:
     )
 
 
-@router.message(Command("status"))
+@router.message(Command("marketstatus"))
 async def cmd_status(message: Message) -> None:
     await _send_status(message)
 
