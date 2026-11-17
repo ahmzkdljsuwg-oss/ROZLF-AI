@@ -6,30 +6,27 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#090b16">
   <title>NEXUS AI • Mini App</title>
-  <link rel="stylesheet" href="/mini-app/app.css?v=2">
+  <link rel="stylesheet" href="/mini-app/app.css?v=3">
   <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script defer src="/mini-app/app.js?v=2"></script>
+  <script defer src="/mini-app/app.js?v=3"></script>
 </head>
 <body>
+  <div id="splash" class="splash" aria-hidden="true">
+    <div class="splash-core"><svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="29"/><path d="M15 45V19l18 26V19m8 20 8-10m-8 0 8 10"/></svg></div>
+    <b dir="ltr">NEXUS AI</b><div class="track"></div>
+  </div>
   <main class="shell">
-    <header class="top">
-      <div class="brand"><span class="mark" aria-hidden="true">✦</span><div><b dir="ltr">NEXUS AI</b><small>تحليل السوق · الشمعة القادمة</small></div></div>
-      <span id="status" class="status" data-state="pending"><i></i><span>يتحقق من الاتصال</span></span>
+    <header class="top" dir="ltr">
+      <div class="brand"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m3 16 5-5 4 3 7-8m-5 0h5v5"/></svg><b>NEXUS AI</b></div>
+      <span id="status" class="status" dir="rtl" data-state="pending"><i></i><span>يتصل</span></span>
     </header>
 
     <section id="view-markets" aria-label="الأسواق">
-      <div class="heading"><div><span class="eyebrow">LIVE MARKETS</span><h1>التحليل</h1></div></div>
       <div id="modes" class="modes" aria-label="وضع التحليل">
-        <button type="button" data-mode="fast" aria-pressed="true">⚡ تحليل سريع</button>
-        <button type="button" data-mode="minute" aria-pressed="false">◷ تحليل دقيقة</button>
+        <button type="button" data-mode="fast" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m13 2-8 12h6l-1 8 9-12h-6z"/></svg>تحليل سريع</button>
+        <button type="button" data-mode="minute" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>تحليل دقيقة</button>
       </div>
-      <div class="hero">
-        <span class="overline">NEXT CANDLE FORECAST</span>
-        <h2 id="mode-title">الشمعة الجاية، قبل افتتاحها</h2>
-        <p id="mode-note">تحليل الشموع المغلقة وتحديد وقت الشمعة القادمة تلقائيًا.</p>
-        
-      </div>
-      <div class="section-label"><h2>أسواق البوت</h2><span id="market-count">—</span></div>
+      <div class="section-label"><h1>الأسواق</h1></div>
       <div id="markets" class="market-row" role="group" aria-label="اختيار السوق"></div>
       <div id="feedback" class="notice" role="status" hidden></div>
       <button id="reload" class="line-button" type="button" hidden>إعادة تحميل الأسواق</button>
@@ -52,15 +49,15 @@
     </section>
   </main>
 
-  <nav class="bottom" aria-label="التنقّل">
-    <button type="button" data-tab="markets" aria-current="page"><b>▤</b><span>الأسواق</span></button>
-    <button type="button" data-tab="last"><b>▥</b><span>آخر تحليل</span></button>
-    <button type="button" data-tab="info"><b>⚙</b><span>المعلومات</span></button>
+  <nav class="bottom" aria-label="التنقّل" dir="ltr">
+    <button type="button" data-tab="markets" aria-current="page"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 19v-5m7 5V6m7 13V9"/></svg><span>التحليل</span></button>
+    <button type="button" data-tab="info"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m2 9 10-5 10 5-10 5zm5 3v5c3 2 7 2 10 0v-5"/></svg><span>الدليل</span></button>
+    <button type="button" data-tab="last"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 8a8 8 0 1 1-1 7M4 4v5h5m3-2v5l3 2"/></svg><span>آخر تحليل</span></button>
   </nav>
 
   <dialog id="sheet" aria-labelledby="sheet-title">
     <div class="grip"></div>
-    <div class="sheet-head"><div><span class="eyebrow">NEXUS / SIGNAL</span><h2 id="sheet-title">التحليل</h2></div><button id="close" class="icon-button" type="button" aria-label="إغلاق التحليل">×</button></div>
+    <div class="sheet-head"><div><h2 id="sheet-title">التحليل</h2></div><button id="close" class="icon-button" type="button" aria-label="إغلاق التحليل">×</button></div>
     <div id="sheet-content"></div>
   </dialog>
 

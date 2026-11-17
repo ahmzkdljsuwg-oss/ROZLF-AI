@@ -12,6 +12,7 @@ from aiohttp import web
 
 from engines.markets import profile_for
 from engines.technical.analyzer import analyze_market_data
+from engines.technical.indicators import compute_indicators, frame_from_candles
 from engines.validation import closed_candles
 from providers.base import DataUnavailable, utc_now
 from providers.catalog import Market, assets_for, timeframe
@@ -24,6 +25,18 @@ ICONS = dict(zip(MARKETS, ("⚽", "🧠", "🪙", "🌙", "💎", "🤖", "🏏"
 LOG = logging.getLogger(__name__)
 MIN_LEAD = 2.0
 FAST_FRAMES = ("5sec", "15sec", "30sec", "1min")
+FRAME_BUDGET = {"5sec": 5.0, "15sec": 6.0, "30sec": 8.0, "1min": 18.0}
+ANALYSIS_BUDGET = 34.0
+SOURCE_ERRORS = {
+    "RATE_LIMITED": "مصدر الأسعار وصل إلى حد الطلبات. أعد المحاولة بعد قليل.",
+    "DISCONNECTED": "اتصال مصدر الشموع منقطع مؤقتاً. أعد المحاولة.",
+    "NETWORK": "تعذّر الاتصال بمصدر الشموع. أعد المحاولة.",
+    "TIMEOUT": "مصدر الشموع تأخّر. أعد المحاولة.",
+    "MISSING_RECENT_CANDLE": "الشموع المتاحة قديمة أو متقطعة. ما فيه توقع حالياً.",
+    "NO_CLOSED_CANDLES": "ما وصلت شموع مغلقة لهذا الأصل.",
+    "INVALID_CANDLES": "المصدر أعاد شموعاً غير صالحة.",
+    "DATA_UNAVAILABLE": "ما وصلت شموع موثوقة لهذا الأصل من مصدره.",
+}
 
 _SECURITY_HEADERS = {
     "Cache-Control": "no-store",
@@ -49,48 +62,83 @@ def _ms(stamp):
     return int(stamp.timestamp() * 1000)
 
 
-async def _owned_fetch(registry, asset, tf):
-    # Registry coalesces work with Telegram /lo. A Mini App timeout must not
-    # cancel another user's in-flight Telegram candle request.
-    task = asyncio.create_task(registry.fetch(asset, tf, with_quote=False))
+async def _owned_fetch(registry, asset, tf, *, fresh=False):
+    # Let the registry finish shared work even if the Mini App stops waiting.
+    task = asyncio.create_task(registry.fetch(asset, tf, with_quote=False, fresh=fresh))
     task.add_done_callback(lambda value: value.exception() if not value.cancelled() else None)
-    return await asyncio.wait_for(asyncio.shield(task), timeout=6.0)
+    return await asyncio.shield(task)
 
 
-async def _analyze_frame(registry, asset, frame, mode):
-    tf = timeframe(frame)
-    data = await _owned_fetch(registry, asset, tf)
-    now = utc_now()
+def _bar_window(data, tf, now):
     bars = closed_candles(data.candles, tf, now)
+    if not bars:
+        raise DataUnavailable("NO_CLOSED_CANDLES", SOURCE_ERRORS["NO_CLOSED_CANDLES"])
     if any(not math.isfinite(value) for bar in bars for value in (bar.open, bar.high, bar.low, bar.close)):
-        raise DataUnavailable("INVALID_CANDLES", "المصدر رجع قيماً غير صالحة")
-    if len(bars) < 200:
-        raise DataUnavailable("INSUFFICIENT_BARS", "شموع مغلقة غير كافية")
-    # Forecast the next actual slot, not an arbitrary slot after a stale feed.
-    target = bars[-1].time + timedelta(seconds=2 * tf.seconds)
-    if target <= now or any(
-        b.time - a.time != timedelta(seconds=tf.seconds)
-        for a, b in zip(bars[-5:-1], bars[-4:])
-    ):
-        raise DataUnavailable("MISSING_RECENT_CANDLE", "لم تصل شموع حديثة ومتتابعة لهذا الأصل")
-    result = await asyncio.to_thread(analyze_market_data, data, now, None, "lo" if mode == "fast" else "strong")
-    direction = result.direction
-    reasons = result.reasons
-    if direction in ("UP", "DOWN") and (
-        result.target_open_at != target or (target - utc_now()).total_seconds() < MIN_LEAD
-    ):
-        direction = "NO TRADE"
-        reasons = ["نافذة الشمعة قصيرة، أعد الفحص للشمعة التالية."]
-    # Avoid presenting a high-volatility range as a reliable next-candle entry.
-    # Only affects the Mini App; Telegram /lo remains unchanged.
-    if (mode == "fast" and direction in ("UP", "DOWN")
-            and result.indicators.get("trend") == "RANGE"
-            and result.indicators.get("volatility") == "HIGH"):
-        direction = "NO TRADE"
-        reasons = ["السوق عرضي ومتذبذب بقوة؛ لا توجد أفضلية واضحة للشمعة القادمة."]
-    if mode == "minute" and not result.confidence_verified and direction in ("UP", "DOWN"):
-        direction = "NO TRADE"
-        reasons = ["لا توجد معايرة صالحة لهذا الفريم."]
+        raise DataUnavailable("INVALID_CANDLES", SOURCE_ERRORS["INVALID_CANDLES"])
+    step = timedelta(seconds=tf.seconds)
+    end = bars[-1].time + step
+    target = end + step
+    contiguous = all(b.time - a.time == step for a, b in zip(bars[-5:-1], bars[-4:]))
+    return bars, end, target, contiguous
+
+
+async def _analyze_frame(registry, asset, frame, mode, *, budget=None):
+    tf = timeframe(frame)
+    budget = FRAME_BUDGET[frame] if budget is None else min(budget, FRAME_BUDGET[frame])
+    deadline = time.monotonic() + budget
+    data = await asyncio.wait_for(_owned_fetch(registry, asset, tf), budget)
+    now = utc_now()
+    bars, end, target, contiguous = _bar_window(data, tf, now)
+    if target <= now or not contiguous:
+        # A six-second cache lease can outlive a five-second candle. Refresh
+        # once without changing the market, provider, symbol or frame.
+        remaining = deadline - time.monotonic()
+        if remaining > 0.3:
+            try:
+                updated = await asyncio.wait_for(_owned_fetch(registry, asset, tf, fresh=True), remaining)
+                updated_now = utc_now()
+                window = _bar_window(updated, tf, updated_now)
+                if window[1] >= end:
+                    data, now = updated, updated_now
+                    bars, end, target, contiguous = window
+            except (DataUnavailable, TimeoutError) as exc:
+                LOG.info("Mini chart refresh %s %s: %s", asset.key, frame, getattr(exc, "code", "TIMEOUT"))
+        now = utc_now()
+
+    # Keep the real chart when there is a recent snapshot, but do not run the
+    # forecast on incomplete history or late/gapped bars.
+    if now - end > timedelta(seconds=2 * tf.seconds):
+        raise DataUnavailable("MISSING_RECENT_CANDLE", SOURCE_ERRORS["MISSING_RECENT_CANDLE"])
+    issue = ("SHORT_HISTORY" if len(bars) < 200 else
+             "MISSING_RECENT_CANDLE" if target <= now or not contiguous else None)
+    direction = "NO TRADE"
+    confidence = None
+    if issue:
+        indicators = await asyncio.to_thread(lambda: compute_indicators(frame_from_candles(bars)))
+        reasons = [f"وصلت {len(bars)} شمعة مغلقة. نحتاج 200 لتوقع الاتجاه."
+                   if issue == "SHORT_HISTORY" else
+                   "هذا آخر شارت متاح. لم تصل شموع متتابعة في الوقت المناسب للتوقع."]
+    else:
+        result = await asyncio.to_thread(analyze_market_data, data, now, None, "lo" if mode == "fast" else "strong")
+        indicators = result.indicators
+        direction = result.direction
+        reasons = result.reasons
+        if direction in ("UP", "DOWN") and (
+            result.target_open_at != target or (target - utc_now()).total_seconds() < MIN_LEAD
+        ):
+            direction = "NO TRADE"
+            reasons = ["نافذة الشمعة قصيرة، أعد الفحص للشمعة التالية."]
+        if (mode == "fast" and direction in ("UP", "DOWN")
+                and indicators.get("trend") == "RANGE" and indicators.get("volatility") == "HIGH"):
+            direction = "NO TRADE"
+            reasons = ["السوق عرضي ومتذبذب بقوة؛ ما فيه اتجاه واضح للشمعة القادمة."]
+        if mode == "minute":
+            if not result.confidence_verified:
+                direction = "NO TRADE"
+                reasons = ["لا توجد معايرة صالحة لهذا الأصل على الدقيقة."]
+            elif direction != "NO TRADE":
+                confidence = result.confidence
+
     candles = [
         {"at": _ms(c.time), "open": c.open, "high": c.high, "low": c.low, "close": c.close}
         for c in bars[-40:]
@@ -98,9 +146,9 @@ async def _analyze_frame(registry, asset, frame, mode):
     return {
         "asset": asset.display, "symbol": asset.symbol, "market": asset.market.value, "source": data.source,
         "mode": mode, "frame": frame, "seconds": tf.seconds, "direction": direction,
-        "trend": result.indicators.get("trend"), "volatility": result.indicators.get("volatility"),
-        "confidence": result.confidence if mode == "minute" and direction != "NO TRADE" and result.confidence_verified else None,
+        "trend": indicators.get("trend"), "volatility": indicators.get("volatility"), "confidence": confidence,
         "reasons": reasons[:3], "candles": candles, "closed_count": len(bars),
+        "data_issue": issue, "last_closed_ms": _ms(end),
         "target_ms": _ms(target) if direction != "NO TRADE" else None,
         "end_ms": _ms(target + timedelta(seconds=tf.seconds)) if direction != "NO TRADE" else None,
     }
@@ -196,20 +244,30 @@ def install(app, settings, get_context):
                 supported = profile_for(market).frames
                 plan = ("1min",) if mode == "minute" else tuple(f for f in FAST_FRAMES if f in supported)
                 best = None
-                deadline = time.monotonic() + 15
+                failures = []
+                deadline = time.monotonic() + ANALYSIS_BUDGET
                 for frame in plan:
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
                         break
                     try:
-                        result = await asyncio.wait_for(_analyze_frame(ctx.registry, asset, frame, mode), remaining)
-                    except (DataUnavailable, TimeoutError):
+                        result = await _analyze_frame(ctx.registry, asset, frame, mode, budget=remaining)
+                    except (DataUnavailable, TimeoutError) as exc:
+                        code = getattr(exc, "code", "TIMEOUT")
+                        failures.append(code)
+                        LOG.info("Mini candles %s %s failed: %s", asset.key, frame, code)
+                        if code in {"RATE_LIMITED", "INVALID_KEY", "EO_BRIDGE_UNAUTHORIZED", "INACTIVE_ASSET"}:
+                            break
                         continue
-                    best = result
-                    if best["direction"] != "NO TRADE":
+                    if result["direction"] != "NO TRADE":
+                        best = result
                         break
+                    if best is None or (best["data_issue"] and not result["data_issue"]):
+                        best = result
                 if best is None:
-                    return _error("DATA_UNAVAILABLE", "المصدر لم يرجع شموعاً حديثة وكافية لهذا الأصل.", 503)
+                    reason = next((code for code in reversed(failures) if code in SOURCE_ERRORS), "DATA_UNAVAILABLE")
+                    return _response({"code": "DATA_UNAVAILABLE", "reason": reason,
+                                      "message": SOURCE_ERRORS[reason]}, 503)
                 now = _ms(utc_now())
                 if best["target_ms"] is not None and best["target_ms"] - now < MIN_LEAD * 1000:
                     best.update(direction="NO TRADE", target_ms=None, end_ms=None, confidence=None,

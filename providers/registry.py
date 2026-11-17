@@ -68,14 +68,14 @@ class DataSourceRegistry:
         return False
 
     async def fetch(self, asset: Asset, tf: Timeframe | str = "5min", limit: int = 300,
-                    *, with_quote: bool = True) -> MarketData:
+                    *, with_quote: bool = True, fresh: bool = False) -> MarketData:
         tf = timeframe(tf) if isinstance(tf, str) else tf
         key = (asset.key, tf.code, int(limit), with_quote)
         if self._cache_ttl <= 0:
             return await self._fetch_uncached(asset, tf, limit, with_quote)
 
         cached = self._cache.get(key)
-        if cached is not None and cached[0] > time.monotonic():
+        if not fresh and cached is not None and cached[0] > time.monotonic():
             return cached[1]
         pending = self._inflight.get(key)
         if pending is not None:

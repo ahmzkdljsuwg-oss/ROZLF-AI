@@ -165,3 +165,91 @@ async def test_signal_is_withheld_if_processing_uses_up_the_candle_window(monkey
     result = await api._analyze_frame(registry, assets_for(Market.FOREX)[0], "1min", "fast")
     assert result["direction"] == "NO TRADE"
     assert result["target_ms"] is None and result["confidence"] is None
+
+
+@pytest.mark.asyncio
+async def test_expired_registry_snapshot_refreshes_same_asset_without_quote(monkeypatch):
+    from providers.catalog import assets_for
+
+    clock = [datetime(2026, 11, 17, 13, 0, 1, tzinfo=timezone.utc)]
+    monkeypatch.setattr(api, "utc_now", lambda: clock[0])
+    feed = Feed()
+    registry = DataSourceRegistry([feed], cache_ttl=6, clock=lambda: clock[0])
+    asset = assets_for(Market.FOREX)[0]
+    await registry.fetch(asset, "1min", with_quote=False)
+    clock[0] += timedelta(seconds=60)
+    result = await api._analyze_frame(registry, asset, "1min", "fast")
+    assert feed.calls == [(asset.key, "1min"), (asset.key, "1min")]
+    assert result["data_issue"] is None
+    assert result["last_closed_ms"] == api._ms(clock[0] - timedelta(seconds=1))
+
+
+@pytest.mark.asyncio
+async def test_short_genuine_history_is_chart_only(monkeypatch):
+    from providers.catalog import assets_for
+
+    now = datetime(2026, 11, 17, 13, 0, 1, tzinfo=timezone.utc)
+    monkeypatch.setattr(api, "utc_now", lambda: now)
+
+    class Short(Feed):
+        async def fetch_candles(self, asset, tf, limit=300):
+            return make_candles(n=135, tf_seconds=tf.seconds, end=now - timedelta(seconds=tf.seconds + 1))
+
+    def forecast(*_):
+        pytest.fail("short history must not run a forecast")
+
+    monkeypatch.setattr(api, "analyze_market_data", forecast)
+    registry = DataSourceRegistry([Short()], cache_ttl=0, clock=lambda: now)
+    result = await api._analyze_frame(registry, assets_for(Market.FOREX)[0], "1min", "fast")
+    assert result["data_issue"] == "SHORT_HISTORY"
+    assert result["closed_count"] == 135 and len(result["candles"]) == 40
+    assert result["direction"] == "NO TRADE"
+    assert result["target_ms"] is None and result["confidence"] is None
+
+
+@pytest.mark.asyncio
+async def test_slow_candle_source_no_longer_capped_at_six_seconds(monkeypatch):
+    import asyncio
+    from providers.catalog import assets_for
+
+    now = datetime(2026, 11, 17, 13, 0, 1, tzinfo=timezone.utc)
+    monkeypatch.setattr(api, "utc_now", lambda: now)
+    assert api.FRAME_BUDGET["1min"] >= 16
+    real_wait_for = asyncio.wait_for
+
+    async def scaled_wait_for(task, timeout):
+        return await real_wait_for(task, timeout / 50)
+
+    monkeypatch.setattr(api.asyncio, "wait_for", scaled_wait_for)
+
+    class Slow(Feed):
+        async def fetch_candles(self, asset, tf, limit=300):
+            await asyncio.sleep(8 / 50)
+            return await super().fetch_candles(asset, tf, limit)
+
+    registry = DataSourceRegistry([Slow()], cache_ttl=0, clock=lambda: now)
+    outcome = await api._analyze_frame(registry, assets_for(Market.FOREX)[0], "1min", "fast")
+    assert outcome["closed_count"] == 250 and outcome["data_issue"] is None
+
+
+@pytest.mark.asyncio
+async def test_forex_rate_limit_is_reported_as_such(settings, monkeypatch):
+    from providers.catalog import assets_for
+
+    class Quota(Feed):
+        async def fetch_candles(self, asset, tf, limit=300):
+            raise DataUnavailable("RATE_LIMITED", "quota exhausted")
+
+    registry = DataSourceRegistry([Quota()], cache_ttl=0)
+    ctx = SimpleNamespace(registry=registry, inventory=None)
+    settings = replace(settings, subscriptions_enabled=False)
+    app = web.Application()
+    api.install(app, settings, lambda: ctx)
+    async with TestClient(TestServer(app)) as client:
+        auth = {"X-Telegram-Init-Data": signed(settings.telegram_bot_token)}
+        response = await client.post("/api/nexus-mini/v1/analyze", headers=auth, json={
+            "market": "forex", "asset": assets_for(Market.FOREX)[0].key, "mode": "fast",
+        })
+        assert response.status == 503
+        error = await response.json()
+        assert error["reason"] == "RATE_LIMITED" and "حد الطلبات" in error["message"]

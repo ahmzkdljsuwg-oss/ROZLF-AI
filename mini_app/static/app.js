@@ -3,10 +3,6 @@
 const tg = window.Telegram?.WebApp;
 const $ = (id) => document.getElementById(id);
 const state = { markets: [], active: "", mode: "fast", serial: 0, busy: false, last: null };
-const modes = {
-  fast: ["الشمعة الجاية، قبل افتتاحها", "يقرأ الشموع المغلقة ويختار إطارًا مناسبًا للشمعة القادمة."],
-  minute: ["تحليل شمعة الدقيقة", "إطار 60 ثانية، والاتجاه يطلع فقط إذا اجتاز شروط المعايرة."],
-};
 const localeTime = (ms) => new Intl.DateTimeFormat("ar-KW", {
   timeZone: "Asia/Kuwait", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
 }).format(ms);
@@ -20,8 +16,8 @@ const label = (tag, klass, value) => {
 try {
   tg?.ready();
   tg?.expand();
-  tg?.setHeaderColor?.("#080c0b");
-  tg?.setBackgroundColor?.("#080c0b");
+  tg?.setHeaderColor?.("#0c0c0e");
+  tg?.setBackgroundColor?.("#0c0c0e");
 } catch (_) { /* Older Telegram clients may ignore theme methods. */ }
 
 function connection(kind, message) {
@@ -39,7 +35,7 @@ async function call(path, body) {
   if (!tg?.initData) throw new Error("افتح الـMini App من زر البوت داخل تيليجرام.");
   const started = performance.now();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 23000);
+  const timeout = setTimeout(() => controller.abort(), 42000);
   try {
     const response = await fetch("/api/nexus-mini/v1/" + path, {
       method: body ? "POST" : "GET",
@@ -68,33 +64,41 @@ function renderMarkets() {
     button.addEventListener("click", () => { state.active = market.key; renderMarkets(); });
     root.append(button);
   }
-  $("market-count").textContent = state.markets.length ? state.markets.length + " أسواق" : "—";
   const market = state.markets.find((entry) => entry.key === state.active);
   const assets = $("assets");
   assets.replaceChildren();
   if (!market) return;
-  market.assets.forEach((asset, index) => {
-    const button = label("button", index === 0 ? "asset featured" : "asset");
+  const currencyFlags = { USD:"🇺🇸", EUR:"🇪🇺", JPY:"🇯🇵", GBP:"🇬🇧", AUD:"🇦🇺", CAD:"🇨🇦", CHF:"🇨🇭", NZD:"🇳🇿" };
+  market.assets.forEach((asset) => {
+    const button = label("button", "asset");
     button.type = "button";
     const row = label("span", "asset-inner");
     const copy = label("span", "asset-copy");
-    copy.append(label("b", "", asset.label), label("small", "", market.label + " · " + asset.symbol));
-    row.append(label("span", "asset-icon", market.icon), copy, label("span", "chev", "‹"));
-    button.append(row, label("span", "asset-cta", "حلّل الشمعة القادمة"));
+    copy.append(label("b", "", asset.label), label("small", "", market.label));
+    const icon = label("span", "asset-icon");
+    const components = asset.symbol.toUpperCase().match(/^([A-Z]{3})\/?([A-Z]{3})/);
+    if (components && currencyFlags[components[1]] && currencyFlags[components[2]]) {
+      icon.append(label("i", "", currencyFlags[components[1]]), label("i", "", currencyFlags[components[2]]));
+    } else {
+      icon.textContent = market.icon;
+    }
+    icon.setAttribute("aria-hidden", "true");
+    row.append(icon, copy, label("span", "asset-cta", "حلّل"));
+    button.append(row);
     button.addEventListener("click", () => analyze(market, asset));
     assets.append(button);
   });
 }
 
 async function loadMarkets() {
-  connection("pending", "يتحقق من الاتصال");
+  connection("pending", "يتصل");
   info("جاري تحميل أسواق البوت…");
   try {
     const { payload } = await call("markets");
     state.markets = payload.markets;
     if (!state.markets.some((market) => state.active === market.key)) state.active = state.markets[0]?.key || "";
     renderMarkets();
-    connection("ok", "المحرك متصل");
+    connection("ok", "متصل");
     info(state.markets.length ? "" : "ما فيه مصدر متاح حالياً.", !state.markets.length);
   } catch (error) {
     connection("error", tg?.initData ? "تعذّر الاتصال" : "داخل تيليجرام فقط");
@@ -155,7 +159,7 @@ function renderResult(root, snapshot) {
   field("volatility").textContent = ({ LOW: "منخفض", NORMAL: "طبيعي", HIGH: "عالٍ" })[result.volatility] || "—";
   field("reason").textContent = directional && serverNow() >= result.target_ms
     ? "الشمعة بدأت قبل وصول الرد، لذلك ما عُرض الاتجاه." : (result.reasons || []).join(" · ");
-  field("bars").textContent = result.closed_count + " شمعة للتحليل";
+  field("bars").textContent = result.closed_count + " شمعة";
   chart(field("chart"), result.candles);
   const price = (value) => new Intl.NumberFormat("en", { maximumFractionDigits: 8 }).format(value);
   for (const bar of result.candles.slice(-12).reverse()) {
@@ -192,7 +196,12 @@ async function analyze(market, asset) {
     renderResult($("last-content"), snapshot);
     if (sheet.open) renderResult(body, snapshot);
   } catch (error) {
-    if (requestId === state.serial && sheet.open) body.replaceChildren(label("p", "notice", error.message));
+    if (requestId === state.serial && sheet.open) {
+      const retry = label("button", "line-button", "إعادة المحاولة");
+      retry.type = "button";
+      retry.addEventListener("click", () => { closeSheet(); analyze(market, asset); });
+      body.replaceChildren(label("p", "notice", error.message), retry);
+    }
   } finally {
     if (requestId === state.serial) state.busy = false;
   }
@@ -200,16 +209,14 @@ async function analyze(market, asset) {
 
 $("close").addEventListener("click", closeSheet);
 $("sheet").addEventListener("close", () => {
-  try { tg?.BackButton?.hide(); } catch (_) {}
+  if (!$("sheet").open) { try { tg?.BackButton?.hide(); } catch (_) {} }
 });
 tg?.BackButton?.onClick?.(closeSheet);
 $("reload").addEventListener("click", loadMarkets);
 document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => {
   state.mode = b.dataset.mode;
   document.querySelectorAll("[data-mode]").forEach((item) => item.setAttribute("aria-pressed", String(item === b)));
-  const [title, note] = modes[state.mode];
-  $("mode-title").textContent = title;
-  $("mode-note").textContent = note;
+
 }));
 document.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => {
   document.querySelectorAll("[data-tab]").forEach((item) => {
@@ -220,4 +227,5 @@ document.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click
   if (b.dataset.tab === "last" && state.last) renderResult($("last-content"), state.last);
   window.scrollTo(0, 0);
 }));
+setTimeout(() => { $("splash").hidden = true; }, 790);
 loadMarkets();
