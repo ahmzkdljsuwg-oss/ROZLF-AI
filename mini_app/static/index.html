@@ -6,28 +6,28 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#090b16">
   <title>NEXUS AI • Mini App</title>
-  <link rel="stylesheet" href="/mini-app/app.css?v=1">
+  <link rel="stylesheet" href="/mini-app/app.css?v=2">
   <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script defer src="/mini-app/app.js?v=1"></script>
+  <script defer src="/mini-app/app.js?v=2"></script>
 </head>
 <body>
   <main class="shell">
     <header class="top">
-      <div class="brand"><span class="mark" aria-hidden="true">✦</span><div><b dir="ltr">NEXUS AI</b><small>محطّة تحليل الشموع</small></div></div>
+      <div class="brand"><span class="mark" aria-hidden="true">✦</span><div><b dir="ltr">NEXUS AI</b><small>تحليل السوق · الشمعة القادمة</small></div></div>
       <span id="status" class="status" data-state="pending"><i></i><span>يتحقق من الاتصال</span></span>
     </header>
 
     <section id="view-markets" aria-label="الأسواق">
-      <div class="heading"><div><span class="eyebrow">NEXUS TERMINAL / 01</span><h1>التحليل</h1></div><span class="index">✧</span></div>
+      <div class="heading"><div><span class="eyebrow">LIVE MARKETS</span><h1>التحليل</h1></div></div>
       <div id="modes" class="modes" aria-label="وضع التحليل">
         <button type="button" data-mode="fast" aria-pressed="true">⚡ تحليل سريع</button>
         <button type="button" data-mode="minute" aria-pressed="false">◷ تحليل دقيقة</button>
       </div>
       <div class="hero">
-        <span class="overline">NEXT CANDLE</span>
+        <span class="overline">NEXT CANDLE FORECAST</span>
         <h2 id="mode-title">الشمعة الجاية، قبل افتتاحها</h2>
-        <p id="mode-note">نفس منطق /lo، والمحرك يختار إطار الشمعة من البيانات المتاحة.</p>
-        <div class="decoration" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+        <p id="mode-note">تحليل الشموع المغلقة وتحديد وقت الشمعة القادمة تلقائيًا.</p>
+        
       </div>
       <div class="section-label"><h2>أسواق البوت</h2><span id="market-count">—</span></div>
       <div id="markets" class="market-row" role="group" aria-label="اختيار السوق"></div>
@@ -37,12 +37,12 @@
     </section>
 
     <section id="view-last" hidden>
-      <div class="heading"><div><span class="eyebrow">NEXUS TERMINAL / 02</span><h1>آخر تحليل</h1></div><span class="index">⌁</span></div>
+      <div class="heading"><div><span class="eyebrow">RECENT ANALYSIS</span><h1>آخر تحليل</h1></div></div>
       <div id="last-content" class="notice">ما فيه تحليل في هالجلسة للحين.</div>
     </section>
 
     <section id="view-info" hidden>
-      <div class="heading"><div><span class="eyebrow">NEXUS TERMINAL / 03</span><h1>عن المحرك</h1></div><span class="index">ⓘ</span></div>
+      <div class="heading"><div><span class="eyebrow">ENGINE INFO</span><h1>عن المحرك</h1></div></div>
       <div class="notice about">
         <h2>السريع والدقيقة</h2>
         <p>السريع يستخدم نفس منطق <b dir="ltr">/lo</b> على شموع مغلقة. اتجاهه فني غير معاير.</p>
@@ -53,9 +53,9 @@
   </main>
 
   <nav class="bottom" aria-label="التنقّل">
-    <button type="button" data-tab="markets" aria-current="page"><b>✦</b><span>الأسواق</span></button>
-    <button type="button" data-tab="last"><b>⌁</b><span>آخر تحليل</span></button>
-    <button type="button" data-tab="info"><b>ⓘ</b><span>المعلومات</span></button>
+    <button type="button" data-tab="markets" aria-current="page"><b>▤</b><span>الأسواق</span></button>
+    <button type="button" data-tab="last"><b>▥</b><span>آخر تحليل</span></button>
+    <button type="button" data-tab="info"><b>⚙</b><span>المعلومات</span></button>
   </nav>
 
   <dialog id="sheet" aria-labelledby="sheet-title">
