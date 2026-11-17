@@ -4,7 +4,7 @@ const tg = window.Telegram?.WebApp;
 const $ = (id) => document.getElementById(id);
 const state = { markets: [], active: "", mode: "fast", serial: 0, busy: false, last: null };
 const modes = {
-  fast: ["الشمعة الجاية، قبل افتتاحها", "نفس منطق /lo، والمحرك يختار إطار الشمعة من البيانات المتاحة."],
+  fast: ["الشمعة الجاية، قبل افتتاحها", "يقرأ الشموع المغلقة ويختار إطارًا مناسبًا للشمعة القادمة."],
   minute: ["تحليل شمعة الدقيقة", "إطار 60 ثانية، والاتجاه يطلع فقط إذا اجتاز شروط المعايرة."],
 };
 const localeTime = (ms) => new Intl.DateTimeFormat("ar-KW", {
@@ -20,8 +20,8 @@ const label = (tag, klass, value) => {
 try {
   tg?.ready();
   tg?.expand();
-  tg?.setHeaderColor?.("#090b16");
-  tg?.setBackgroundColor?.("#090b16");
+  tg?.setHeaderColor?.("#080c0b");
+  tg?.setBackgroundColor?.("#080c0b");
 } catch (_) { /* Older Telegram clients may ignore theme methods. */ }
 
 function connection(kind, message) {
@@ -110,7 +110,7 @@ function chart(canvas, candles) {
   const max = Math.max(...candles.map((bar) => bar.high));
   const min = Math.min(...candles.map((bar) => bar.low));
   const y = (value) => height - 18 - ((value - min) / Math.max(max - min, 1e-10)) * (height - 36);
-  ctx.strokeStyle = "#24304a";
+  ctx.strokeStyle = "#213a2b";
   ctx.lineWidth = 1;
   for (let i = 1; i < 6; i++) {
     ctx.beginPath(); ctx.moveTo(0, i * height / 6); ctx.lineTo(width, i * height / 6); ctx.stroke();
@@ -118,7 +118,7 @@ function chart(canvas, candles) {
   const step = width / candles.length;
   candles.forEach((bar, index) => {
     const x = (index + 0.5) * step, half = step * 0.26;
-    ctx.fillStyle = bar.close >= bar.open ? "#64e6b4" : "#ed7291";
+    ctx.fillStyle = bar.close >= bar.open ? "#47d99a" : "#ee857f";
     ctx.fillRect(x - 1, y(bar.high), 2, Math.max(2, y(bar.low) - y(bar.high)));
     ctx.fillRect(x - half, y(Math.max(bar.open, bar.close)), half * 2, Math.max(2, Math.abs(y(bar.close) - y(bar.open))));
   });
