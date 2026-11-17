@@ -81,6 +81,13 @@ async def _analyze_frame(registry, asset, frame, mode):
     ):
         direction = "NO TRADE"
         reasons = ["نافذة الشمعة قصيرة، أعد الفحص للشمعة التالية."]
+    # Avoid presenting a high-volatility range as a reliable next-candle entry.
+    # Only affects the Mini App; Telegram /lo remains unchanged.
+    if (mode == "fast" and direction in ("UP", "DOWN")
+            and result.indicators.get("trend") == "RANGE"
+            and result.indicators.get("volatility") == "HIGH"):
+        direction = "NO TRADE"
+        reasons = ["السوق عرضي ومتذبذب بقوة؛ لا توجد أفضلية واضحة للشمعة القادمة."]
     if mode == "minute" and not result.confidence_verified and direction in ("UP", "DOWN"):
         direction = "NO TRADE"
         reasons = ["لا توجد معايرة صالحة لهذا الفريم."]
