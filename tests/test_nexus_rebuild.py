@@ -143,3 +143,21 @@ async def test_normal_forex_fallback_rejects_otc_and_wrong_duration(eurusd):
         configured=True, _get=get, _check_market=ExpertOptionBridgeProvider._check_market))
     with pytest.raises(DataUnavailable, match="exact instrument"):
         await provider.fetch_candles(eurusd, timeframe("1min"))
+
+
+@pytest.mark.asyncio
+async def test_telegram_scan_panel_uses_personal_preference_and_hides_owner_controls(settings, repo, monkeypatch):
+    from bot.handlers import menus
+
+    scanner = SimpleNamespace(running=True, last_run=None, market_selection=lambda: ["OTC", "SMARTY"])
+    monkeypatch.setattr(menus, "get_context", lambda: SimpleNamespace(scanner=scanner, repo=repo, settings=settings))
+    answers = []
+    async def answer(text, reply_markup):
+        answers.append((text, [b.callback_data for row in reply_markup.inline_keyboard for b in row]))
+    msg = SimpleNamespace(from_user=SimpleNamespace(id=42), answer=answer)
+    await menus.cmd_scan(msg)
+    assert "متوقفة" in answers[0][0] and "scan:toggle" in answers[0][1]
+    assert not any(item.startswith("scan:mk:") for item in answers[0][1])
+    await repo.set_scanner_opt_in(42, True)
+    await menus.cmd_scan(msg)
+    assert "مفعّلة" in answers[1][0]

@@ -599,9 +599,9 @@ async def cmd_scan(message: Message) -> None:
     if scanner is None:
         await message.answer("الماسح غير مهيأ.")
         return
-    await message.answer(
-        _scanner_text(ctx), reply_markup=menus.scanner_menu(scanner.running, scanner.market_selection())
-    )
+    enabled = await ctx.repo.scanner_opt_in(message.from_user.id)
+    body, keyboard = _scanner_panel(ctx, message.from_user.id, enabled)
+    await message.answer(body, reply_markup=keyboard)
 
 
 @router.message(Command("marketstatus"))
@@ -1700,6 +1700,11 @@ async def cb_scanner(callback: CallbackQuery) -> None:
 
 
 async def _show_scanner(callback, ctx, enabled):
+    body, keyboard = _scanner_panel(ctx, callback.from_user.id, enabled)
+    await _edit(callback, body, keyboard)
+
+
+def _scanner_panel(ctx, user_id, enabled):
     scanner = ctx.scanner
     selection = scanner.market_selection()
     state = "مفعّلة" if enabled else "متوقفة"
@@ -1709,8 +1714,8 @@ async def _show_scanner(callback, ctx, enabled):
             "يبحث باستمرار عند التشغيل. إذا ما توفرت قراءة موثوقة، لا يرسل شيئاً.")
     if scanner.last_run:
         body += f"\nآخر فحص · {fmt.local_time(scanner.last_run)}"
-    await _edit(callback, body, menus.scanner_menu(
-        enabled, selection, can_manage=callback.from_user.id in ctx.settings.owner_ids))
+    return body, menus.scanner_menu(
+        enabled, selection, can_manage=user_id in ctx.settings.owner_ids)
 
 
 @router.callback_query(F.data == "scan:now")
