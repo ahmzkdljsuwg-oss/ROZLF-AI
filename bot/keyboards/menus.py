@@ -193,6 +193,7 @@ def nexus_tools_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for index in range(0, len(NEXUS_TOOL_BUTTONS), 2):
         builder.row(*[_button(text, data) for text, data in NEXUS_TOOL_BUTTONS[index:index + 2]])
+    builder.row(_button("⚡ سريع", "nx:mode:fast"), _button("🎯 قوي", "nx:mode:pro"))
     builder.row(_button("🔙 الأسواق", "nx:analyse"), _button("🏠 الرئيسية", "nx:home"))
     return builder.as_markup()
 
@@ -231,7 +232,7 @@ def market_menu(market: Market, assets: list[Asset] | None = None) -> InlineKeyb
     builder.row(
         _button("🔄 REFRESH", f"mkt:{market.value}"),
         _button("🌐 MARKETS", "markets"),
-        _button("🏠 MAIN", "nx:home"),
+        _button("🏠 الرئيسية", "nx:home"),
     )
     return builder.as_markup()
 
@@ -242,7 +243,7 @@ def duration_method_menu(asset: Asset) -> InlineKeyboardMarkup:
     builder.row(_button("✋ MANUAL DURATION · I SELECT", f"dur:manual:{asset.key}"))
     builder.row(
         _button("🔙 BACK", f"mkt:{asset.market.value}"),
-        _button("🏠 MAIN", "nx:home"),
+        _button("🏠 الرئيسية", "nx:home"),
     )
     return builder.as_markup()
 
@@ -269,7 +270,7 @@ def manual_duration_menu(asset: Asset, durations: list[int]) -> InlineKeyboardMa
     builder.adjust(3)
     builder.row(
         _button("🔙 DURATION MODE", f"pick:{asset.key}"),
-        _button("🏠 MAIN", "nx:home"),
+        _button("🏠 الرئيسية", "nx:home"),
     )
     return builder.as_markup()
 
@@ -287,7 +288,7 @@ def smarty_assets_menu(assets: list[Asset]) -> InlineKeyboardMarkup:
     builder.adjust(1)
     builder.row(
         _button("🔄 REFRESH", "mkt:SMARTY"),
-        _button("🏠 MAIN", "nx:home"),
+        _button("🏠 الرئيسية", "nx:home"),
     )
     return builder.as_markup()
 
@@ -302,7 +303,7 @@ def smarty_menu(asset: Asset, durations: tuple[int, ...] | None = None) -> Inlin
     builder.adjust(2)
     builder.row(
         _button("🔙 ASSETS", "mkt:SMARTY"),
-        _button("🏠 MAIN", "nx:home"),
+        _button("🏠 الرئيسية", "nx:home"),
     )
     return builder.as_markup()
 
@@ -316,7 +317,7 @@ def index_assets_menu(market: Market, assets: list[Asset]) -> InlineKeyboardMark
         builder.row(_button("📊 MT5 MARKET ANALYSIS", "mt5:list"))
     builder.row(
         _button("🔄 REFRESH", f"mkt:{market.value}"),
-        _button("🏠 MAIN", "nx:home"),
+        _button("🏠 الرئيسية", "nx:home"),
     )
     return builder.as_markup()
 
@@ -331,7 +332,7 @@ def index_menu(asset: Asset, durations: tuple[int, ...] | None = None) -> Inline
     builder.adjust(2)
     builder.row(
         _button("🔙 ASSETS", f"mkt:{asset.market.value}"),
-        _button("🏠 MAIN", "nx:home"),
+        _button("🏠 الرئيسية", "nx:home"),
     )
     return builder.as_markup()
 
@@ -340,7 +341,7 @@ def unavailable_menu(market: Market) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
         _button("🔄 RETRY", f"mkt:{market.value}"),
-        _button("🏠 MAIN", "nx:home"),
+        _button("🏠 الرئيسية", "nx:home"),
     )
     return builder.as_markup()
 
@@ -353,7 +354,7 @@ def asset_menu(asset: Asset) -> InlineKeyboardMarkup:
     builder.adjust(2, 2, 1)
     builder.row(
         _button("🔙 BACK", f"mkt:{asset.market.value}"),
-        _button("🏠 MAIN", "nx:home"),
+        _button("🏠 الرئيسية", "nx:home"),
     )
     return builder.as_markup()
 
@@ -383,30 +384,31 @@ def analysis_actions(asset: Asset, frame_code: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def scanner_menu(running: bool, markets: list[str]) -> InlineKeyboardMarkup:
+def scanner_menu(running: bool, markets: list[str], *, can_manage: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        _button("⏹ STOP SCANNER" if running else "▶️ START SCANNER", "scan:toggle"),
-        _button("⚡ SCAN NOW", "scan:now"),
+        _button("⏹ إيقاف التوصيات" if running else "▶️ تشغيل التوصيات", "scan:toggle"),
+        _button("⚡ فحص الآن", "scan:now"),
     )
-    builder.row(
-        _button("💱 FOREX " + ("✅" if "FOREX" in markets else "⬜"), "scan:mk:FOREX"),
-        _button("🧠 SMARTY " + ("✅" if "SMARTY" in markets else "⬜"), "scan:mk:SMARTY"),
-    )
-    builder.row(
-        _button("🤖 AI " + ("✅" if "AI" in markets else "⬜"), "scan:mk:AI"),
-        _button("⚽ FOOTBALL " + ("✅" if "FOOTBALL" in markets else "⬜"), "scan:mk:FOOTBALL"),
-    )
-    builder.row(
-        _button("💎 LUXURY " + ("✅" if "LUXURY" in markets else "⬜"), "scan:mk:LUXURY"),
-        _button("🏏 CRICKET " + ("✅" if "CRICKET" in markets else "⬜"), "scan:mk:CRICKET"),
-    )
-    builder.row(
-        _button("💱 OTC " + ("✅" if "OTC" in markets else "⬜"), "scan:mk:OTC"),
-        _button("🥇 GOLD " + ("✅" if "GOLD" in markets else "⬜"), "scan:mk:GOLD"),
-    )
-    builder.row(_button("🔄 UPDATE", "scan:menu"))
-    builder.row(_button("🏠 MAIN", "nx:home"))
+    if can_manage:
+        builder.row(
+            _button("💱 FOREX " + ("✅" if "FOREX" in markets else "⬜"), "scan:mk:FOREX"),
+            _button("🧠 SMARTY " + ("✅" if "SMARTY" in markets else "⬜"), "scan:mk:SMARTY"),
+        )
+        builder.row(
+            _button("🤖 AI " + ("✅" if "AI" in markets else "⬜"), "scan:mk:AI"),
+            _button("⚽ FOOTBALL " + ("✅" if "FOOTBALL" in markets else "⬜"), "scan:mk:FOOTBALL"),
+        )
+        builder.row(
+            _button("💎 LUXURY " + ("✅" if "LUXURY" in markets else "⬜"), "scan:mk:LUXURY"),
+            _button("🏏 CRICKET " + ("✅" if "CRICKET" in markets else "⬜"), "scan:mk:CRICKET"),
+        )
+        builder.row(
+            _button("💱 OTC " + ("✅" if "OTC" in markets else "⬜"), "scan:mk:OTC"),
+            _button("🥇 GOLD " + ("✅" if "GOLD" in markets else "⬜"), "scan:mk:GOLD"),
+        )
+    builder.row(_button("🔄 تحديث", "scan:menu"))
+    builder.row(_button("🏠 الرئيسية", "nx:home"))
     return builder.as_markup()
 
 
@@ -446,7 +448,7 @@ def mt5_pairs_menu(assets: list[Asset], page: int = 0, per_page: int = 20) -> In
         builder.row(*nav)
     builder.row(
         _button("🔄 REFRESH", "mt5:list"),
-        _button("🏠 MAIN", "nx:home"),
+        _button("🏠 الرئيسية", "nx:home"),
     )
     return builder.as_markup()
 
@@ -458,7 +460,7 @@ def mt5_duration_menu(asset: Asset) -> InlineKeyboardMarkup:
     builder.adjust(2)
     builder.row(
         _button("🔙 BACK", "mt5:list"),
-        _button("🏠 MAIN", "nx:home"),
+        _button("🏠 الرئيسية", "nx:home"),
     )
     return builder.as_markup()
 
@@ -468,6 +470,6 @@ def mt5_result_menu(asset: Asset) -> InlineKeyboardMarkup:
     builder.row(_button("🔄 RE-ANALYSE", f"mt5p:{asset.key}"))
     builder.row(
         _button("🔙 PAIRS", "mt5:list"),
-        _button("🏠 MAIN", "nx:home"),
+        _button("🏠 الرئيسية", "nx:home"),
     )
     return builder.as_markup()

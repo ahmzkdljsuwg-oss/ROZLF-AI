@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from datetime import datetime
+import asyncio
+from datetime import timedelta
 
 from config import Settings
 from database.repository import Repository, SignalRecord
@@ -56,10 +58,13 @@ class SignalGenerator:
         asset: Asset,
         tf: Timeframe | str,
         duration_seconds: int | None = None,
+        *,
+        with_quote: bool = True,
+        analysis_mode: str = "strong",
     ) -> tuple[MarketData, AnalysisResult]:
         tf = timeframe(tf) if isinstance(tf, str) else tf
-        market_data = await self.registry.fetch(asset, tf)
-        result = analyze_market_data(market_data, duration_seconds=duration_seconds)
+        market_data = await self.registry.fetch(asset, tf, with_quote=with_quote)
+        result = await asyncio.to_thread(analyze_market_data, market_data, None, duration_seconds, analysis_mode)
         return market_data, result
 
     async def create_signal(
@@ -68,12 +73,18 @@ class SignalGenerator:
         result: AnalysisResult,
         duration_seconds: int,
         now: datetime | None = None,
+        *,
+        candle_target: bool = False,
     ) -> SignalRecord:
         if result.direction not in ("UP", "DOWN"):
             raise ValueError("Only UP/DOWN analyses can become signals")
         asset = get_asset(result.asset_key)
         allowed = supported_durations(asset, timeframe(result.timeframe))
-        if duration_seconds not in allowed:
+        if candle_target:
+            if (result.target_open_at is None or result.target_open_at <= utc_now()
+                or duration_seconds != timeframe(result.timeframe).seconds):
+                raise ValueError("Invalid or late target candle")
+        elif duration_seconds not in allowed:
             raise ValueError(f"Duration {duration_seconds}s is not supported for {result.timeframe}")
         now = now or utc_now()
         return await self.repo.add_signal(
@@ -90,6 +101,8 @@ class SignalGenerator:
             warnings=result.warnings,
             expiry_seconds=duration_seconds,
             created_at=now,
+            target_open_at=result.target_open_at if candle_target else None,
+            analysis_mode="scanner" if candle_target else None,
         )
 
     async def generate(
@@ -121,9 +134,11 @@ class SignalGenerator:
 
     async def scan_asset(self, asset: Asset, tf: Timeframe | str, min_confidence: float) -> AnalysisResult | None:
         try:
-            _, result = await self.fetch_and_analyse(asset, tf)
+            _, result = await self.fetch_and_analyse(asset, tf, with_quote=False)
         except DataUnavailable:
             return None
-        if result.direction == "NO TRADE" or result.confidence < min_confidence:
+        if (result.direction == "NO TRADE" or result.confidence < min_confidence
+                or not result.confidence_verified or result.target_open_at is None
+                or result.target_open_at <= utc_now() + timedelta(seconds=2)):
             return None
         return result

@@ -1,231 +1,290 @@
 "use strict";
-
-const tg = window.Telegram?.WebApp;
 const $ = (id) => document.getElementById(id);
-const state = { markets: [], active: "", mode: "fast", serial: 0, busy: false, last: null };
-const localeTime = (ms) => new Intl.DateTimeFormat("ar-KW", {
-  timeZone: "Asia/Kuwait", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
-}).format(ms);
-const label = (tag, klass, value) => {
-  const node = document.createElement(tag);
-  if (klass) node.className = klass;
-  if (value !== undefined) node.textContent = value;
-  return node;
+const webapp = window.Telegram?.WebApp;
+const auth = webapp?.initData || "";
+const api = "/api/nexus-mini/v1";
+const state = {data: null, page: "home", request: null, busy: false, failed: null};
+const initialText = new WeakMap();
+const strings = {
+  "مرصد الأسواق":"Market observatory","جارٍ التحقق":"Checking","متصل بالخادم":"Backend online",
+  "بدون اتصال":"Backend offline","افتح من Telegram":"Open in Telegram","غير مفعّل":"Access not active",
+  "اقرأ السوق":"Read the market","شمعة بشمعة.":"One candle at a time.",
+  "تحليل فني من بيانات السوق، مع توقيت واضح وسبب لكل قراءة.":"Technical readings with market data, timing and evidence.",
+  "ابدأ التحليل":"Start analysis","الأسواق ببيانات حديثة":"Markets with fresh data","بانتظار التحقق":"Waiting for verification",
+  "الماسح التلقائي":"Auto scanner","نبض الأسواق":"Market pulse","عرض الكل":"View all","آخر التنبيهات":"Recent alerts",
+  "السجل":"Feed","الأسواق":"Markets","حالة الشموع من مصدرها. «لم يُفحص» لا تعني أن السوق مغلق.":"Freshness is checked at the source. Unchecked does not mean closed.",
+  "مختبر التحليل":"Analysis lab","شموع أصلية مغلقة فقط. وقت الكويت.":"Native closed candles only. Kuwait time.",
+  "وضع التحليل":"Analysis mode","تحليل سريع":"Quick technical reading","أدلة ومعايرة":"Evidence and calibration",
+  "السوق":"Market","الأصل":"Asset","المدة":"Duration","حلّل الآن":"Analyze now","تحليل جارٍ":"Analyzing",
+  "سجل التنبيهات":"Live alerts","تنبيهات حسابك التي أقرّ Telegram استلامها قبل بداية الشمعة.":"Your alerts acknowledged by Telegram before the target opened.",
+  "الأداء المتحقق":"Verified performance","قياس اتجاه الشمعة، وليس ربح صفقة. لا تدخل الحالات المعلّقة أو التعادل في نسبة المطابقة.":"Directional accuracy, not profit. Pending and tied results are not counted.",
+  "زمن جلب الشموع":"Candle fetch latency","الإعدادات":"Settings","التفضيلات مرتبطة بحسابك. التحليل لا ينفّذ أي صفقات.":"Preferences are account-specific. Analysis does not execute trades.",
+  "تنبيهات الماسح":"Scanner alerts","تشغيل وإيقاف توصيات Telegram":"Enable or disable Telegram alerts",
+  "الوضع الافتراضي":"Default mode","يتزامن مع وضع تحليل البوت":"Synced with the bot",
+  "اللغة":"Language","تغيير لغة الواجهة على جهازك":"Change the language on this device",
+  "الرئيسية":"Home","التحليل":"Analysis","الأداء":"Stats","انتقل للمحتوى":"Skip to content",
+  "NEXUS AI · متابعة فنية فقط، لا تنفيذ للصفقات":"NEXUS AI · Technical analysis only. No orders executed.",
+  "مُفعّل":"Enabled","متوقف":"Off","بانتظار الخدمة":"Service unavailable","لم يُفحص":"Unchecked",
+  "شموع حديثة":"Fresh candles","آخر بيانات متقادمة":"Data is stale","آخر فحص":"Last scan",
+  "لا توجد تنبيهات مؤكدة لهذا الحساب حتى الآن.":"No acknowledged alerts for this account yet.",
+  "ما فيه نتائج مسجلة حتى الآن.":"No results yet.","لا توجد عينات زمنية كافية.":"No timed samples yet.",
+  "صعود":"Up","هبوط":"Down","وافق الاتجاه":"Matched","خالف الاتجاه":"Missed","معلّق":"Pending","تعادل":"Tie",
+  "غير متحقق":"Unverified","لا توجد أصول متاحة":"No assets available","تلقائي":"Auto","الثقة":"Confidence",
+  "المصدر":"Source","الشمعة المستهدفة":"Target candle","آخر إغلاق":"Last close","زمن المعالجة":"Processing time",
+  "جارٍ قراءة الشموع المغلقة…":"Reading closed candles…","أعد المحاولة":"Try again",
+  "افتح Mini App من زر البوت داخل Telegram لعرض حسابك.":"Open this Mini App from the bot in Telegram.",
+  "تعذر الوصول إلى خادم NEXUS الآن.":"The NEXUS backend could not be reached."
 };
-
-try {
-  tg?.ready();
-  tg?.expand();
-  tg?.setHeaderColor?.("#0c0c0e");
-  tg?.setBackgroundColor?.("#0c0c0e");
-} catch (_) { /* Older Telegram clients may ignore theme methods. */ }
-
-function connection(kind, message) {
-  $("status").dataset.state = kind;
-  $("status").lastElementChild.textContent = message;
+let lang = "ar";
+try { lang = localStorage.getItem("nexus-language") === "en" ? "en" : "ar"; } catch (_) {}
+const t = (msg) => lang === "en" ? (strings[msg] || msg) : msg;
+function applyLanguage() {
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  $("lang").value = lang;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    if (node.parentElement.closest("#notice,#home-markets,#markets-list,#home-feed,#signals-list,#performance-list,#latency-list,#analysis-result,#connection-text,#scan-state,#scan-time,#market-count,#market-total,#pref-scanner-hint,#market,#asset,#frame")) continue;
+    if (node.parentElement.closest("#analyze-button") && state.busy) continue;
+    const original = initialText.get(node) || node.nodeValue.trim();
+    if (strings[original]) { initialText.set(node, original); node.nodeValue = t(original); }
+  }
 }
-
-function info(message, retry = false) {
-  $("feedback").hidden = !message;
-  $("feedback").textContent = message || "";
-  $("reload").hidden = !retry;
+function el(tag, content, cls) {
+  const node = document.createElement(tag);
+  if (content != null) node.textContent = content;
+  if (cls) node.className = cls;
+  return node;
 }
+const clock = (ms) => ms == null ? "—" : new Intl.DateTimeFormat(lang === "ar" ? "ar-KW" : "en-GB", {
+  timeZone: "Asia/Kuwait", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+}).format(new Date(ms));
+const number = (n) => new Intl.NumberFormat(lang === "ar" ? "ar-KW" : "en", {maximumFractionDigits: 2}).format(n);
+const duration = (n) => n == null ? "—" : n < 60 ? number(n) + (lang === "en" ? " sec" : " ث") :
+  number(n / 60) + (lang === "en" ? " min" : " د");
+const statusLabel = (s) => t(({ACTIVE:"معلّق",PENDING:"معلّق",WIN:"وافق الاتجاه",LOSS:"خالف الاتجاه",DRAW:"تعادل",UNVERIFIED:"غير متحقق"})[String(s).toUpperCase()] || "غير متحقق");
+const resultLabel = (s) => s === "UP" ? t("صعود") : s === "DOWN" ? t("هبوط") : "NO TRADE";
+const barsState = (s) => t(({online:"شموع حديثة",stale:"آخر بيانات متقادمة"})[s] || "لم يُفحص");
 
-async function call(path, body) {
-  if (!tg?.initData) throw new Error("افتح الـMini App من زر البوت داخل تيليجرام.");
-  const started = performance.now();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 42000);
+function setConnection(kind, label, banner = "") {
+  $("connection").dataset.state = kind;
+  $("connection-text").textContent = t(label);
+  $("notice").textContent = t(banner);
+  $("notice").hidden = !banner;
+}
+async function request(path, data = null, signal = null) {
+  const own = new AbortController();
+  const cancel = () => own.abort();
+  if (signal?.aborted) cancel();
+  signal?.addEventListener("abort", cancel, {once:true});
+  const timeout = setTimeout(cancel, path === "/analyze" ? 42000 : 12000);
   try {
-    const response = await fetch("/api/nexus-mini/v1/" + path, {
-      method: body ? "POST" : "GET",
-      headers: { "X-Telegram-Init-Data": tg.initData, "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-      cache: "no-store",
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.message || "تعذّر إكمال الطلب.");
-    return { payload, rtt: performance.now() - started };
-  } catch (error) {
-    if (error.name === "AbortError") throw new Error("انتهت مهلة الاتصال. حاول مرة ثانية.");
-    if (error instanceof TypeError || error instanceof SyntaxError) throw new Error("الخادم ما رد بالشكل المتوقع. حاول مرة ثانية.");
-    throw error;
-  } finally { clearTimeout(timeout); }
+    const headers = {"X-Telegram-Init-Data": auth, "Accept":"application/json"};
+    const params = {headers, signal: own.signal, cache:"no-store"};
+    if (data !== null) { params.method = "POST"; headers["Content-Type"] = "application/json"; params.body = JSON.stringify(data); }
+    const response = await fetch(api + path, params);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw Object.assign(new Error(payload.message || t("تعذر الوصول إلى خادم NEXUS الآن.")), {code: payload.code, http:response.status});
+    return payload;
+  } finally { clearTimeout(timeout); signal?.removeEventListener("abort", cancel); }
 }
-
-function renderMarkets() {
-  const root = $("markets");
-  root.replaceChildren();
-  for (const market of state.markets) {
-    const button = label("button", "", market.icon + " " + market.label);
-    button.type = "button";
-    button.setAttribute("aria-pressed", String(state.active === market.key));
-    button.addEventListener("click", () => { state.active = market.key; renderMarkets(); });
-    root.append(button);
+function show(page) {
+  if (!document.querySelector(".page#" + CSS.escape(page))) return;
+  if (state.page !== page && state.request && page !== "analysis") state.request.abort();
+  state.page = page;
+  for (const section of document.querySelectorAll(".page")) section.hidden = section.id !== page;
+  for (const button of document.querySelectorAll(".nav button")) {
+    if (button.dataset.go === page) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
   }
-  const market = state.markets.find((entry) => entry.key === state.active);
-  const assets = $("assets");
-  assets.replaceChildren();
-  if (!market) return;
-  const currencyFlags = { USD:"🇺🇸", EUR:"🇪🇺", JPY:"🇯🇵", GBP:"🇬🇧", AUD:"🇦🇺", CAD:"🇨🇦", CHF:"🇨🇭", NZD:"🇳🇿" };
-  market.assets.forEach((asset) => {
-    const button = label("button", "asset");
-    button.type = "button";
-    const row = label("span", "asset-inner");
-    const copy = label("span", "asset-copy");
-    copy.append(label("b", "", asset.label), label("small", "", market.label));
-    const icon = label("span", "asset-icon");
-    const components = asset.symbol.toUpperCase().match(/^([A-Z]{3})\/?([A-Z]{3})/);
-    if (components && currencyFlags[components[1]] && currencyFlags[components[2]]) {
-      icon.append(label("i", "", currencyFlags[components[1]]), label("i", "", currencyFlags[components[2]]));
-    } else {
-      icon.textContent = market.icon;
-    }
-    icon.setAttribute("aria-hidden", "true");
-    row.append(icon, copy, label("span", "asset-cta", "حلّل"));
-    button.append(row);
-    button.addEventListener("click", () => analyze(market, asset));
-    assets.append(button);
-  });
-}
-
-async function loadMarkets() {
-  connection("pending", "يتصل");
-  info("جاري تحميل أسواق البوت…");
-  try {
-    const { payload } = await call("markets");
-    state.markets = payload.markets;
-    if (!state.markets.some((market) => state.active === market.key)) state.active = state.markets[0]?.key || "";
-    renderMarkets();
-    connection("ok", "متصل");
-    info(state.markets.length ? "" : "ما فيه مصدر متاح حالياً.", !state.markets.length);
-  } catch (error) {
-    connection("error", tg?.initData ? "تعذّر الاتصال" : "داخل تيليجرام فقط");
-    info(error.message, Boolean(tg?.initData));
-  }
-}
-
-function chart(canvas, candles) {
-  if (!candles.length) { canvas.hidden = true; return; }
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  const width = canvas.width, height = canvas.height;
-  const max = Math.max(...candles.map((bar) => bar.high));
-  const min = Math.min(...candles.map((bar) => bar.low));
-  const y = (value) => height - 18 - ((value - min) / Math.max(max - min, 1e-10)) * (height - 36);
-  ctx.strokeStyle = "#213a2b";
-  ctx.lineWidth = 1;
-  for (let i = 1; i < 6; i++) {
-    ctx.beginPath(); ctx.moveTo(0, i * height / 6); ctx.lineTo(width, i * height / 6); ctx.stroke();
-  }
-  const step = width / candles.length;
-  candles.forEach((bar, index) => {
-    const x = (index + 0.5) * step, half = step * 0.26;
-    ctx.fillStyle = bar.close >= bar.open ? "#47d99a" : "#ee857f";
-    ctx.fillRect(x - 1, y(bar.high), 2, Math.max(2, y(bar.low) - y(bar.high)));
-    ctx.fillRect(x - half, y(Math.max(bar.open, bar.close)), half * 2, Math.max(2, Math.abs(y(bar.close) - y(bar.open))));
-  });
-}
-
-function renderResult(root, snapshot) {
-  root.classList.remove("notice");
-  const result = snapshot.payload;
-  root.replaceChildren($("result-template").content.cloneNode(true));
-  const field = (name) => root.querySelector('[data-field="' + name + '"]');
-  const directional = result.direction === "UP" || result.direction === "DOWN";
-  const serverNow = () => snapshot.serverAtReceipt + performance.now() - snapshot.received;
-  function tick() {
-    const beforeOpen = directional && Number.isFinite(result.target_ms) && serverNow() < result.target_ms;
-    const dir = field("direction");
-    dir.dataset.direction = beforeOpen ? result.direction : "NO TRADE";
-    dir.textContent = beforeOpen ? (result.direction === "UP" ? "↗ ميل للصعود" : "↘ ميل للهبوط")
-      : directional ? "انتهت نافذة التوقع" : "لا إشارة";
-    field("confidence").textContent = beforeOpen
-      ? (result.confidence === null ? "غير معايرة" : Math.round(result.confidence) + "%") : "—";
-    field("target").hidden = !beforeOpen;
-    if (beforeOpen) {
-      field("clock").textContent = localeTime(result.target_ms) + " الكويت";
-      field("countdown").textContent = "بعد " + Math.ceil((result.target_ms - serverNow()) / 1000) + " ث";
-    }
-    if (beforeOpen && root.isConnected) setTimeout(() => {
-      if (root.firstElementChild === article) tick();
-    }, 250);
-  }
-  const article = root.firstElementChild;
-  field("frame").textContent = result.seconds === 60 ? "دقيقة واحدة" : result.seconds + " ثوانٍ";
-  field("source").textContent = result.asset + " · " + result.source;
-  field("trend").textContent = ({ UP: "صاعد", DOWN: "هابط", RANGE: "عرضي" })[result.trend] || "—";
-  field("volatility").textContent = ({ LOW: "منخفض", NORMAL: "طبيعي", HIGH: "عالٍ" })[result.volatility] || "—";
-  field("reason").textContent = directional && serverNow() >= result.target_ms
-    ? "الشمعة بدأت قبل وصول الرد، لذلك ما عُرض الاتجاه." : (result.reasons || []).join(" · ");
-  field("bars").textContent = result.closed_count + " شمعة";
-  chart(field("chart"), result.candles);
-  const price = (value) => new Intl.NumberFormat("en", { maximumFractionDigits: 8 }).format(value);
-  for (const bar of result.candles.slice(-12).reverse()) {
-    const row = label("div", "candle-row", localeTime(bar.at) + " · فتح " + price(bar.open)
-      + " · أعلى " + price(bar.high) + " · أدنى " + price(bar.low) + " · قفل " + price(bar.close));
-    field("candles").append(row);
-  }
-  tick();
-}
-
-function closeSheet() {
-  if ($("sheet").open) $("sheet").close();
-}
-
-async function analyze(market, asset) {
-  if (state.busy) return;
-  state.busy = true;
-  const requestId = ++state.serial;
-  const sheet = $("sheet"), body = $("sheet-content");
-  $("sheet-title").textContent = asset.label;
-  const loading = label("div", "wait");
-  loading.setAttribute("role", "status");
-  loading.append(label("span", "mark", "✦"), label("strong", "", "جاري قراءة الشموع…"),
-    label("p", "", "الترند والتذبذب وتوقيت الشمعة القادمة"), label("div", "track"));
-  body.replaceChildren(loading);
-  sheet.showModal();
-  try { tg?.BackButton?.show(); } catch (_) {}
-  try {
-    const { payload, rtt } = await call("analyze", { market: market.key, asset: asset.key, mode: state.mode });
-    if (requestId !== state.serial) return;
-    const transit = Math.max(0, rtt - (payload.processing_ms || 0));
-    const snapshot = { payload, serverAtReceipt: payload.server_ms + transit, received: performance.now() };
-    state.last = snapshot;
-    renderResult($("last-content"), snapshot);
-    if (sheet.open) renderResult(body, snapshot);
-  } catch (error) {
-    if (requestId === state.serial && sheet.open) {
-      const retry = label("button", "line-button", "إعادة المحاولة");
-      retry.type = "button";
-      retry.addEventListener("click", () => { closeSheet(); analyze(market, asset); });
-      body.replaceChildren(label("p", "notice", error.message), retry);
-    }
-  } finally {
-    if (requestId === state.serial) state.busy = false;
-  }
-}
-
-$("close").addEventListener("click", closeSheet);
-$("sheet").addEventListener("close", () => {
-  if (!$("sheet").open) { try { tg?.BackButton?.hide(); } catch (_) {} }
-});
-tg?.BackButton?.onClick?.(closeSheet);
-$("reload").addEventListener("click", loadMarkets);
-document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => {
-  state.mode = b.dataset.mode;
-  document.querySelectorAll("[data-mode]").forEach((item) => item.setAttribute("aria-pressed", String(item === b)));
-
-}));
-document.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => {
-  document.querySelectorAll("[data-tab]").forEach((item) => {
-    item.removeAttribute("aria-current");
-    $("view-" + item.dataset.tab).hidden = item !== b;
-  });
-  b.setAttribute("aria-current", "page");
-  if (b.dataset.tab === "last" && state.last) renderResult($("last-content"), state.last);
   window.scrollTo(0, 0);
-}));
-setTimeout(() => { $("splash").hidden = true; }, 790);
-loadMarkets();
+}
+function empty(msg) { return el("div",t(msg),"empty"); }
+function marketCard(m) {
+  const button = el("button",null,"panel market-card"), details = el("div");
+  button.type = "button";
+  button.append(el("span",m.icon || "◫"),details);
+  details.append(el("b",m.label),el("small",barsState(m.state),"state-"+m.state));
+  if (m.last_closed_ms) details.append(el("small",clock(m.last_closed_ms)));
+  button.addEventListener("click",() => { show("analysis"); $("market").value=m.key; assets(); });
+  return button;
+}
+function signalView(row, markets) {
+  const card = el("div",null,"panel signal"), top = el("div",null,"signal-line");
+  const label = markets.find(m => m.key === row.market)?.label || row.market;
+  const text = el("div");
+  text.append(el("strong",row.asset),el("small",label+" · "+duration(row.seconds)+" · "+clock(row.target_ms)+" – "+clock(row.end_ms)));
+  top.append(text,el("span",statusLabel(row.status)+" · "+resultLabel(row.direction),"badge "+(row.direction==="UP"?"positive":"negative")));
+  card.append(top);
+  if (row.open != null && row.close != null) card.append(el("small",number(row.open)+" → "+number(row.close)));
+  return card;
+}
+function performanceView(row, markets) {
+  const card = el("div",null,"panel perf");
+  card.append(el("strong",(markets.find(m => m.key===row.market)?.label || row.market)+" · "+row.frame+" · "+(row.mode || "").toUpperCase()));
+  card.append(el("small",(row.accuracy==null?"—":number(row.accuracy)+"%")+" · N = "+number(row.decided)));
+  card.append(el("small",Object.entries(row.counts).map(([key,value])=>statusLabel(key)+" "+number(value)).join(" · ")));
+  return card;
+}
+function options(select, values) {
+  const old = select.value;
+  select.replaceChildren(...values.map(([value,label]) => {const option=el("option",label);option.value=value;return option;}));
+  if(values.some(([value])=>value===old)) select.value=old;
+}
+function assets() {
+  const market = state.data?.markets.find(m=>m.key===$("market").value);
+  const rows = market?.assets || [];
+  options($("asset"), rows.length ? rows.map(a=>[a.key,a.label]) : [["",t("لا توجد أصول متاحة")]]);
+  const frames = market?.frames || [];
+  options($("frame"), [["auto",t("تلقائي")],...frames.map(f=>[f, f.replace("sec"," s").replace("min"," min")])]);
+  $("analyze-button").disabled = state.busy || !rows.length || !frames.length;
+}
+function render() {
+  const data = state.data;
+  if (!data) return;
+  const indexed = data.markets || [], signals = data.signals || [], stats = data.performance || [];
+  $("market-count").textContent = number(indexed.filter(m=>m.state==="online").length);
+  $("market-total").textContent = " / " + number(indexed.length);
+  $("scan-state").textContent = t(!data.scanner.enabled?"متوقف":data.scanner.running?"مُفعّل":"بانتظار الخدمة");
+  $("scan-time").textContent = data.scanner.last_scan_ms ? t("آخر فحص")+" · "+clock(data.scanner.last_scan_ms) : "—";
+  $("home-markets").removeAttribute("aria-busy");
+  $("home-markets").replaceChildren(...indexed.slice(0,4).map(marketCard));
+  $("markets-list").replaceChildren(...indexed.map(marketCard));
+  $("home-feed").replaceChildren(...(signals.length?signals.slice(0,3).map(r=>signalView(r,indexed)):[empty("لا توجد تنبيهات مؤكدة لهذا الحساب حتى الآن.")]));
+  $("signals-list").replaceChildren(...(signals.length?signals.map(r=>signalView(r,indexed)):[empty("لا توجد تنبيهات مؤكدة لهذا الحساب حتى الآن.")]));
+  $("performance-list").replaceChildren(...(stats.length?stats.map(r=>performanceView(r,indexed)):[empty("ما فيه نتائج مسجلة حتى الآن.")]));
+  const metrics = Object.entries(data.latency || {});
+  $("latency-list").replaceChildren(...(metrics.length?metrics.map(([source,m])=>{
+    const card=el("div",null,"panel perf");card.append(el("strong",source),el("small","p50 "+number(m.p50_ms)+" ms · p95 "+number(m.p95_ms)+" ms · N = "+number(m.n)));return card;
+  }):[empty("لا توجد عينات زمنية كافية.")]));
+  $("scanner-toggle").setAttribute("aria-checked",String(data.scanner.enabled));
+  $("pref-scanner-hint").textContent = t(data.scanner.enabled && !data.scanner.running?"بانتظار الخدمة":"تشغيل وإيقاف توصيات Telegram");
+  $("scanner-toggle").disabled = false;
+  $("pref-mode").disabled = false;
+  $("pref-mode").value = data.mode;
+  options($("market"),indexed.map(m=>[m.key,m.label]));
+  assets();
+}
+function showFailure(error) {
+  state.failed=error;
+  if (error.code==="TELEGRAM_REQUIRED" || !auth)
+    setConnection("error","افتح من Telegram","افتح Mini App من زر البوت داخل Telegram لعرض حسابك.");
+  else if (error.code==="NOT_AUTHORIZED") setConnection("error","غير مفعّل",error.message);
+  else setConnection("error","بدون اتصال",error.message || "تعذر الوصول إلى خادم NEXUS الآن.");
+  for (const id of ["home-markets","markets-list","home-feed","signals-list","performance-list"]) {
+    $(id).setAttribute("aria-busy","false");
+    if (!state.data) $(id).replaceChildren(empty(!auth?"افتح من Telegram":"أعد المحاولة"));
+  }
+}
+let refreshing = false;
+async function refresh() {
+  if (refreshing) return;
+  if (!auth) {showFailure({code:"TELEGRAM_REQUIRED"});return;}
+  refreshing=true;
+  try {
+    const oldMode=state.data?.mode;
+    state.data=await request("/dashboard");
+    if (!oldMode && ["pro","strong"].includes(state.data.mode)) document.querySelector('[name="mode"][value="pro"]').checked=true;
+    state.failed=null;
+    setConnection("ok","متصل بالخادم");
+    render();
+  } catch (error) {showFailure(error);}
+  finally {refreshing=false;}
+}
+function candleChart(candles) {
+  const slice=candles.filter(c=>[c.open,c.close,c.low,c.high].every(Number.isFinite)).slice(-32);
+  if (!slice.length) return null;
+  const svgName="http://www.w3.org/2000/svg";
+  const make=(tag,attrs)=> {const n=document.createElementNS(svgName,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,v);return n;};
+  const width=380,height=132,pad=10,min=Math.min(...slice.map(c=>c.low)),max=Math.max(...slice.map(c=>c.high));
+  const y=p=>height-pad-(p-min)/(max-min||1)*(height-2*pad);
+  const svg=make("svg",{viewBox:"0 0 380 132",class:"chart",role:"img","aria-label":lang==="en"?"Closed market candlesticks":"رسم آخر شموع مغلقة"});
+  [26,52,78,104].forEach(v=>svg.append(make("line",{x1:0,x2:width,y1:v,y2:v,class:"grid"})));
+  const step=(width-pad*2)/slice.length;
+  slice.forEach((c,i)=>{
+    const x=pad+(i+.5)*step, cls=c.close>=c.open?"up":"down";
+    svg.append(make("line",{x1:x,x2:x,y1:y(c.high),y2:y(c.low),class:cls}),
+      make("rect",{x:x-step*.27,y:Math.min(y(c.open),y(c.close)),width:step*.54,height:Math.max(1,Math.abs(y(c.open)-y(c.close))),class:cls}));
+  });
+  return svg;
+}
+let lastResult=null;
+function displayAnalysis(result) {
+  const card=el("article",null,"panel result"), top=el("div",null,"signal-line"), dl=el("dl");
+  const market=state.data.markets.find(m=>m.key===result.market)?.label || result.market;
+  const timely=result.target_ms == null || result.target_ms > Date.now();
+  const direction=timely?result.direction:"NO TRADE";
+  top.append(el("strong",result.asset),el("span",resultLabel(direction),"badge "+(direction==="UP"?"positive":direction==="DOWN"?"negative":"flat")));
+  for (const [name,value] of [[t("السوق"),market],[t("المدة"),duration(result.seconds)],[t("المصدر"),result.source],[t("الشمعة المستهدفة"), timely&&result.target_ms?clock(result.target_ms)+" – "+clock(result.end_ms):"—"],[t("الثقة"),direction==="NO TRADE"||result.confidence==null?t("غير متحقق"):number(result.confidence)+"%"],[t("آخر إغلاق"),clock(result.last_closed_ms)],[t("زمن المعالجة"),number(result.processing_ms)+" ms"]]) {
+    dl.append(el("dt",name),el("dd",value));
+  }
+  card.append(top,dl);
+  const chart=candleChart(result.candles || []);
+  if(chart) card.append(chart);
+  const reasons=el("ul");
+  for(const reason of (timely?(result.reasons||[]):[lang==="en"?"The target window elapsed.":"انتهت نافذة التوقع قبل عرضه."]))reasons.append(el("li",reason));
+  card.append(reasons);
+  $("analysis-result").replaceChildren(card);
+}
+
+document.addEventListener("click", event=>{
+  const action=event.target.closest("[data-go]");
+  if(action)show(action.dataset.go);
+});
+$("market").addEventListener("change",assets);
+$("connection").addEventListener("click",refresh);
+$("lang").addEventListener("change",()=>{
+  lang=$("lang").value;
+  try{localStorage.setItem("nexus-language",lang);}catch(_){}
+  applyLanguage();
+  if(state.failed)showFailure(state.failed);else if(state.data)setConnection("ok","متصل بالخادم");
+  render();
+  if(lastResult && !state.busy)displayAnalysis(lastResult);
+});
+$("form").addEventListener("submit", async event=>{
+  event.preventDefault();
+  if(state.busy || !state.data || !$("asset").value)return;
+  lastResult=null;
+  state.busy=true;
+  state.request=new AbortController();
+  const submit=$("analyze-button"), oldLabel=submit.firstChild;
+  submit.disabled=true;
+  oldLabel.nodeValue=t("تحليل جارٍ");
+  $("analysis-result").replaceChildren(empty("جارٍ قراءة الشموع المغلقة…"),el("div",null,"skeleton"));
+  try {
+    const result=await request("/analyze",{market:$("market").value,asset:$("asset").value,
+      frame:$("frame").value,mode:new FormData(event.currentTarget).get("mode")},state.request.signal);
+    lastResult=result;
+    displayAnalysis(result);
+    void refresh();
+    try{webapp?.HapticFeedback?.selectionChanged();}catch(_){}
+  } catch(error){
+    $("analysis-result").replaceChildren(empty(error.name==="AbortError"?"أعد المحاولة":error.message));
+    if(error.http===401||error.http===403||(!error.http&&error.name!=="AbortError"))showFailure(error);
+  } finally {state.busy=false;state.request=null;const native=initialText.get(oldLabel)||"حلّل الآن";initialText.set(oldLabel,native);oldLabel.nodeValue=t(native)+" ";assets();}
+});
+let saving=false;
+async function save(payload){
+  if(!state.data||saving)return;
+  saving=true;
+  $("scanner-toggle").disabled=true;
+  $("pref-mode").disabled=true;
+  try {
+    const saved=await request("/preferences",payload);
+    state.data.scanner.enabled=saved.scanner;
+    state.data.mode=saved.mode;
+    if(payload.mode) {
+      const mode=["pro","strong"].includes(saved.mode)?"pro":"fast";
+      document.querySelector('[name="mode"][value="'+mode+'"]').checked=true;
+    }
+  } catch(error){showFailure(error);}
+  finally {saving=false;render();}
+}
+$("scanner-toggle").addEventListener("click",()=>save({scanner:!state.data.scanner.enabled}));
+$("pref-mode").addEventListener("change",()=>save({mode:$("pref-mode").value}));
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)void refresh();});
+try {webapp?.ready();webapp?.expand();webapp?.setHeaderColor("#080c17");webapp?.setBackgroundColor("#080c17");} catch (_) {}
+applyLanguage();
+void refresh();
+setInterval(()=>{if(!document.hidden && auth && !state.busy && !saving)void refresh();},30000);

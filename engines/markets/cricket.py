@@ -7,7 +7,7 @@ from providers.catalog import Market
 PROFILE = MarketProfile(
     market=Market.CRICKET,
     name="CRICKET INDEX",
-    frames=("30sec", "1min", "5min", "15min", "30min", "1h"),
+    frames=("30sec", "1min", "5min", "2min", "3min", "15min", "30min", "1h"),
     min_bars=90,
     adx_floor=22.0,
     min_separation=0.60,

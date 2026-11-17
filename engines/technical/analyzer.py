@@ -87,7 +87,10 @@ def analyze_market_data(
         raise DataUnavailable("STALE_DATA", "Refusing to analyse stale candles")
 
     now = now or utc_now()
-    usable = closed_candles(market_data.candles, market_data.timeframe, now)
+    if analysis_mode == "fast":
+        from engines.technical.fast import analyze_fast
+        return analyze_fast(market_data, now)
+    usable = closed_candles(market_data.candles, market_data.timeframe, min(now, market_data.fetched_at))
     if not usable:
         raise DataUnavailable("NO_CLOSED_CANDLES", "No closed candles are available yet")
     profile = profile_for(market_data.asset.market)
@@ -96,6 +99,12 @@ def analyze_market_data(
             "UNSUPPORTED_FRAME",
             f"{profile.name} analyses only {', '.join(profile.frames)}",
         )
+    if analysis_mode == "pro":
+        step = timedelta(seconds=market_data.timeframe.seconds)
+        if usable[-1].time + step * 2 <= now or any(
+            b.time-a.time != step for a,b in zip(usable[-16:-1],usable[-15:])
+        ):
+            raise DataUnavailable("MISSING_RECENT_CANDLE", "شموع PRO متأخرة أو غير متتابعة")
     min_bars = max(60, profile.min_bars)
     if len(usable) < min_bars:
         raise DataUnavailable(
@@ -130,7 +139,7 @@ def analyze_market_data(
     live_frame = frame_from_candles(market_data.candles)
     target_open = target_open_for(live_frame, seconds, now)
     regime = None
-    if is_smarty or analysis_mode == "lo":
+    if is_smarty or analysis_mode in {"lo","pro"}:
         # The future target must immediately follow the currently forming slot,
         # even if the feed has not published that slot yet.
         target_open = usable[-1].time + timedelta(seconds=TARGET_OFFSET * seconds)
@@ -148,6 +157,7 @@ def analyze_market_data(
         now=now,
         target_open_at=target_open,
         require_calibration=analysis_mode != "lo",
+        required_target_offset=TARGET_OFFSET if analysis_mode == "pro" else None,
     )
     ind = compute_indicators(frame)
     smc = analyze_smc(frame, ind["atr"])
@@ -253,6 +263,14 @@ def analyze_market_data(
             reasons = [summary]
     invalidation = [signal.invalidation for signal in confirmed[:3]]
 
+    if analysis_mode == "pro" and direction in ("UP","DOWN"):
+        families = {signal.family for signal in confirmed}
+        if len(families) < 3 or ind["volatility"] == "HIGH" or (
+                evidence.direction in ("UP","DOWN") and evidence.direction != direction):
+            direction, confidence = "NO TRADE", 0.0
+            reasons = ["PRO: تأكيدات مستقلة غير كافية أو تذبذب مرتفع أو أدلة متعارضة"]
+            blocks = reasons[:]
+
     # Expiry is the market's own volatility map, never the candle frame.
     expiry_seconds = duration_seconds or profile.expiry_for(
         ind["volatility"], market_data.timeframe.seconds
@@ -345,7 +363,7 @@ def analyze_market_data(
         blockers=blocks,
         data_quality_score=float(evidence.data_quality.get("score", 0)),
         win_probability=(round(forecast.confidence / 100, 4)
-                         if forecast.confidence is not None and forecast.verified else None),
+                         if direction in ("UP","DOWN") and forecast.confidence is not None and forecast.verified else None),
         strategy_labels=evidence.strategy_labels,
         market_profile=profile.name,
         alligator_ma=alligator_ma.as_dict(),
@@ -355,7 +373,7 @@ def analyze_market_data(
                                            if regime is not None else {})},
         target_open_at=forecast.target_open_at,
         target_timeframe=market_data.timeframe.code,
-        confidence_verified=forecast.verified if analysis_mode != "lo" else False,
+        confidence_verified=forecast.verified and direction in ("UP","DOWN") and analysis_mode != "lo",
         analysis_mode=analysis_mode,
     )
     LOG.info(

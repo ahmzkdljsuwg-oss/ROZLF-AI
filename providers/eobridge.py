@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+import random
 from typing import Any
 
 import httpx
@@ -50,7 +51,7 @@ class ExpertOptionBridgeProvider(BaseProvider):
                 f"{self.base_url}{path}", params=params, headers=self._headers()
             )
         except httpx.HTTPError as exc:
-            raise DataUnavailable("NETWORK", f"ExpertOption bridge unreachable: {exc}") from exc
+            raise DataUnavailable("NETWORK", f"ExpertOption bridge unreachable: {type(exc).__name__}") from exc
         if response.status_code == 401:
             raise DataUnavailable("EO_BRIDGE_UNAUTHORIZED", "ExpertOption bridge rejected the API key (EO_BRIDGE_KEY)")
         try:
@@ -142,8 +143,12 @@ class ExpertOptionBridgeProvider(BaseProvider):
                 # is in flight. Retry once, without touching credentials.
                 if attempt or exc.code not in {"DISCONNECTED", "NETWORK"}:
                     raise
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(random.uniform(0.3, 0.65))
         self._check_market(payload, asset)
+        if payload.get("timeframe") not in (None,tf.code) or (
+            tf.code in {"2min","3min","5sec","30sec"} and payload.get("timeframe") is None
+        ):
+            raise DataUnavailable("SOURCE_MISMATCH", "ExpertOption did not confirm this native timeframe")
         rows = payload.get("candles") or []
         candles: list[Candle] = []
         for row in rows:
@@ -180,3 +185,37 @@ class ExpertOptionBridgeProvider(BaseProvider):
         except (KeyError, TypeError, ValueError) as exc:
             raise DataUnavailable("BAD_RESPONSE", "Bridge quote is malformed") from exc
         return Quote(symbol=asset.symbol, bid=bid, ask=ask, time=ensure_utc(ts), source="ExpertOption Bridge")
+
+
+class ExpertOptionForexProvider(BaseProvider):
+    """Read-only fallback; accept an exact normal-FOREX instrument only."""
+    id = "eo_forex"
+    name = "ExpertOption Bridge · FOREX"
+    markets = frozenset({Market.FOREX})
+
+    def __init__(self, bridge):
+        self.bridge = bridge
+
+    @property
+    def configured(self):
+        return self.bridge.configured
+
+    async def fetch_candles(self, asset, tf, limit=300):
+        if asset.market is not Market.FOREX or tf.code not in {"1min","2min","3min","5min","15min","30min","1h"}:
+            raise DataUnavailable("UNSUPPORTED_TIMEFRAME", "Exact FOREX timeframe unavailable")
+        payload = await self.bridge._get("/candles", {"market": "forex", "symbol":asset.symbol,
+                                                     "timeframe":tf.code, "limit":max(60,limit)})
+        self.bridge._check_market(payload, asset)
+        actual = str(payload.get("eo_symbol") or "").replace("/", "").upper()
+        if (payload.get("source") != "ExpertOption" or payload.get("timeframe") != tf.code
+            or actual != asset.symbol.replace("/", "").upper()):
+            raise DataUnavailable("SOURCE_MISMATCH", "FOREX candle feed did not confirm the exact instrument and timeframe")
+        rows = []
+        for row in payload.get("candles") or []:
+            try:
+                rows.append(Candle(time=ensure_utc(datetime.fromisoformat(row["time"].replace("Z","+00:00"))),
+                                   open=float(row["open"]),high=float(row["high"]),
+                                   low=float(row["low"]),close=float(row["close"])))
+            except (TypeError, ValueError, KeyError, AttributeError):
+                continue
+        return sorted(rows,key=lambda candle:candle.time)

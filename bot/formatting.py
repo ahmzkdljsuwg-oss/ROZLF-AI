@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import html
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from config import Settings
 from database.repository import SignalRecord
@@ -362,6 +363,20 @@ def stats_text(stats: dict) -> str:
 
 
 def verification_text(record: SignalRecord) -> str:
+    if record.target_open_at is not None:
+        local = ZoneInfo("Asia/Kuwait")
+        outcome = {"WIN": "✅ وافق الاتجاه", "LOSS": "❌ خالف الاتجاه",
+                   "DRAW": "➖ تعادل", "UNVERIFIED": "❔ تعذر التحقق"}.get(record.status, record.status)
+        clock = f"{record.target_open_at.astimezone(local):%H:%M:%S}–{record.expires_at.astimezone(local):%H:%M:%S}"
+        rows = ["<b>NEXUS AI · نتيجة الشمعة</b>",
+                f"📊 السوق · {html.escape(market_label(record.market))}",
+                f"💱 الأصل · {html.escape(record.asset_display)}",
+                f"⏱ المدة · {duration_label(record.expiry_seconds)}",
+                f"🕒 الكويت · {clock}",
+                f"<b>{outcome}</b>"]
+        if record.close_price is not None:
+            rows.append(f"الافتتاح → الإغلاق · {format_price(record.entry_price,record.market)} → {format_price(record.close_price,record.market)}")
+        return "\n".join(rows)
     icons = {"WIN": "✅ WIN", "LOSS": "❌ LOSS", "DRAW": "➖ DRAW", "UNVERIFIED": "❔ UNVERIFIED"}
     return (
         f"<b>ROZLF AI — SIGNAL #{record.id} CLOSED</b>\n"
@@ -1007,12 +1022,16 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
         duration = f"{minutes} دقائق" if minutes <= 10 else f"{minutes} دقيقة"
     else:
         duration = f"{expiry_seconds} ثوانٍ" if 3 <= expiry_seconds <= 10 else f"{expiry_seconds} ثانية"
-    clock = f" · {target_open_at:%H:%M:%S} UTC" if target_open_at is not None else ""
+    clock = f" · {target_open_at.astimezone(ZoneInfo('Asia/Kuwait')):%H:%M:%S} الكويت" if target_open_at is not None else ""
     names = {"football": "Football Index ⚽", "smarty": "Smarty 🧠", "gold": "Gold 🪙",
              "luxury": "Luxury Index 💎", "ai": "AI Index 🤖", "cricket": "Cricket Index 🏏"}
-    market_name = names.get(market.lower(), asset or market_label(market))
+    market_name = names.get(market.lower(), market_label(market))
+    mode_name = {"fast": "FAST", "pro": "PRO", "lo": "LO", "strong": "LLO", "scanner": "الماسح"}.get(mode, mode.upper())
     lines = [
-        f"السوق: <b>{html.escape(market_name)}</b> 📊",
+        "<b>NEXUS AI 🤖</b>",
+        f"📊 السوق: <b>{html.escape(market_name)}</b>",
+        f"💱 الأصل · <b>{html.escape(asset or market_name)}</b>",
+        f"⚡ الوضع · <b>{mode_name}</b>",
         f"الوقت: <b>{duration}</b> ⏱️{clock}",
         f"الصفقة: <b>{trade}</b>",
     ]
@@ -1028,8 +1047,9 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
         lines.append(f"🎯 الثقة: <b>{confidence:.0f}%</b>")
     elif direction in ("UP", "DOWN"):
         lines.append("🎯 الثقة: UNVERIFIED")
-    if direction not in ("UP", "DOWN") and reasons:
-        lines.append(f"<i>{html.escape(reasons[0])}</i>")
+    if reasons:
+        selected = " · ".join(reasons[:2]) if direction in ("UP", "DOWN") else reasons[0]
+        lines.append(f"🔍 <i>{html.escape(selected)}</i>")
     return "\n\n".join(lines)
 
 

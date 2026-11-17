@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import io
 import html
+from datetime import datetime
 import logging
 import time
 
@@ -79,14 +80,14 @@ async def _present_result(
                 menus.signal_result_menu(asset, frame_code))
 
 
-async def _edit(callback: CallbackQuery, text: str, keyboard=None) -> None:
+async def _edit(callback: CallbackQuery, text: str, keyboard=None):
     if callback.message is None:
         return
     try:
-        await callback.message.edit_text(text, reply_markup=keyboard, disable_web_page_preview=True)
+        return await callback.message.edit_text(text, reply_markup=keyboard, disable_web_page_preview=True)
     except TelegramBadRequest as exc:
         if "not modified" not in str(exc):
-            await callback.message.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
+            return await callback.message.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
 
 
 async def _show_nexus_home(message: Message) -> None:
@@ -336,7 +337,7 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
             outcome.duration_seconds,
             mode,
         )
-        if mode == "lo" or market is Market.SMARTY:
+        if result.target_open_at is not None or mode in {"lo", "fast", "pro"} or market is Market.SMARTY:
             fingerprint += (result.target_open_at,)
             if result.target_open_at is not None and result.target_open_at <= utc_now():
                 await _edit(
@@ -362,13 +363,22 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
         )
         if repeated:
             text += "\n\n<i>نفس الشمعة المستهدفة</i>"
-        await _edit(callback, text, menus.nexus_result_menu())
+        sent = await _edit(callback, text, menus.nexus_result_menu())
         if repeated:
             return
         _NEXUS_LAST[(user_id, market.value)] = (fingerprint, time.monotonic())
         if mode == "lo":
             logger.info("NEXUS LO displayed market=%s asset=%s tf=%s direction=%s target=%s",
                         market.value, result.asset_key, result.timeframe, result.direction, result.target_open_at)
+        target = result.target_open_at
+        receipt = getattr(sent, "edit_date", None) or getattr(sent, "date", None)
+        delivery = utc_now() if isinstance(receipt, datetime) and target is not None and utc_now() < target else None
+        if target is not None and delivery is None:
+            if isinstance(receipt, datetime):
+                await _edit(callback, fmt.nexus_signal_text(
+                    market.value, "NO TRADE", None, None, asset=result.asset_display,
+                    reasons=["انتهت نافذة الإرسال"], mode=mode), menus.nexus_result_menu())
+            return
         try:
             await ctx.repo.add_signal(
                 user_id=user_id,
@@ -384,6 +394,7 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
                 warnings=result.warnings,
                 expiry_seconds=outcome.duration_seconds,
                 created_at=result.generated_at,
+                target_open_at=target, delivered_at=delivery, analysis_mode=mode,
             )
         except Exception:  # noqa: BLE001 - a persistence fault must not hide a valid analysis
             logger.exception("could not persist NEXUS signal")
@@ -439,6 +450,27 @@ async def cmd_llo(message: Message) -> None:
         "وإلا فالنتيجة NO TRADE مع سبب واضح.",
         reply_markup=menus.nexus_home_menu(getattr(message, "chat", None)),
     )
+
+
+@router.message(Command("fast", "pro"))
+async def cmd_nexus_mode(message: Message) -> None:
+    mode = (message.text or "").split()[0].split("@")[0][1:].lower()
+    await get_context().repo.set_analysis_mode(message.from_user.id, mode)
+    await message.answer(_mode_message(mode), reply_markup=menus.nexus_home_menu(message.chat))
+
+
+@router.callback_query(F.data.in_({"nx:mode:fast", "nx:mode:pro"}))
+async def cb_nexus_mode(callback: CallbackQuery) -> None:
+    mode = callback.data.split(":")[-1]
+    await get_context().repo.set_analysis_mode(callback.from_user.id, mode)
+    await callback.answer("تم حفظ الوضع")
+    await _edit(callback, _mode_message(mode), menus.nexus_home_menu(callback.message.chat))
+
+
+def _mode_message(mode):
+    return ("<b>NEXUS AI · FAST</b>\nقراءة فنية سريعة من آخر الشموع المغلقة. الثقة غير معايرة."
+            if mode == "fast" else
+            "<b>NEXUS AI · PRO</b>\nتحليل متعدد الأدلة. يظهر الاتجاه فقط إذا اجتاز المعايرة وفلتر التوقيت.")
 
 
 @router.message(CommandStart())
@@ -1644,72 +1676,41 @@ async def cb_set_min(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data == "set:scan")
-async def cb_set_scan(callback: CallbackQuery) -> None:
+@router.callback_query(F.data == "scan:toggle")
+async def cb_scan_toggle(callback: CallbackQuery) -> None:
     ctx = get_context()
-    user = await ctx.repo.get_user_settings(callback.from_user.id)
-    user["scanner_enabled"] = not user["scanner_enabled"]
-    await ctx.repo.save_user_settings(callback.from_user.id, user)
-    if ctx.scanner is not None:
-        if user["scanner_enabled"]:
-            await ctx.scanner.start()
-        else:
-            await ctx.scanner.stop()
-    await callback.answer("تم تحديث حالة الماسح")
-    await cb_settings(callback)
+    if ctx.scanner is None:
+        await callback.answer("الماسح غير مهيأ", show_alert=True)
+        return
+    uid = callback.from_user.id
+    enabled = not await ctx.repo.scanner_opt_in(uid)
+    await ctx.repo.set_scanner_opt_in(uid, enabled)
+    await callback.answer("تم تشغيل توصياتك" if enabled else "تم إيقاف توصياتك")
+    await _show_scanner(callback, ctx, enabled)
 
 
 @router.callback_query(F.data == "scan:menu")
 async def cb_scanner(callback: CallbackQuery) -> None:
     ctx = get_context()
     await callback.answer()
-    scanner = ctx.scanner
-    if scanner is None:
+    if ctx.scanner is None:
         await _edit(callback, "الماسح غير مهيأ.", menus.back_to_main())
         return
-    await _edit(
-        callback,
-        _scanner_text(ctx),
-        menus.scanner_menu(scanner.running, scanner.market_selection()),
-    )
+    await _show_scanner(callback, ctx, await ctx.repo.scanner_opt_in(callback.from_user.id))
 
 
-def _scanner_text(ctx) -> str:
+async def _show_scanner(callback, ctx, enabled):
     scanner = ctx.scanner
-    text = (
-        "<b>🛰 AUTO SCANNER</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        f"STATUS: {'🟢 RUNNING' if scanner.running else '⏹ STOPPED'}\n"
-        f"MARKETS: {', '.join(scanner.market_selection())}\n"
-        f"MIN CONFIDENCE: {ctx.settings.min_confidence:.0f}%\n"
-        f"INTERVAL: {ctx.settings.scan_interval}s\n"
-    )
+    selection = scanner.market_selection()
+    state = "مفعّلة" if enabled else "متوقفة"
+    engine = "يعمل" if scanner.running else "متوقف في إعدادات الخدمة"
+    body = (f"<b>🛰 التوصيات التلقائية</b>\nحالة توصياتك · {state}\n"
+            f"الماسح · {engine}\nالأسواق · {html.escape(', '.join(selection))}\n"
+            "يبحث باستمرار عند التشغيل. إذا ما توفرت قراءة موثوقة، لا يرسل شيئاً.")
     if scanner.last_run:
-        text += f"LAST SCAN: {fmt.local_time(scanner.last_run)}\nSIGNALS: {scanner.last_found}\n"
-    if scanner.last_error:
-        text += f"LAST ERROR: {scanner.last_error[:150]}\n"
-    for market, reason in getattr(scanner, "last_skips", {}).items():
-        text += f"SKIPPED {market}: {reason[:120]}\n"
-    text += (
-        "\nالفحص يغطي الأسواق المفعّلة فقط: FOREX، SMARTY، والأسواق المؤشرية عند توفر جسر موثّق.\n"
-        "يتم منع الإشارات المكررة وتجاهل البيانات الضعيفة تلقائياً."
-    )
-    return text
-
-
-@router.callback_query(F.data == "scan:toggle")
-async def cb_scan_toggle(callback: CallbackQuery) -> None:
-    ctx = get_context()
-    scanner = ctx.scanner
-    if scanner is None:
-        await callback.answer("الماسح غير مهيأ", show_alert=True)
-        return
-    if scanner.running:
-        await scanner.stop()
-        await callback.answer("تم إيقاف الماسح")
-    else:
-        await scanner.start()
-        await callback.answer("تم تشغيل الماسح")
-    await cb_scanner(callback)
+        body += f"\nآخر فحص · {fmt.local_time(scanner.last_run)}"
+    await _edit(callback, body, menus.scanner_menu(
+        enabled, selection, can_manage=callback.from_user.id in ctx.settings.owner_ids))
 
 
 @router.callback_query(F.data == "scan:now")
@@ -1719,34 +1720,34 @@ async def cb_scan_now(callback: CallbackQuery) -> None:
     if scanner is None:
         await callback.answer("الماسح غير مهيأ", show_alert=True)
         return
-    await callback.answer("⏳ جاري فحص الأسواق...")
-    await _edit(callback, "⏳ SCANNING MARKETS...", None)
+    await callback.answer("جارٍ فحص الأسواق")
+    await _edit(callback, "⏳ جارٍ فحص الأسواق…")
     records = await scanner.scan_once(
-        user_ids=[callback.from_user.id],
-        min_confidence=ctx.settings.min_confidence,
-    )
+        user_ids=[callback.from_user.id], min_confidence=ctx.settings.min_confidence, notify=False)
+    records = [r for r in records if r.target_open_at is not None and r.target_open_at > utc_now()]
+    keyboard = menus.back_only("scan:menu", "🔙 الماسح")
     if not records:
-        await _edit(
-            callback,
-            "<b>🛰 SCAN COMPLETE</b>\n\nلا توجد فرص تتجاوز حد الثقة حالياً.\n"
-            "لم يتم إصدار إشارات ضعيفة.",
-            menus.back_only("scan:menu", "🔙 SCANNER"),
-        )
+        await _edit(callback, "<b>NO TRADE</b>\nلم تصل قراءة معايرة قبل موعد الشمعة.", keyboard)
         return
-    body = "\n\n".join(fmt.signal_text(record) for record in records)
-    await _edit(callback, body, menus.back_only("scan:menu", "🔙 SCANNER"))
+    body = "\n\n".join(fmt.nexus_signal_text(
+        r.market, r.direction, r.expiry_seconds, r.confidence, r.target_open_at, r.reasons,
+        asset=r.asset_display, mode="scanner") for r in records)
+    sent = await _edit(callback, body, keyboard)
+    if sent:
+        now = utc_now()
+        for r in records:
+            if now < r.target_open_at:
+                await ctx.repo.mark_candle_delivery(r.id, now)
 
 
 @router.callback_query(F.data.startswith("scan:mk:"))
 async def cb_scan_market(callback: CallbackQuery) -> None:
     ctx = get_context()
     scanner = ctx.scanner
-    if scanner is None:
-        await callback.answer("الماسح غير مهيأ", show_alert=True)
+    if scanner is None or callback.from_user.id not in ctx.settings.owner_ids:
+        await callback.answer("متاح لإدارة البوت فقط", show_alert=True)
         return
-    market = callback.data.split(":", 2)[2].upper()
-    selection = scanner.toggle_market(market)
-    await callback.answer(f"MARKETS: {', '.join(selection)}")
+    scanner.toggle_market(callback.data.split(":", 2)[2].upper())
     await cb_scanner(callback)
 
 

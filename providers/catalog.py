@@ -47,6 +47,8 @@ TIMEFRAMES: dict[str, Timeframe] = {
     "15sec": Timeframe("15sec", "S15", 15),
     "30sec": Timeframe("30sec", "S30", 30),
     "1min": Timeframe("1min", "M1", 60),
+    "2min": Timeframe("2min", "M2", 120),
+    "3min": Timeframe("3min", "M3", 180),
     "5min": Timeframe("5min", "M5", 300),
     "15min": Timeframe("15min", "M15", 900),
     "30min": Timeframe("30min", "M30", 1800),
@@ -56,7 +58,7 @@ DEFAULT_TIMEFRAME = "5min"
 # Higher frames need more history to compute EMA200 and SMC swings.
 TIMEFRAME_MIN_BARS: dict[str, int] = {
     "5sec": 80, "15sec": 80, "30sec": 80,
-    "1min": 80, "5min": 120, "15min": 120, "30min": 120, "1h": 120,
+    "1min": 80, "2min": 80, "3min": 80, "5min": 120, "15min": 120, "30min": 120, "1h": 120,
 }
 
 

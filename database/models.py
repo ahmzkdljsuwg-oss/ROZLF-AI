@@ -34,6 +34,9 @@ class Signal(Base):
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     verification_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
     result_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_open_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    analysis_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Signal {self.id} {self.asset_display} {self.direction} {self.status}>"
@@ -96,3 +99,10 @@ class SubscriptionNotification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ScannerPreference(Base):
+    __tablename__ = "scanner_preferences"
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    enabled: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

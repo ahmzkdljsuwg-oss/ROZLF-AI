@@ -25,7 +25,8 @@ class TwelveDataProvider(BaseProvider):
         self.api_key = (api_key or "").strip()
         self._client = client
         self._owns_client = client is None
-        self._cache: dict[tuple[str, str], tuple[float, list[Candle]]] = {}
+        self._cache: dict[tuple[str, str, int], tuple[float, list[Candle]]] = {}
+        self._limited_until = 0.0
         self._quote_cache: dict[str, tuple[float, Quote]] = {}
 
     @property
@@ -64,6 +65,19 @@ class TwelveDataProvider(BaseProvider):
                 "TWELVE_DATA_API_KEY is not configured; no verified FOREX/GOLD source is available",
             )
 
+    def _check_cooldown(self):
+        if time.monotonic() < self._limited_until:
+            raise DataUnavailable("RATE_LIMITED", "Twelve Data is in quota cooldown")
+
+    def _check_status(self, response):
+        if response.status_code == 429:
+            try:
+                delay = float(response.headers.get("Retry-After", "60"))
+            except (ValueError, TypeError):
+                delay = 60
+            self._limited_until = time.monotonic() + max(30, min(900, delay))
+            raise DataUnavailable("RATE_LIMITED", "Twelve Data rate limit reached (HTTP 429)")
+
     def _check_payload(self, payload: Any, symbol: str) -> None:
         if not isinstance(payload, dict):
             raise DataUnavailable("BAD_RESPONSE", f"Twelve Data returned an unexpected payload for {symbol}")
@@ -72,6 +86,7 @@ class TwelveDataProvider(BaseProvider):
         code = int(payload.get("code") or 0)
         message = str(payload.get("message") or "unknown error")
         if code == 429:
+            self._limited_until = time.monotonic() + 60
             raise DataUnavailable("RATE_LIMITED", "Twelve Data rate limit reached", message)
         if code in (401, 403):
             raise DataUnavailable(
@@ -90,12 +105,13 @@ class TwelveDataProvider(BaseProvider):
     async def fetch_candles(self, asset: Asset, tf: Timeframe, limit: int = 300) -> list[Candle]:
         self._require_key()
         symbol = asset.twelve_data_symbol or ""
-        key = (symbol, tf.code)
+        key = (symbol, tf.code, int(limit))
         cached = self._cache.get(key)
         now = time.monotonic()
         if cached and cached[0] > now:
             return list(cached[1])
 
+        self._check_cooldown()
         client = await self._http()
         try:
             response = await client.get(
@@ -109,10 +125,9 @@ class TwelveDataProvider(BaseProvider):
                 },
             )
         except httpx.HTTPError as exc:
-            raise DataUnavailable("NETWORK", f"Twelve Data network error: {exc}") from exc
+            raise DataUnavailable("NETWORK", f"Twelve Data network error: {type(exc).__name__}") from exc
 
-        if response.status_code == 429:
-            raise DataUnavailable("RATE_LIMITED", "Twelve Data rate limit reached (HTTP 429)")
+        self._check_status(response)
         if response.status_code >= 500:
             raise DataUnavailable("PROVIDER_DOWN", f"Twelve Data returned HTTP {response.status_code}")
         try:
@@ -151,15 +166,17 @@ class TwelveDataProvider(BaseProvider):
         if cached and cached[0] > now:
             return cached[1]
 
+        self._check_cooldown()
         client = await self._http()
         try:
             response = await client.get(
                 f"{BASE_URL}/price",
                 params={"symbol": symbol, "apikey": self.api_key},
             )
+            self._check_status(response)
             payload = response.json()
         except (httpx.HTTPError, ValueError) as exc:
-            raise DataUnavailable("NETWORK", f"Twelve Data quote error: {exc}") from exc
+            raise DataUnavailable("NETWORK", f"Twelve Data quote error: {type(exc).__name__}") from exc
         self._check_payload(payload, symbol)
         try:
             price = float(payload["price"])

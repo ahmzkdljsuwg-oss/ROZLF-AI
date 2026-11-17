@@ -1,7 +1,7 @@
 """Walk-forward test of next-candle prediction on real ExpertOption candles.
 
 Every prediction at bar ``i`` uses bars ``0..i`` only. The next bar ``i+1`` is
-used solely as the realised label. Confidence calibration is fitted on past
+skipped because it is already open. Bar i+2 is the realised label. Confidence calibration is fitted on past
 samples only, then applied to the current sample (expanding walk-forward).
 """
 from __future__ import annotations
@@ -11,6 +11,10 @@ import asyncio
 import json
 import time
 from collections import defaultdict
+from collections import Counter
+from heapq import heappop, heappush
+from math import isfinite
+from datetime import timedelta
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -31,7 +35,7 @@ ASSETS = {
     "forex": [(142, "EURUSD"), (248, "USDJPY"), (250, "GBPUSD")],
     "gold": [(251, "XAUUSD")],
 }
-FRAMES = {"1min": 60, "5min": 300, "15min": 900}
+FRAMES = {"5sec": 5, "30sec": 30, "1min": 60, "2min": 120, "3min": 180, "5min": 300, "15min": 900}
 MIN_HISTORY = 220
 
 
@@ -76,6 +80,9 @@ async def _fetch(session: aiohttp.ClientSession, base: str, asset_id: int, tf: s
         try:
             async with session.get(f"{base}/verify/history", params=params, timeout=90) as resp:
                 body = await resp.json(content_type=None)
+            if (resp.status != 200 or body.get("source") != "ExpertOption" or body.get("asset_id") != asset_id
+                    or body.get("timeframe") != f"{FRAMES[tf]}s"):
+                return []
             raw = body.get("candles") or []
             if raw:
                 return [
@@ -92,16 +99,29 @@ async def _fetch(session: aiohttp.ClientSession, base: str, asset_id: int, tf: s
     return []
 
 
-def _samples(frame: pd.DataFrame, market: str, tf: str) -> list[dict]:
+def _samples(frame: pd.DataFrame, market: str, tf: str, now=None) -> list[dict]:
+    now = now or datetime.now(timezone.utc)
+    step = timedelta(seconds=FRAMES[tf])
+    frame = frame.loc[frame.index + step <= now]
     arrays = _series(frame)
     rows = []
     for index in range(MIN_HISTORY, len(frame) - 1):
+        # Live uses the first unopened bar. At close of index, index+1 is
+        # already open, so its OHLC is neither a feature nor the target.
+        position = index + 2
+        if position >= len(frame) or frame.index[position] - frame.index[index] != 2 * step:
+            continue
+        if any(b - a != step for a,b in zip(frame.index[index-15:index], frame.index[index-14:index+1])):
+            continue
         score, components = score_at(frame, arrays, index)
-        target_close = float(frame["close"].iloc[index + 1])
-        target_open = float(frame["open"].iloc[index + 1])
+        target_close = float(frame["close"].iloc[position])
+        target_open = float(frame["open"].iloc[position])
+        if not (isfinite(target_close) and isfinite(target_open) and target_close > 0 and target_open > 0):
+            continue
         target = "UP" if target_close > target_open else "DOWN" if target_close < target_open else "DRAW"
         rows.append({
-            "time": frame.index[index].isoformat(),
+            "time": (frame.index[index]+step).isoformat(),
+            "settled_at": (frame.index[position]+step).isoformat(),
             "market": market, "timeframe": tf, "asset": "",
             "score": score, "abs_score": abs(score), "target": target,
             "components": components,
@@ -134,19 +154,32 @@ def _strategy_rows(rows: list[dict]) -> dict[str, dict]:
 def _walk_forward(rows: list[dict]) -> tuple[dict, list[dict]]:
     """Calibrate on past rows, predict the next row, then add it to history."""
     tested = []
-    for index, row in enumerate(rows):
-        prior = rows[:index]
-        if len(prior) < 300:
+    prior = defaultdict(Counter)
+    pending = []
+    seen = 0
+    edges = list(zip(DEFAULT_BINS, DEFAULT_BINS[1:]))
+
+    def bucket_key(score):
+        return next((i for i,(low,high) in enumerate(edges) if low <= abs(score) < high), None)
+
+    for index, row in enumerate(sorted(rows, key=lambda r: r["time"])):
+        # Across markets/assets, rows at the same timestamp cannot train
+        # each other; realized labels become eligible only after settlement.
+        while pending and pending[0][0] < row["time"]:
+            _, _, group, target = heappop(pending)
+            prior[group][target] += 1
+            seen += 1
+        group = bucket_key(row["score"])
+        if group is not None:
+            heappush(pending, (row["settled_at"], index, group, row["target"]))
+        bucket = prior[group]
+        n = sum(bucket.values())
+        if seen < 300 or n < MIN_CALIBRATION_SAMPLES:
             tested.append(dict(row, prediction="NO TRADE", confidence=None))
             continue
-        table = _bucket_table(prior)
-        bucket = _lookup(table, row["score"])
-        if bucket is None:
-            tested.append(dict(row, prediction="NO TRADE", confidence=None))
-            continue
-        up_rate = (bucket["up_wins"] + 0.5 * bucket["draws"]) / bucket["n"]
+        up = (bucket["UP"] + 0.5 * bucket["DRAW"]) / n
         direction = "UP" if row["score"] > 0 else "DOWN"
-        confidence = 100 * up_rate if direction == "UP" else 100 * (1 - up_rate)
+        confidence = 100 * (up if direction == "UP" else 1 - up)
         prediction = direction if confidence >= 52.0 else "NO TRADE"
         tested.append(dict(row, prediction=prediction, confidence=round(confidence, 2)))
     return _stats(tested), tested
@@ -169,14 +202,21 @@ async def main() -> None:
     parser.add_argument("--base-url", default="https://worker-production-03c94.up.railway.app")
     parser.add_argument("--limit", type=int, default=1500)
     parser.add_argument("--output", default="docs/NEXT-CANDLE-BACKTEST.json")
-    parser.add_argument("--calibration", default="engines/technical/calibration.json")
+    parser.add_argument("--calibration", default="docs/NEXT-CANDLE-CALIBRATION-CANDIDATE.json")
     parser.add_argument("--frames", default="1min,5min,15min")
+    parser.add_argument("--market", choices=tuple(ASSETS), help="Analyze only the selected market")
     args = parser.parse_args()
     frames = [item.strip() for item in args.frames.split(",") if item.strip()]
+    if not frames or any(item not in FRAMES for item in frames):
+        parser.error("Unsupported native candle timeframe")
+    if Path(args.calibration).resolve() == Path("engines/technical/calibration.json").resolve():
+        parser.error("Write a candidate calibration. Production calibration must be reviewed separately.")
     all_rows: dict[str, list[dict]] = defaultdict(list)
     raw_meta = defaultdict(dict)
     async with aiohttp.ClientSession() as session:
         for market, assets in ASSETS.items():
+            if args.market and market != args.market:
+                continue
             for tf in frames:
                 for asset_id, symbol in assets:
                     candles = await _fetch(session, args.base_url, asset_id, tf, args.limit)
@@ -198,12 +238,13 @@ async def main() -> None:
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source": "ExpertOption bridge /verify/history (real OHLC, read-only)",
-        "method": "expanding walk-forward; features use bars <= i, label is bar i+1 only",
+        "method": "expanding walk-forward; features use bars <= i; first unopened target is i+2; train on settled past labels only",
         "assets": raw_meta,
         "results": {},
     }
     calibration = {
-        "version": 1,
+        "version": 2,
+        "target_offset": 2,
         "generated_at": report["generated_at"],
         "source": report["source"],
         "method": report["method"],
@@ -223,10 +264,14 @@ async def main() -> None:
         table = _bucket_table(rows)
         calibration["markets"].setdefault(market, {})[tf] = {
             "samples": len(rows),
+            "enabled": False,  # candidate only; promotion requires review
+            "walk_forward": walk_stats,
             "baseline_always_up": summary["baseline_always_up"],
             "bins": table,
         }
 
+    if not report["results"]:
+        raise SystemExit("No supported frame returned enough real samples; no calibration was written.")
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2), encoding="utf-8")

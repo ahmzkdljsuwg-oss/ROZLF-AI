@@ -397,7 +397,8 @@ def test_card_shows_real_asset_and_unverified_confidence():
     text = fmt.nexus_signal_text(
         "otc", "UP", 60, 0.0, asset="EUR/USD OTC", confidence_verified=False, mode="lo",
     )
-    assert "السوق: <b>EUR/USD OTC</b>" in text
+    assert "السوق: <b>OTC</b>" in text
+    assert "الأصل · <b>EUR/USD OTC</b>" in text
     assert "LO MODE" in text
     assert "UNVERIFIED" in text
 

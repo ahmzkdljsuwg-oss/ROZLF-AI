@@ -169,7 +169,7 @@ def load_calibration(path: Path | str | None = None) -> dict[str, Any]:
 
 def _table_for(cal: dict[str, Any], market: str, timeframe: str) -> tuple[dict[str, Any] | None, str]:
     markets = cal.get("markets") or {}
-    for key in (market, market.lower(), "global"):
+    for key in (market, market.lower()):
         table = (markets.get(key) or {}).get(timeframe)
         if table and table.get("bins"):
             return table, f"{key}/{timeframe}"
@@ -180,7 +180,7 @@ def enabled_frames(market: str, calibration: dict[str, Any] | None = None) -> li
     """Frames whose walk-forward edge passed the stored out-of-sample gate."""
     cal = calibration or load_calibration()
     tables = (cal.get("markets") or {}).get(market.lower()) or {}
-    order = ("30sec", "1min", "5min", "15min", "30min", "1h")
+    order = ("5sec", "15sec", "30sec", "1min", "2min", "3min", "5min", "15min", "30min", "1h")
     return [frame for frame in order if (tables.get(frame) or {}).get("enabled")]
 
 
@@ -247,6 +247,7 @@ def forecast_from_frame(
     target_open_at: datetime | None = None,
     calibration: dict[str, Any] | None = None,
     require_calibration: bool = True,
+    required_target_offset: int | None = None,
 ) -> NextCandleForecast:
     """Predict the next candle. Must be called before that candle opens.
 
@@ -273,7 +274,13 @@ def forecast_from_frame(
     if not require_calibration:
         score, components = _lo_components(frame, arrays, score, components)
         return _technical_forecast(score, components, target, timeframe_seconds, [])
-    table, label = _table_for(calibration or load_calibration(), market, timeframe_code)
+    calibration = calibration if calibration is not None else load_calibration()
+    if required_target_offset is not None and calibration.get("target_offset") != required_target_offset:
+        return NextCandleForecast(
+            "NO TRADE", score, None, None, [], components, target, timeframe_seconds, "none",
+            ["لا توجد معايرة كافية لنفس توقيت الشمعة المستهدفة في وضع PRO"],
+        )
+    table, label = _table_for(calibration, market, timeframe_code)
     if table is None:
         return NextCandleForecast(
             "NO TRADE", score, None, None, [], components, target, timeframe_seconds,

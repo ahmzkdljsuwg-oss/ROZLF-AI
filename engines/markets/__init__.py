@@ -1,6 +1,8 @@
 """Market profiles selected by the asset's own market."""
 from __future__ import annotations
 
+from dataclasses import replace
+
 from engines.markets.ai_index import PROFILE as AI_PROFILE
 from engines.markets.base import MarketProfile
 from engines.markets.cricket import PROFILE as CRICKET_PROFILE
@@ -43,6 +45,10 @@ GENERIC = MarketProfile(
     note="Generic fallback profile.",
 )
 
+
+_PROFILES[Market.OTC] = replace(GENERIC,market=Market.OTC,name="OTC",
+    frames=("1min","5min","30sec","2min","3min","15min","30min","1h"),
+    note="Verified ExpertOption OTC candles only.")
 
 def profile_for(market: Market) -> MarketProfile:
     return _PROFILES.get(market, GENERIC)

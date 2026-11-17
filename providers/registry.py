@@ -4,9 +4,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections import deque
+from dataclasses import replace
+from datetime import timedelta
 from typing import Iterable
 
-from engines.validation import validate_candles
+from engines.validation import closed_candles, validate_candles
 from providers.base import BaseProvider, DataUnavailable, MarketData, Quote, utc_now
 from providers.catalog import TIMEFRAME_MIN_BARS, Asset, Market, Timeframe, timeframe
 
@@ -30,9 +33,12 @@ class DataSourceRegistry:
         self._providers = list(providers)
         self._clock = clock
         self._cache_ttl = max(0.0, cache_ttl)
-        self._cache: dict[tuple[str, str, int, bool], tuple[float, MarketData]] = {}
+        self._cache: dict[tuple[str, str, int], tuple[float, MarketData]] = {}
         self._panel_cooldown: dict[str, float] = {}
-        self._inflight: dict[tuple[str, str, int, bool], asyncio.Task] = {}
+        self._inflight: dict[tuple[str, str, int], asyncio.Task] = {}
+        self._last_valid: dict[str, dict] = {}
+        self._latency: dict[str, deque] = {}
+        self._limits = {}
 
     @property
     def providers(self) -> list[BaseProvider]:
@@ -70,27 +76,59 @@ class DataSourceRegistry:
     async def fetch(self, asset: Asset, tf: Timeframe | str = "5min", limit: int = 300,
                     *, with_quote: bool = True, fresh: bool = False) -> MarketData:
         tf = timeframe(tf) if isinstance(tf, str) else tf
-        key = (asset.key, tf.code, int(limit), with_quote)
-        if self._cache_ttl <= 0:
-            return await self._fetch_uncached(asset, tf, limit, with_quote)
-
+        key = (asset.key, tf.code, int(limit))
         cached = self._cache.get(key)
-        if not fresh and cached is not None and cached[0] > time.monotonic():
-            return cached[1]
-        pending = self._inflight.get(key)
-        if pending is not None:
-            return await pending
+        if not fresh and cached and cached[0] > time.monotonic():
+            data = cached[1]
+        else:
+            pending = self._inflight.get(key)
+            if pending is None:
+                pending = asyncio.create_task(self._load_candles(asset, tf, limit, key))
+                self._inflight[key] = pending
+                pending.add_done_callback(lambda done: None if done.cancelled() else done.exception())
+            # A short FAST deadline/cancel must not kill the shared provider request.
+            data = await asyncio.shield(pending)
+        if not with_quote:
+            return data
+        quote = await self._quote_with_fallback(asset, None, timeout=4.0)
+        return replace(data, quote=quote)
 
-        task = asyncio.ensure_future(self._fetch_uncached(asset, tf, limit, with_quote))
-        self._inflight[key] = task
+    async def _load_candles(self, asset, tf, limit, key):
         try:
-            data = await task
+            data = await self._fetch_uncached(asset, tf, limit)
+            if self._cache_ttl:
+                if len(self._cache) >= 512:
+                    self._cache.pop(next(iter(self._cache)), None)
+                captured = data.fetched_at
+                closes = [bar.time + timedelta(seconds=tf.seconds) for bar in data.candles
+                          if bar.time + timedelta(seconds=tf.seconds) > captured]
+                until_close = (min(closes) - self._clock()).total_seconds() if closes else tf.seconds
+                if until_close > 0:
+                    self._cache[key] = (time.monotonic() + min(
+                        self._cache_ttl, tf.seconds / 2, until_close), data)
+            return data
         finally:
             self._inflight.pop(key, None)
-        self._cache[key] = (time.monotonic() + self._cache_ttl, data)
-        return data
 
-    async def _fetch_uncached(self, asset: Asset, tf: Timeframe, limit: int, with_quote: bool) -> MarketData:
+    def cached_candles(self, asset, tf, limit=300):
+        row = self._cache.get((asset.key, tf.code, int(limit)))
+        return row[1] if row and row[0] > time.monotonic() else None
+
+    def market_readiness(self, market):
+        current = self._last_valid.get(market.value)
+        if not current:
+            return {"state": "unchecked", "source": None, "last_closed_ms": None}
+        age = (self._clock() - current["closed_at"]).total_seconds()
+        return {"state": "online" if 0 <= age < current["seconds"] * 2 else "stale",
+                "source": current["source"], "frame": current["frame"],
+                "last_closed_ms": round(current["closed_at"].timestamp() * 1000)}
+
+    def latency(self):
+        return {source: {"n": len(values), "p50_ms": sorted(values)[len(values)//2],
+                         "p95_ms": sorted(values)[min(len(values)-1, int(len(values)*0.95))]}
+                for source,values in self._latency.items() if values}
+
+    async def _fetch_uncached(self, asset: Asset, tf: Timeframe, limit: int) -> MarketData:
         min_bars = TIMEFRAME_MIN_BARS[tf.code]
         attempts: list[str] = []
         failures: list[str] = []
@@ -101,12 +139,19 @@ class DataSourceRegistry:
                 continue
             started = time.monotonic()
             try:
-                candles = await provider.fetch_candles(asset, tf, limit=limit)
+                parallel = self._limits.setdefault("eo_bridge" if provider.id == "eo_forex" else provider.id, asyncio.Semaphore(2 if provider.id in {"eo_bridge", "eo_forex"} else 3))
+                async with asyncio.timeout(17):
+                    async with parallel:
+                        candles = await provider.fetch_candles(asset, tf, limit=limit)
             except DataUnavailable as exc:
                 logger.info("%s %s %s failed in %.0f ms: %s", provider.id, asset.key,
                             tf.code, (time.monotonic() - started) * 1000, exc.message)
                 attempts.append(f"{provider.name}: {exc.message}")
                 failures.append(exc.code)
+                continue
+            except TimeoutError:
+                attempts.append(f"{provider.name}: candle deadline expired")
+                failures.append("TIMEOUT")
                 continue
             except Exception:  # defensive: a provider bug must not crash the bot
                 logger.exception("provider %s crashed while fetching %s", provider.id, asset.key)
@@ -124,19 +169,30 @@ class DataSourceRegistry:
                 continue
 
             self._panel_cooldown.pop(asset.key, None)
-            quote = await self._quote_with_fallback(asset, None, timeout=4.0) if with_quote else None
+            ordered = sorted(candles, key=lambda candle: candle.time)
+            captured = self._clock()
+            bars = closed_candles(ordered, tf, captured)
+            if bars:
+                closed_at = bars[-1].time + timedelta(seconds=tf.seconds)
+                current = self._last_valid.get(asset.market.value)
+                if current is None or closed_at > current["closed_at"] or (
+                    closed_at == current["closed_at"] and tf.seconds <= current["seconds"]
+                ):
+                    self._last_valid[asset.market.value] = {"closed_at": closed_at, "seconds": tf.seconds,
+                                                          "frame": tf.code, "source": provider.name}
+            self._latency.setdefault(provider.id, deque(maxlen=128)).append(round((time.monotonic()-started)*1000))
             return MarketData(
                 asset=asset,
                 timeframe=tf,
-                candles=sorted(candles, key=lambda candle: candle.time),
+                candles=ordered,
                 source=provider.name,
-                quote=quote,
-                validation=report,
+                quote=None,
+                validation=report, fetched_at=captured,
             )
 
         detail = "; ".join(attempts) or "no provider registered for this market"
         raise DataUnavailable(
-            failures[0] if len(failures) == 1 and len(attempts) == 1 else "DATA_UNAVAILABLE",
+            failures[0] if failures and len(set(failures)) == 1 else "DATA_UNAVAILABLE",
             f"DATA UNAVAILABLE — no verified source for {asset.display} {tf.label}",
             detail,
         )
@@ -208,6 +264,10 @@ class DataSourceRegistry:
         return ", ".join(names) if names else "NONE"
 
     async def close(self) -> None:
+        tasks = tuple(self._inflight.values())
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         for provider in self._providers:
             try:
                 await provider.close()
@@ -217,7 +277,7 @@ class DataSourceRegistry:
 
 def build_registry(config, bridge=None) -> DataSourceRegistry:
     """Wire every provider that has credentials configured."""
-    from providers.eobridge import ExpertOptionBridgeProvider
+    from providers.eobridge import ExpertOptionBridgeProvider, ExpertOptionForexProvider
     from providers.mt5 import MT5BridgeProvider
     from providers.swissquote import SwissquoteProvider
     from providers.twelvedata import TwelveDataProvider
@@ -232,5 +292,6 @@ def build_registry(config, bridge=None) -> DataSourceRegistry:
             TwelveDataProvider(config.twelve_data_api_key),
             SwissquoteProvider(),
             bridge,
+            ExpertOptionForexProvider(bridge),
         ]
     )

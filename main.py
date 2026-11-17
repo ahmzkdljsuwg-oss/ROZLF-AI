@@ -5,6 +5,7 @@ import asyncio
 import logging
 import os
 import sys
+import time
 from datetime import datetime, timezone
 
 from aiogram import Bot, Dispatcher
@@ -26,6 +27,7 @@ from bot.middleware.subscription import SubscriptionMiddleware
 from config import normalise_database_url, settings
 from database.repository import Repository
 from engines.signals.generator import SignalGenerator
+from providers.base import utc_now
 from providers.eobridge import ExpertOptionBridgeProvider
 from providers.inventory import MarketInventory
 from providers.registry import build_registry
@@ -50,7 +52,19 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
     if not settings.port:
         return None
 
+    samples = (time.monotonic(), time.process_time())
+
     async def health(_request: web.Request) -> web.Response:
+        nonlocal samples
+        wall, cpu = time.monotonic(), time.process_time()
+        cpu_percent = round(100 * (cpu - samples[1]) / (wall - samples[0]), 1) if wall - samples[0] >= 1 else None
+        if cpu_percent is not None:
+            samples = (wall, cpu)
+        try:
+            with open("/proc/self/statm", encoding="ascii") as proc:
+                memory_mib = round(int(proc.read().split()[1]) * os.sysconf("SC_PAGE_SIZE") / 1048576, 1)
+        except (OSError, IndexError, ValueError, AttributeError):
+            memory_mib = None
         live = state.get("ctx") or ctx
         payload = {
             "status": "ok" if not state.get("error") else "degraded",
@@ -61,6 +75,9 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
             "stage": state.get("stage"),
             "telegram_configured": bool(settings.telegram_bot_token),
             "database_driver": normalise_database_url(settings.database_url).split(":", 1)[0],
+            "resources": {"cpu_percent_since_probe": cpu_percent, "rss_mib": memory_mib},
+            "candle_fetch_latency": live.registry.latency() if live else {},
+            "scanner_cycle_ms": live.scanner.last_duration_ms if live and live.scanner else None,
             "scanner": bool(live.scanner and live.scanner.running) if live else False,
             "scanner_last_run": str(live.scanner.last_run) if live and live.scanner and live.scanner.last_run else None,
             "sources": live.source_map() if live else {},
@@ -188,22 +205,35 @@ async def _run_bot(state: dict) -> None:
     state["ctx"] = ctx
     set_context(ctx)
 
-    async def notify_signal(record) -> None:
-        chat_id = record.user_id if settings.subscriptions_enabled else (settings.telegram_chat_id or record.user_id)
+    async def notify_signal(record):
+        chat_id = record.user_id
         if not chat_id:
-            return
-        if settings.subscriptions_enabled and not await repo.is_subscribed(chat_id):
-            return
+            return None
+        if settings.subscriptions_enabled and chat_id not in settings.owner_ids and not await repo.is_subscribed(chat_id):
+            return None
+        if chat_id != settings.telegram_chat_id and not await repo.scanner_opt_in(chat_id):
+            return None
+        if record.target_open_at is not None and (record.target_open_at-utc_now()).total_seconds() < 2:
+            return None
         try:
-            await bot.send_message(chat_id, fmt.signal_text(record), disable_web_page_preview=True)
+            text = (fmt.nexus_signal_text(record.market,record.direction,record.expiry_seconds,
+                     record.confidence,record.target_open_at,record.reasons,asset=record.asset_display,
+                     mode="scanner") if record.target_open_at else fmt.signal_text(record))
+            sent = await bot.send_message(chat_id, text, disable_web_page_preview=True)
+            return utc_now() if getattr(sent, "date", None) is not None else None
         except Exception:
-            logger.exception("failed sending scanner signal to %s", chat_id)
+            logger.exception("failed sending scanner signal")
+            return None
 
     async def notify_verification(record) -> None:
-        chat_id = record.user_id if settings.subscriptions_enabled else (settings.telegram_chat_id or record.user_id)
+        chat_id = record.user_id
         if not chat_id:
             return
-        if settings.subscriptions_enabled and not await repo.is_subscribed(chat_id):
+        if settings.subscriptions_enabled and chat_id not in settings.owner_ids and not await repo.is_subscribed(chat_id):
+            return
+        if record.target_open_at is not None and record.delivered_at is None:
+            return
+        if record.analysis_mode == "scanner" and chat_id != settings.telegram_chat_id and not await repo.scanner_opt_in(chat_id):
             return
         try:
             await bot.send_message(chat_id, fmt.verification_text(record), disable_web_page_preview=True)
@@ -254,6 +284,8 @@ async def _run_bot(state: dict) -> None:
                 [
                     BotCommand(command="start", description="فتح لوحة التحكم"),
                     BotCommand(command="markets", description="فتح قائمة الأسواق"),
+                    BotCommand(command="fast", description="تحليل فني سريع"),
+                    BotCommand(command="pro", description="تحليل قوي بمعايرة"),
                     BotCommand(command="lo", description="تشغيل وضع LO للتوصيات المستمرة"),
                     BotCommand(command="llo", description="العودة إلى التحليل القوي المعاير"),
                     *(

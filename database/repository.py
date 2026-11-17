@@ -15,6 +15,7 @@ from config import Settings, normalise_database_url
 from database.models import (
     Base,
     Signal,
+    ScannerPreference,
     Subscription,
     SubscriptionCode,
     SubscriptionNotification,
@@ -122,6 +123,9 @@ class SignalRecord:
     verified_at: datetime | None = None
     verification_source: str | None = None
     result_reason: str | None = None
+    target_open_at: datetime | None = None
+    delivered_at: datetime | None = None
+    analysis_mode: str | None = None
 
 
 class Repository:
@@ -144,8 +148,11 @@ class Repository:
             signal_columns = await connection.run_sync(
                 lambda sync: {column["name"] for column in inspect(sync).get_columns("signals")}
             )
-            if "result_reason" not in signal_columns:
-                await connection.execute(text("ALTER TABLE signals ADD COLUMN result_reason TEXT"))
+            datetime_type = "TIMESTAMP WITH TIME ZONE" if postgres else "DATETIME"
+            for name, kind in {"result_reason": "TEXT", "target_open_at": datetime_type,
+                               "delivered_at": datetime_type, "analysis_mode": "VARCHAR(16)"}.items():
+                if name not in signal_columns:
+                    await connection.execute(text(f"ALTER TABLE signals ADD COLUMN {name} {kind}"))
             await self._migrate_code_hashes(connection)
 
     @staticmethod
@@ -215,8 +222,14 @@ class Repository:
         warnings: list[str],
         expiry_seconds: int,
         created_at: datetime,
+        *,
+        target_open_at: datetime | None = None,
+        delivered_at: datetime | None = None,
+        analysis_mode: str | None = None,
     ) -> SignalRecord:
-        expires_at = created_at + timedelta(seconds=expiry_seconds)
+        if target_open_at is not None and delivered_at is not None and delivered_at >= target_open_at:
+            raise ValueError("Notification missed the target candle")
+        expires_at = (target_open_at or created_at) + timedelta(seconds=expiry_seconds)
         async with self._session() as session:
             row = Signal(
                 user_id=user_id,
@@ -234,11 +247,23 @@ class Repository:
                 created_at=created_at,
                 expires_at=expires_at,
                 status=STATUS_ACTIVE,
+                target_open_at=target_open_at,
+                delivered_at=delivered_at,
+                analysis_mode=analysis_mode,
             )
             session.add(row)
             await session.commit()
             await session.refresh(row)
             return self._to_record(row)
+
+    async def mark_candle_delivery(self, signal_id: int, delivered_at: datetime) -> bool:
+        async with self._session() as session:
+            outcome = await session.execute(update(Signal).where(
+                Signal.id == signal_id,Signal.status == STATUS_ACTIVE,
+                Signal.target_open_at > delivered_at,Signal.delivered_at.is_(None),
+            ).values(delivered_at=delivered_at))
+            await session.commit()
+            return bool(outcome.rowcount)
 
     async def active_signals(self, user_id: int | None = None, limit: int = 25) -> list[SignalRecord]:
         statement = select(Signal).where(Signal.status == STATUS_ACTIVE).order_by(Signal.created_at.desc()).limit(limit)
@@ -262,12 +287,16 @@ class Repository:
         verified_at: datetime | None,
         source: str | None,
         reason: str | None = None,
+        *,
+        entry_price: float | None = None,
     ) -> None:
         async with self._session() as session:
             row = await session.get(Signal, signal_id)
             if row is None or row.status != STATUS_ACTIVE:
                 return
             row.status = result
+            if entry_price is not None:
+                row.entry_price = entry_price
             row.close_price = close_price
             row.verified_at = verified_at
             row.verification_source = source
@@ -368,6 +397,45 @@ class Repository:
             "profit_factor": round(gross_gain / gross_loss, 2) if gross_loss > 0 else None,
         }
 
+    async def scanner_opt_in(self, user_id: int) -> bool:
+        async with self._session() as session:
+            row = await session.get(ScannerPreference, user_id)
+            return bool(row and row.enabled)
+
+    async def set_scanner_opt_in(self, user_id: int, enabled: bool) -> bool:
+        async with self._session() as session:
+            now = datetime.now(timezone.utc)
+            # Atomic on both production Postgres and the SQLite test schema.
+            await session.execute(text("""INSERT INTO scanner_preferences(user_id,enabled,updated_at)
+                 VALUES (:uid,:enabled,:now) ON CONFLICT(user_id)
+                 DO UPDATE SET enabled=excluded.enabled, updated_at=excluded.updated_at"""),
+                 {"uid":user_id,"enabled":int(enabled),"now":now if session.bind.dialect.name == "postgresql" else now.isoformat()})
+            await session.commit()
+        return enabled
+
+    async def scanner_targets(self, limit: int = 100, after: int = 0) -> list[int]:
+        async with self._session() as session:
+            result = await session.scalars(select(ScannerPreference.user_id)
+                    .where(ScannerPreference.enabled == 1,ScannerPreference.user_id > after)
+                    .order_by(ScannerPreference.user_id).limit(min(100, limit)))
+            return list(result.all())
+
+    async def candle_statistics(self, user_id: int) -> list[dict]:
+        async with self._session() as session:
+            rows = (await session.execute(select(Signal.market,Signal.timeframe,Signal.analysis_mode,
+                    Signal.status,func.count(Signal.id)).where(Signal.user_id == user_id,
+                    Signal.target_open_at.is_not(None),Signal.delivered_at < Signal.target_open_at)
+                    .group_by(Signal.market,Signal.timeframe,Signal.analysis_mode,Signal.status))).all()
+        counts = {}
+        for market, frame, mode, status, n in rows:
+            key = (market,frame,mode)
+            counts.setdefault(key, {})[status] = n
+        return [{"market":m,"frame":f,"mode":o,"counts":n,
+                 "decided":n.get(STATUS_WIN,0)+n.get(STATUS_LOSS,0),
+                 "accuracy":round(100*n.get(STATUS_WIN,0)/(n.get(STATUS_WIN,0)+n.get(STATUS_LOSS,0)),1)
+                 if n.get(STATUS_WIN,0)+n.get(STATUS_LOSS,0) else None}
+                for (m,f,o),n in sorted(counts.items(),key=lambda item: str(item[0]))]
+
     async def get_user_settings(self, user_id: int, defaults: dict | None = None) -> dict:
         defaults = defaults or {"markets": ["FOREX"], "min_confidence": 60.0, "scanner_enabled": True}
         async with self._session() as session:
@@ -399,10 +467,10 @@ class Repository:
     async def get_analysis_mode(self, user_id: int) -> str:
         async with self._session() as session:
             row = await session.get(UserMode, user_id)
-            return row.mode if row and row.mode in {"strong", "lo"} else "strong"
+            return row.mode if row and row.mode in {"strong", "lo", "fast", "pro"} else "strong"
 
     async def set_analysis_mode(self, user_id: int, mode: str) -> str:
-        if mode not in {"strong", "lo"}:
+        if mode not in {"strong", "lo", "fast", "pro"}:
             raise ValueError("mode must be 'strong' or 'lo'")
         async with self._session() as session:
             row = await session.get(UserMode, user_id)
@@ -703,4 +771,7 @@ class Repository:
             verified_at=_aware(row.verified_at),
             verification_source=row.verification_source,
             result_reason=row.result_reason,
+            target_open_at=_aware(row.target_open_at),
+            delivered_at=_aware(row.delivered_at),
+            analysis_mode=row.analysis_mode,
         )

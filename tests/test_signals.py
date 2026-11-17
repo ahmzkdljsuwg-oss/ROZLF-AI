@@ -147,7 +147,8 @@ async def test_duplicate_scan_suppressed(settings, repo, eurusd):
     first = await scanner.scan_once(user_ids=[42], min_confidence=0.0)
     second = await scanner.scan_once(user_ids=[42], min_confidence=0.0)
     assert first
-    assert second == []
+    # A new scan may report other assets, but never repeat an already issued one.
+    assert {r.asset_key for r in first}.isdisjoint(r.asset_key for r in second)
 
 
 async def test_market_data_unavailable_is_honest(settings, repo, btc_otc):

@@ -17,6 +17,13 @@ from providers.registry import DataSourceRegistry
 logger = logging.getLogger(__name__)
 
 MAX_ASSETS = 8
+NATIVE_FRAMES = ("5sec", "30sec", "1min", "2min", "3min", "5min")
+
+def native_frame_plan(asset, mode):
+    profile = tuple(f for f in profile_for(asset.market).frames if f in NATIVE_FRAMES)
+    if mode == "pro":
+        return forecast_frames(asset.market.value, profile)
+    return tuple(f for f in NATIVE_FRAMES if f in profile)[:3]
 FETCH_TIMEOUT = 18.0
 ANALYSIS_TIMEOUT = 22.0
 
@@ -48,7 +55,7 @@ class MarketAnalysisService:
         self.registry = registry
         self.settings = settings
         self.inventory = inventory
-        self.mode = mode if mode in {"strict", "strong", "lo"} else "strong"
+        self.mode = mode if mode in {"strict", "strong", "lo", "fast", "pro"} else "strong"
         self.reviewer = AIReviewer(gemini, mistral)
 
     async def assets_for(self, market: Market, asset_key: str | None = None) -> list[Asset]:
@@ -65,9 +72,9 @@ class MarketAnalysisService:
     async def analyse(self, market: Market, asset_key: str | None = None) -> MarketAnalysis:
         outcome = MarketAnalysis(market=market)
         try:
-            assets = await self.assets_for(market, asset_key)
-        except DataUnavailable as exc:
-            outcome.errors.append(exc.detail or exc.message)
+            assets = await asyncio.wait_for(self.assets_for(market, asset_key), 5)
+        except (DataUnavailable, TimeoutError) as exc:
+            outcome.errors.append("تأخر دليل الأصول" if isinstance(exc, TimeoutError) else (exc.detail or exc.message))
             return outcome
         if not assets:
             outcome.errors.append(f"no verified {market.label} instruments")
@@ -78,6 +85,8 @@ class MarketAnalysisService:
             profile_frames = profile_for(asset.market).frames
             frames = (tuple(profile_frames[:3]) if self.mode == "lo"
                       else forecast_frames(asset.market.value, profile_frames))
+            if self.mode in {"fast", "pro"}:
+                frames = native_frame_plan(asset, self.mode)
             for frame in frames:
                 jobs.append((asset, frame))
         semaphore = asyncio.Semaphore(4)
@@ -91,7 +100,25 @@ class MarketAnalysisService:
             elif item is not None:
                 results.append(item)
 
-        if self.mode == "lo" and len(assets) == 1:
+        if self.mode in {"fast", "pro"}:
+            outcome.attempted = len(jobs)
+            tasks = [asyncio.create_task(self._one(a, f, semaphore)) for a, f in jobs]
+            try:
+                for task in asyncio.as_completed(tasks, timeout=12 if self.mode == "fast" else 18):
+                    try:
+                        item = await task
+                        collect(item)
+                        if self.mode == "fast" and item is not None and self._timely(item[0]):
+                            break
+                    except DataUnavailable as exc:
+                        collect(exc)
+            except TimeoutError:
+                outcome.errors.append("انتهت مهلة جلب أحدث الشموع")
+            finally:
+                for task in tasks:
+                    task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+        elif self.mode == "lo" and len(assets) == 1:
             # Avoid launching all frames for the same asset at once. For EO a
             # quote and sibling requests share the same socket as history; for
             # Forex they consume extra credits. Use the first timely direction.
@@ -132,7 +159,7 @@ class MarketAnalysisService:
             return outcome
 
         actionable = [item for item in results if item[0].direction in ("UP", "DOWN")]
-        if (market is Market.SMARTY or self.mode == "lo") and actionable:
+        if (market is Market.SMARTY or self.mode in {"lo", "fast", "pro"}) and actionable:
             now = utc_now()
             usable = [item for item in actionable
                       if item[0].target_open_at is not None and item[0].target_open_at > now]
@@ -144,7 +171,7 @@ class MarketAnalysisService:
         if actionable:
             actionable.sort(key=lambda item: _strength(item[0], self.mode), reverse=True)
             best, frame = actionable[0]
-            if self.mode == "lo":
+            if self.mode in {"lo", "fast"}:
                 opposing = [
                     other for other, _ in actionable[1:]
                     if other.asset_key == best.asset_key and other.timeframe == best.timeframe
@@ -161,7 +188,8 @@ class MarketAnalysisService:
             else:
                 opposing = [
                     other for other, _ in actionable[1:]
-                    if other.direction != best.direction
+                    if (self.mode != "pro" or other.asset_key == best.asset_key)
+                    and other.direction != best.direction
                     and other.confidence >= max(52.0, best.confidence - 8.0)
                 ]
                 if opposing:
@@ -173,7 +201,7 @@ class MarketAnalysisService:
                     )
                     return outcome
             duration = timeframe(best.timeframe).seconds
-            if self.mode == "lo":
+            if self.mode in {"lo", "fast"}:
                 reason = (
                     f"target candle {best.timeframe} chosen from live technical components; "
                     "confidence is UNVERIFIED (no walk-forward calibration)"
@@ -183,7 +211,9 @@ class MarketAnalysisService:
                     f"target candle {best.timeframe} chosen because its walk-forward "
                     f"hit rate passed the gate; confidence {best.confidence:.0f}%"
                 )
-            passes = self.mode == "lo" or best.confidence >= max(52.0, self.settings.min_confidence - 8.0)
+            minimum = (self.settings.min_confidence if self.mode == "pro"
+                       else max(52.0, self.settings.min_confidence - 8.0))
+            passes = self.mode in {"lo", "fast"} or best.confidence >= minimum
             if duration is not None and passes:
                 outcome.result = best
                 outcome.duration_seconds = duration
@@ -191,18 +221,21 @@ class MarketAnalysisService:
                 # LO is a fast, explicitly unverified technical mode. External AI
                 # reviewers can rate-limit (429) and delay the target candle.
                 # Keep the independent AI veto for calibrated/strong mode only.
-                if self.mode != "lo" and self.reviewer.configured():
-                    review = await self.reviewer.review(
-                        best.direction, _review_payload(best, duration, reason)
-                    )
-                    if review.conflict:
+                if self.mode not in {"lo", "fast"} and self.reviewer.configured():
+                    try:
+                        review = await asyncio.wait_for(self.reviewer.review(
+                            best.direction, _review_payload(best, duration, reason)
+                        ), timeout=2)
+                    except TimeoutError:
+                        review = None
+                    if review and review.conflict:
                         outcome.conflict = review.conflict
                         return outcome
-                    if review.verdicts:
+                    if review and review.verdicts:
                         best.reasons.append(
                             "AI review confirmed by " + ", ".join(v.model for v in review.verdicts)
                         )
-                if (market is Market.SMARTY or self.mode == "lo") and best.target_open_at is not None and best.target_open_at <= utc_now():
+                if (market is Market.SMARTY or self.mode in {"lo", "fast", "pro"}) and best.target_open_at is not None and best.target_open_at <= utc_now():
                     outcome.conflict = "بدأت الشمعة المستهدفة قبل اكتمال التحليل"
                     outcome.duration_seconds = None
                 return outcome
@@ -220,7 +253,7 @@ class MarketAnalysisService:
         async with semaphore:
             try:
                 data = await asyncio.wait_for(
-                    self.registry.fetch(asset, timeframe(frame), with_quote=self.mode != "lo"), timeout=FETCH_TIMEOUT
+                    self.registry.fetch(asset, timeframe(frame), with_quote=self.mode not in {"lo", "fast", "pro"}), timeout=FETCH_TIMEOUT
                 )
                 result = await asyncio.wait_for(
                     asyncio.to_thread(

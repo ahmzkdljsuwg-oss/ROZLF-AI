@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Awaitable, Callable
 
@@ -28,7 +29,7 @@ SCAN_PLAN: dict[Market, tuple[str, ...]] = {
     Market.CRICKET: ("1min",),
 }
 
-Notifier = Callable[[SignalRecord], Awaitable[None]]
+Notifier = Callable[[SignalRecord], Awaitable[datetime | None]]
 
 
 class AutoScanner:
@@ -54,7 +55,11 @@ class AutoScanner:
         self.last_error: str | None = None
         self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
-        self._semaphore = asyncio.Semaphore(4)
+        self._semaphore = asyncio.Semaphore(3)
+        self._delivery_limit = asyncio.Semaphore(3)
+        self._scan_lock = asyncio.Lock()
+        self._rotation = {}
+        self.last_duration_ms = None
         self._recent: dict[str, datetime] = {}
         self._override: set[str] | None = None
 
@@ -131,65 +136,126 @@ class AutoScanner:
             self.last_skips[label] = exc.message
             return []
 
-    async def scan_once(self, user_ids: list[int] | None = None, min_confidence: float | None = None) -> list[SignalRecord]:
+    async def scan_once(self, user_ids: list[int] | None = None, min_confidence: float | None = None,
+                        *, notify: bool = True) -> list[SignalRecord]:
+        async with self._scan_lock:
+            return await self._scan_cycle(user_ids, min_confidence, notify)
+
+    async def _scan_cycle(self, user_ids, min_confidence, notify):
         threshold = min_confidence if min_confidence is not None else self.settings.min_confidence
-        now = utc_now()
-        markets = self.enabled_markets()
-        found: list[AnalysisResult] = []
+        started = time.monotonic()
+        unscoped = user_ids is None
+        explicit = self.settings.telegram_chat_id
+        targets = list(user_ids or []) if not unscoped else ([explicit] if explicit else [])
+        if unscoped:
+            targets += await self.repo.scanner_targets()
+        targets = list(dict.fromkeys(uid for uid in targets if uid))
         self.last_skips = {}
+        now = utc_now()
+        self._recent = {key: stamp for key, stamp in self._recent.items()
+                        if now-stamp < timedelta(hours=3)}
+        limit = max(1, self.settings.max_scan_signals)
+        created = []
+        publications = set()
+        checked = 0
 
-        async def analyse(asset: Asset, frame_code: str) -> AnalysisResult | None:
+        async def get_job(asset, frame):
             async with self._semaphore:
-                result = await self.generator.scan_asset(asset, frame_code, threshold)
-            if result is None:
-                return None
-            signature = f"{asset.key}:{frame_code}"
-            last = self._recent.get(signature)
-            cooldown = max(300, timeframe(frame_code).seconds * 2)
-            if last is not None and (now - last).total_seconds() < cooldown:
-                return None
-            if await self.repo.recent_signal_exists(asset.key, now - timedelta(seconds=cooldown)):
-                return None
-            self._recent[signature] = now
-            return result
-
-        tasks = []
-        for market in markets:
-            for asset in await self.market_assets(market):
-                for frame_code in SCAN_PLAN[market]:
-                    tasks.append(analyse(asset, frame_code))
-        if not tasks:
-            self.last_run = now
-            self.last_found = 0
-            return []
-
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for item in results:
-            if isinstance(item, AnalysisResult):
-                found.append(item)
-            elif isinstance(item, Exception) and not isinstance(item, asyncio.CancelledError):
-                logger.debug("scan item failed: %s", item)
-
-        found.sort(key=lambda result: result.confidence, reverse=True)
-        top = found[: max(1, self.settings.max_scan_signals)]
-        targets = user_ids if user_ids is not None else [self.settings.telegram_chat_id] if self.settings.telegram_chat_id else []
-        created: list[SignalRecord] = []
-        for result in top:
-            for user_id in targets:
-                if not user_id:
-                    continue
                 try:
-                    record = await self.generator.create_signal(user_id, result, result.suggested_expiry_seconds, now)
-                except (ValueError, KeyError) as exc:
-                    logger.warning("scan signal rejected: %s", exc)
-                    continue
-                created.append(record)
-                if self.notifier is not None:
+                    return await asyncio.wait_for(self.generator.scan_asset(asset,frame,threshold), timeout=21)
+                except TimeoutError:
+                    self.last_skips.setdefault(asset.market.value.upper(), "تجاوز مهلة قراءة البيانات")
+                    return None
+
+        async def publish(target, result):
+            if (result.target_open_at-utc_now()).total_seconds()<2:
+                return None
+            if self.settings.subscriptions_enabled and (target not in self.settings.owner_ids and
+                                                        not await self.repo.is_subscribed(target)):
+                return None
+            if unscoped and target != explicit and not await self.repo.scanner_opt_in(target):
+                return None
+            if unscoped and self._stop.is_set():
+                return None
+            try:
+                record = await self.generator.create_signal(target, result, timeframe(result.timeframe).seconds,
+                                                           candle_target=True)
+                if notify and self.notifier is not None:
                     try:
-                        await self.notifier(record)
+                        receipt = await asyncio.wait_for(self.notifier(record), timeout=6)
+                        if receipt is not None:
+                            await self.repo.mark_candle_delivery(record.id,receipt)
+                        logger.info("nexus scanner dispatch asset=%s frame=%s ready_ms=%d on_time=%s",
+                            result.asset_key,result.timeframe,round((time.monotonic()-started)*1000),
+                            receipt is not None and receipt < result.target_open_at)
                     except Exception:
                         logger.exception("scanner notifier failed")
+                return record
+            except (ValueError, KeyError):
+                return None
 
+        admitted = 0
+        async def consume(result):
+            nonlocal admitted
+            if not result or admitted >= limit or not targets:
+                return
+            checked_at = utc_now()
+            if not result.target_open_at or result.target_open_at-checked_at < timedelta(seconds=2):
+                return
+            signature = f"{result.asset_key}:{result.timeframe}"
+            cooldown = timedelta(seconds=max(300,timeframe(result.timeframe).seconds*2))
+            last = self._recent.get(signature)
+            if (last and checked_at-last<cooldown) or await self.repo.recent_signal_exists(
+                    result.asset_key,checked_at-cooldown):
+                return
+            self._recent[signature] = checked_at
+            admitted += 1
+            # Isolate the Telegram/API/DB path from candle collection. Limit
+            # simultaneous sends to avoid exhausting Telegram on a large list.
+            async def limited(uid):
+                async with self._delivery_limit:
+                    return await publish(uid,result)
+            publications.update(asyncio.create_task(limited(uid)) for uid in targets)
+
+        discoveries = {asyncio.create_task(self.market_assets(market)):market for market in self.enabled_markets()}
+        jobs = set()
+        all_tasks = set(discoveries)
+        waiters = set(discoveries)
+        try:
+            while waiters:
+                done, waiters = await asyncio.wait(waiters,return_when=asyncio.FIRST_COMPLETED)
+                for task in done:
+                    if task in discoveries:
+                        market = discoveries[task]
+                        try:
+                            assets = task.result()
+                        except Exception:
+                            logger.exception("scanner inventory failed for %s",market.value)
+                            continue
+                        if unscoped and len(assets)>4:
+                            offset = self._rotation.get(market,0)
+                            assets = [assets[(offset+i)%len(assets)] for i in range(4)]
+                            self._rotation[market] = offset+4
+                        for asset in assets:
+                            for frame in SCAN_PLAN[market]:
+                                work = asyncio.create_task(get_job(asset,frame))
+                                waiters.add(work); jobs.add(work); all_tasks.add(work)
+                    elif task in jobs:
+                        checked += 1
+                        try:
+                            await consume(task.result())
+                        except Exception:
+                            logger.exception("isolated scanner item failed")
+            if publications:
+                created = [r for r in await asyncio.gather(*publications,return_exceptions=True) if isinstance(r,SignalRecord)]
+        finally:
+            for task in all_tasks | publications:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*(all_tasks | publications),return_exceptions=True)
         self.last_run = utc_now()
         self.last_found = len(created)
+        self.last_duration_ms = round((time.monotonic()-started)*1000)
+        logger.info("nexus scanner completed checked=%d issued=%d wall_ms=%d targets=%d",
+                    checked,self.last_found,self.last_duration_ms,len(targets))
         return created

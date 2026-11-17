@@ -16,6 +16,7 @@ from engines.technical.indicators import compute_indicators, frame_from_candles
 from engines.validation import closed_candles
 from providers.base import DataUnavailable, utc_now
 from providers.catalog import Market, assets_for, timeframe
+from services.market_analysis import NATIVE_FRAMES, native_frame_plan
 from .auth import telegram_user
 
 STATIC = Path(__file__).parent / "static"
@@ -25,7 +26,7 @@ ICONS = dict(zip(MARKETS, ("⚽", "🧠", "🪙", "🌙", "💎", "🤖", "🏏"
 LOG = logging.getLogger(__name__)
 MIN_LEAD = 2.0
 FAST_FRAMES = ("5sec", "15sec", "30sec", "1min")
-FRAME_BUDGET = {"5sec": 5.0, "15sec": 6.0, "30sec": 8.0, "1min": 18.0}
+FRAME_BUDGET = {"5sec": 5.0, "15sec": 6.0, "30sec": 8.0, "1min": 18.0, "2min": 18.0, "3min": 18.0, "5min": 18.0}
 ANALYSIS_BUDGET = 34.0
 SOURCE_ERRORS = {
     "RATE_LIMITED": "مصدر الأسعار وصل إلى حد الطلبات. أعد المحاولة بعد قليل.",
@@ -70,7 +71,7 @@ async def _owned_fetch(registry, asset, tf, *, fresh=False):
 
 
 def _bar_window(data, tf, now):
-    bars = closed_candles(data.candles, tf, now)
+    bars = closed_candles(data.candles, tf, min(now, data.fetched_at))
     if not bars:
         raise DataUnavailable("NO_CLOSED_CANDLES", SOURCE_ERRORS["NO_CLOSED_CANDLES"])
     if any(not math.isfinite(value) for bar in bars for value in (bar.open, bar.high, bar.low, bar.close)):
@@ -119,7 +120,7 @@ async def _analyze_frame(registry, asset, frame, mode, *, budget=None):
                    if issue == "SHORT_HISTORY" else
                    "هذا آخر شارت متاح. لم تصل شموع متتابعة في الوقت المناسب للتوقع."]
     else:
-        result = await asyncio.to_thread(analyze_market_data, data, now, None, "lo" if mode == "fast" else "strong")
+        result = await asyncio.to_thread(analyze_market_data, data, now, None, {"fast": "lo", "fast_v2": "fast", "pro": "pro", "minute": "strong"}[mode])
         indicators = result.indicators
         direction = result.direction
         reasons = result.reasons
@@ -132,8 +133,8 @@ async def _analyze_frame(registry, asset, frame, mode, *, budget=None):
                 and indicators.get("trend") == "RANGE" and indicators.get("volatility") == "HIGH"):
             direction = "NO TRADE"
             reasons = ["السوق عرضي ومتذبذب بقوة؛ ما فيه اتجاه واضح للشمعة القادمة."]
-        if mode == "minute":
-            if not result.confidence_verified:
+        if mode in {"minute", "pro"}:
+            if not result.confidence_verified and direction != "NO TRADE":
                 direction = "NO TRADE"
                 reasons = ["لا توجد معايرة صالحة لهذا الأصل على الدقيقة."]
             elif direction != "NO TRADE":
@@ -219,6 +220,57 @@ def install(app, settings, get_context):
             for market, rows in (await catalogue(ctx)).items() if rows
         ]})
 
+    def packed_signal(record):
+        return {"id": record.id, "market": record.market, "asset": record.asset_display,
+                "frame": record.timeframe, "seconds": record.expiry_seconds,
+                "direction": record.direction, "mode": record.analysis_mode,
+                "status": record.status, "target_ms": _ms(record.target_open_at),
+                "end_ms": _ms(record.expires_at), "reason": record.result_reason,
+                "open": record.entry_price if record.close_price is not None else None,
+                "close": record.close_price}
+
+    @protected
+    async def dashboard(_request, ctx, user):
+        rows, recent, results, enabled, mode = await asyncio.gather(
+            catalogue(ctx), ctx.repo.recent_signals(50, user), ctx.repo.candle_statistics(user),
+            ctx.repo.scanner_opt_in(user), ctx.repo.get_analysis_mode(user))
+        scanner = getattr(ctx, "scanner", None)
+        return _response({
+            "server_ms": _ms(utc_now()),
+            "scanner": {"enabled": enabled, "running": bool(scanner and scanner.running),
+                        "last_scan_ms": _ms(scanner.last_run) if scanner and scanner.last_run else None},
+            "mode": mode,
+            "markets": [{"key": market.value, "label": market.label, "icon": ICONS[market],
+                         **ctx.registry.market_readiness(market),
+                         "frames": [f for f in NATIVE_FRAMES if f in profile_for(market).frames],
+                         "assets": [{"key": a.key, "label": a.name or a.symbol, "symbol": a.symbol}
+                                    for a in assets]} for market, assets in rows.items()],
+            "signals": [packed_signal(r) for r in recent if r.target_open_at and r.delivered_at
+                        and r.delivered_at < r.target_open_at],
+            "performance": results, "latency": ctx.registry.latency(),
+        })
+
+    @protected
+    async def preferences(request, ctx, user):
+        if request.content_length is not None and request.content_length > 1024:
+            return _error("BAD_REQUEST", "حجم الطلب أكبر من المسموح.", 413)
+        try:
+            body = await request.json()
+            if not isinstance(body, dict) or not body or set(body) - {"scanner", "mode"}:
+                raise ValueError
+            if "scanner" in body and not isinstance(body["scanner"], bool):
+                raise ValueError
+            if "mode" in body and body["mode"] not in ("fast", "pro", "lo", "strong"):
+                raise ValueError
+        except (ValueError, TypeError, KeyError):
+            return _error("BAD_REQUEST", "الإعداد غير صالح.", 400)
+        if "scanner" in body:
+            await ctx.repo.set_scanner_opt_in(user, body["scanner"])
+        if "mode" in body:
+            await ctx.repo.set_analysis_mode(user, body["mode"])
+        return _response({"scanner": await ctx.repo.scanner_opt_in(user),
+                          "mode": await ctx.repo.get_analysis_mode(user)})
+
     @protected
     async def analyze(request, ctx, user_id):
         try:
@@ -228,7 +280,9 @@ def install(app, settings, get_context):
             market = Market(body["market"])
             asset_key = body["asset"]
             mode = body["mode"]
-            if not isinstance(asset_key, str) or mode not in ("fast", "minute"):
+            selected = body.get("frame")
+            if (not isinstance(asset_key, str) or mode not in ("fast", "minute", "pro")
+                    or (selected is not None and not isinstance(selected, str))):
                 raise ValueError
         except (ValueError, TypeError, KeyError):
             return _error("BAD_REQUEST", "اختر سوقاً وأصلاً ونوع التحليل.", 400)
@@ -242,37 +296,84 @@ def install(app, settings, get_context):
                 if asset is None:
                     return _error("MARKET_UNAVAILABLE", "الأصل غير متاح من مصدر هذا السوق الآن.", 404)
                 supported = profile_for(market).frames
-                plan = ("1min",) if mode == "minute" else tuple(f for f in FAST_FRAMES if f in supported)
+                revised = mode == "pro" or selected is not None
+                effective = "fast_v2" if revised and mode == "fast" else mode
+                if revised:
+                    if selected is not None and selected != "auto":
+                        if selected not in NATIVE_FRAMES or selected not in supported:
+                            return _error("FRAME_UNSUPPORTED", "الفريم غير متاح من المصدر الأصلي لهذا السوق.", 400)
+                        plan = (selected,)
+                    else:
+                        plan = native_frame_plan(asset, mode)
+                else:
+                    plan = ("1min",) if mode == "minute" else tuple(f for f in FAST_FRAMES if f in supported)
                 best = None
                 failures = []
-                deadline = time.monotonic() + ANALYSIS_BUDGET
-                for frame in plan:
+                deadline = time.monotonic() + (12.0 if effective == "fast_v2" else ANALYSIS_BUDGET)
+
+                async def sample(frame):
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
-                        break
+                        return None, "TIMEOUT"
                     try:
-                        result = await _analyze_frame(ctx.registry, asset, frame, mode, budget=remaining)
+                        return await _analyze_frame(ctx.registry, asset, frame, effective, budget=remaining), None
                     except (DataUnavailable, TimeoutError) as exc:
                         code = getattr(exc, "code", "TIMEOUT")
-                        failures.append(code)
                         LOG.info("Mini candles %s %s failed: %s", asset.key, frame, code)
-                        if code in {"RATE_LIMITED", "INVALID_KEY", "EO_BRIDGE_UNAUTHORIZED", "INACTIVE_ASSET"}:
-                            break
-                        continue
-                    if result["direction"] != "NO TRADE":
-                        best = result
-                        break
-                    if best is None or (best["data_issue"] and not result["data_issue"]):
-                        best = result
+                        return None, code
+
+                def choose(current, result):
+                    if current is None:
+                        return result
+                    if result["direction"] != "NO TRADE" and (
+                        current["direction"] == "NO TRADE" or
+                        (result["confidence"] or 0) > (current["confidence"] or 0)):
+                        return result
+                    if (current["direction"] == "NO TRADE" and current["data_issue"] and not result["data_issue"]):
+                        return result
+                    return current
+
+                if revised:
+                    tasks = [asyncio.create_task(sample(frame)) for frame in plan]
+                    try:
+                        for task in asyncio.as_completed(tasks, timeout=max(0.1, deadline - time.monotonic())):
+                            result, code = await task
+                            if result:
+                                best = choose(best, result)
+                                if effective == "fast_v2" and result["direction"] != "NO TRADE":
+                                    break
+                            elif code:
+                                failures.append(code)
+                    except TimeoutError:
+                        failures.append("TIMEOUT")
+                    finally:
+                        for task in tasks:
+                            task.cancel()
+                        await asyncio.gather(*tasks, return_exceptions=True)
+                else:
+                    for frame in plan:
+                        result, code = await sample(frame)
+                        if result:
+                            best = choose(best, result)
+                            if result["direction"] != "NO TRADE":
+                                break
+                        elif code:
+                            failures.append(code)
+                            if code in {"RATE_LIMITED", "INVALID_KEY", "EO_BRIDGE_UNAUTHORIZED", "INACTIVE_ASSET"}:
+                                break
                 if best is None:
                     reason = next((code for code in reversed(failures) if code in SOURCE_ERRORS), "DATA_UNAVAILABLE")
                     return _response({"code": "DATA_UNAVAILABLE", "reason": reason,
                                       "message": SOURCE_ERRORS[reason]}, 503)
                 now = _ms(utc_now())
+                if mode == "pro" and best["direction"] in ("UP", "DOWN") and (
+                        best["confidence"] is None or best["confidence"] < settings.min_confidence):
+                    best.update(direction="NO TRADE", target_ms=None, end_ms=None, confidence=None,
+                                reasons=["القراءة المعايرة لم تتجاوز حد الثقة المفعّل لهذا الوضع."])
                 if best["target_ms"] is not None and best["target_ms"] - now < MIN_LEAD * 1000:
                     best.update(direction="NO TRADE", target_ms=None, end_ms=None, confidence=None,
                                 reasons=["انتهت نافذة النشر، أعد الفحص للشمعة التالية."])
-                return _response({**best, "server_ms": now,
+                return _response({**best, "mode": mode, "server_ms": now,
                                   "processing_ms": int((time.monotonic() - request["mini_received"]) * 1000)})
         finally:
             user_busy.discard(user_id)
@@ -288,3 +389,5 @@ def install(app, settings, get_context):
     app.router.add_get("/mini-app/app.js", document("app.js"))
     app.router.add_get("/api/nexus-mini/v1/markets", markets)
     app.router.add_post("/api/nexus-mini/v1/analyze", analyze)
+    app.router.add_get("/api/nexus-mini/v1/dashboard", dashboard)
+    app.router.add_post("/api/nexus-mini/v1/preferences", preferences)
