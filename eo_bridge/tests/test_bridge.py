@@ -16,6 +16,7 @@ from aiohttp.test_utils import TestClient, TestServer
 from eo_bridge.app import BridgeApp
 from eo_bridge.catalog import (
     Instrument,
+    build_instruments,
     classify,
     find_smarty,
     normalise_symbol,
@@ -264,3 +265,28 @@ def test_catalog_classification_and_resolution() -> None:
     assert timeframe_seconds("15min") == 900
     assert timeframe_seconds("900") == 900
     assert timeframe_seconds("7min") is None
+
+
+async def test_candles_wait_for_reconnect_and_stop_after_complete_reply(monkeypatch):
+    import asyncio
+
+    client = ExpertOptionClient(make_settings("ws://unused.invalid"))
+    symbol = find_smarty(build_instruments(ASSETS))
+    assert symbol is not None
+    calls = []
+    async def subscribe(_):
+        assert client._connected.is_set()
+    async def request(action, message, timeout):
+        calls.append(action)
+        client._ingest_candles(candle_periods(symbol.id, 60, count=320))
+        return {}
+    monkeypatch.setattr(client, "_subscribe", subscribe)
+    monkeypatch.setattr(client, "request", request)
+    task = asyncio.create_task(client.get_candles(symbol, 60, limit=300))
+    await asyncio.sleep(0.01)
+    assert not task.done() and calls == []
+    from types import SimpleNamespace
+    client._ws = SimpleNamespace(closed=False)
+    client._connected.set()
+    result = await asyncio.wait_for(task, timeout=1)
+    assert len(result) == 300 and calls == ["assetHistoryCandles"]

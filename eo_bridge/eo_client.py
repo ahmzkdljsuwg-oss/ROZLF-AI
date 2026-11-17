@@ -497,15 +497,15 @@ class ExpertOptionClient:
             }
         )
         await self._wait_for_assets(15.0)
-        if not self._assets:
+        if not self._connected.is_set():
+            # Require an assets response on this connection, not retained inventory.
             # Some gateways ignore the batch and answer a plain assets request.
             with contextlib.suppress(BridgeError):
                 await self.refresh_assets()
-        if not self._assets:
+        if not self._connected.is_set():
             await self._wait_for_assets(8.0)
-        if not self._assets:
+        if not self.connected or not self._connected.is_set():
             raise self._auth_error()
-        self._connected.set()
         self._last_error = None
         logger.info("ExpertOption authenticated: %d instruments", len(self._assets))
 
@@ -534,7 +534,7 @@ class ExpertOptionClient:
 
     async def _wait_for_assets(self, timeout: float) -> None:
         deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline and not self._assets:
+        while time.monotonic() < deadline and self.connected and not self._connected.is_set():
             if self._last_error and self._last_error.startswith(("TOKEN_INVALID", "AUTH_FAILED")):
                 return
             await asyncio.sleep(0.1)
@@ -577,23 +577,22 @@ class ExpertOptionClient:
             await self.start()
         if not self.settings.eo_token:
             raise BridgeError("EO_TOKEN_MISSING", "Bridge has no ExpertOption session token")
-        if not self.connected:
-            deadline = time.monotonic() + 15.0
-            while not self.connected and time.monotonic() < deadline:
-                if self._last_error and self._last_error.startswith(("TOKEN_INVALID", "AUTH_FAILED")):
-                    raise self._auth_error()
-                with contextlib.suppress(asyncio.TimeoutError):
-                    await asyncio.wait_for(self._connected.wait(), timeout=0.2)
-        if not self.connected:
-            raise BridgeError(
-                "DISCONNECTED",
-                self._last_error or "ExpertOption socket is not connected",
-            )
+        await self._wait_ready(15.0)
         if not self._assets or time.time() - self._assets_loaded_at > max_age_seconds:
             await self.refresh_assets()
         if not self._assets:
             raise BridgeError("AUTH_FAILED", "ExpertOption returned no assets")
         return self.assets
+
+    async def _wait_ready(self, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        while not (self.connected and self._connected.is_set()):
+            if self._last_error and self._last_error.startswith(("TOKEN_INVALID", "AUTH_FAILED")):
+                raise self._auth_error()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise BridgeError("DISCONNECTED", "ExpertOption socket is not connected")
+            await asyncio.sleep(min(0.15, remaining))
 
     # -------------------------------------------------------------------- candles
     def _record_market(self, instrument: Instrument, **values: Any) -> None:
@@ -640,20 +639,20 @@ class ExpertOptionClient:
         self._subscription_order.append(key)
 
     async def get_candles(self, instrument: Instrument, tf_seconds: int, limit: int = 300) -> list[Candle]:
-        if not self.connected:
-            raise BridgeError("DISCONNECTED", "ExpertOption socket is not connected")
+        await self._wait_ready(4.0)
         key = (instrument.id, tf_seconds)
         cached = self._candle_cache.get(key)
-        if cached is not None and time.monotonic() - cached[0] < CANDLE_CACHE_SECONDS:
+        if cached is not None and len(cached[1]) >= limit and time.monotonic() - cached[0] < CANDLE_CACHE_SECONDS:
             return cached[1][-limit:]
         lock = self._fetch_locks.setdefault(key, asyncio.Lock())
         async with self._fetch_semaphore, lock:
             cached = self._candle_cache.get(key)
-            if cached is not None and time.monotonic() - cached[0] < CANDLE_CACHE_SECONDS:
+            if cached is not None and len(cached[1]) >= limit and time.monotonic() - cached[0] < CANDLE_CACHE_SECONDS:
                 return cached[1][-limit:]
             bucket = self._candles.setdefault(key, {})
             last_error: BridgeError | None = None
             async with self._request_lock:
+                await self._wait_ready(4.0)
                 await self._subscribe(key)
                 needed = max(limit, 60)
                 span = max(self.settings.candle_history_seconds, tf_seconds * needed)
@@ -661,7 +660,8 @@ class ExpertOptionClient:
                 latest = max(bucket) if bucket else 0
                 # A bucket that stopped advancing must be backfilled from
                 # history instead of being served as if it were live.
-                attempts = 3 if len(bucket) < needed or end - latest > max(tf_seconds * 3, 30) else 0
+                freshness = max(tf_seconds * 2, 15)
+                attempts = 3 if len(bucket) < needed or end - latest > freshness else 0
                 for attempt in range(attempts):
                     start = end - span
                     try:
@@ -675,15 +675,23 @@ class ExpertOptionClient:
                             timeout=8.0,
                         )
                     except BridgeError as exc:
+                        if exc.code in {"DISCONNECTED", "TOKEN_INVALID", "AUTH_FAILED"}:
+                            raise
                         last_error = exc
                         logger.warning(
                             "history fetch failed for %s tf=%s attempt=%s: %s",
                             instrument.symbol, tf_seconds, attempt + 1, exc.code,
                         )
-                    await asyncio.sleep(0.4 * (2 ** attempt))
-                    if bucket:
-                        end = min(bucket) - 1
-                    span = max(span, tf_seconds * needed)
+                    # Do not hold the shared socket for two extra history
+                    # requests once the first reply met the real requirement.
+                    now = int(time.time())
+                    if len(bucket) >= needed and now - max(bucket) <= freshness:
+                        break
+                    if attempt + 1 < attempts:
+                        await asyncio.sleep(0.2 * (2 ** attempt))
+                        # Backfill older bars only after the head is fresh. An
+                        # empty/stale reply must retry the newest window first.
+                        end = min(bucket) - 1 if bucket and now - max(bucket) <= freshness else now
             now = time.time()
             horizon = now + max(tf_seconds, 60)
             ordered = [bucket[ts] for ts in sorted(bucket)]
