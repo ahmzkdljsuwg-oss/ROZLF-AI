@@ -65,9 +65,12 @@ def test_scan_interval_property():
     assert settings.scan_interval == 120
 
 
-def test_mini_app_configuration_is_gone():
+def test_mini_app_uses_same_service_public_https_and_has_no_web_only_role():
     with patch.dict(os.environ, {"MINI_APP_URL": "https://example.test", "ROZLF_ROLE": "web-only"}, clear=True):
         settings = Settings.from_env()
-    assert not hasattr(settings, "mini_app_url")
+    assert settings.mini_app_link is None  # no HTTP listener
     assert not hasattr(settings, "web_only")
     assert not hasattr(settings, "role")
+    with patch.dict(os.environ, {"RAILWAY_PUBLIC_DOMAIN": "bot.example.test", "PORT": "8080"}, clear=True):
+        configured = Settings.from_env()
+    assert configured.mini_app_link == "https://bot.example.test/mini-app/"

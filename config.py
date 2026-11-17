@@ -88,6 +88,7 @@ class Settings:
     admin_bot_token: str = ""
     owner_telegram_ids: str = ""
     subscriptions_enabled: bool = False
+    mini_app_url: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -115,11 +116,26 @@ class Settings:
             mistral_vision_model=_text("MISTRAL_VISION_MODEL", "pixtral-12b-2409") or "pixtral-12b-2409",
             admin_bot_token=_text("ADMIN_BOT_TOKEN", "") or "",
             owner_telegram_ids=_text("OWNER_TELEGRAM_IDS", str(PRIMARY_OWNER_ID)) or str(PRIMARY_OWNER_ID),
+            mini_app_url=_http_url("MINI_APP_URL") or _http_url("RAILWAY_PUBLIC_DOMAIN"),
             subscriptions_enabled=_flag(
                 "SUBSCRIPTIONS_ENABLED",
                 bool(_text("ADMIN_BOT_TOKEN", "")),
             ),
         )
+
+    @property
+    def mini_app_link(self) -> str | None:
+        """A public HTTPS URL for this bot's same-origin application."""
+        if not self.port or not self.mini_app_url:
+            return None
+        try:
+            url = urlsplit(self.mini_app_url)
+            if (url.scheme != "https" or not url.hostname or url.username or url.password
+                    or url.query or url.fragment or url.path.rstrip("/") not in ("", "/mini-app")):
+                return None
+        except ValueError:
+            return None
+        return f"https://{url.netloc}/mini-app/"
 
     @property
     def bridge_url(self) -> str | None:

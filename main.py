@@ -88,7 +88,10 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
         }
         return web.json_response(payload)
 
-    app = web.Application()
+    app = web.Application(client_max_size=4096)
+    if settings.mini_app_link:
+        from mini_app.api import install as install_mini_app
+        install_mini_app(app, settings, lambda: state.get("ctx") or ctx)
     app.router.add_get("/", health)
     app.router.add_get("/health", health)
     runner = web.AppRunner(app)

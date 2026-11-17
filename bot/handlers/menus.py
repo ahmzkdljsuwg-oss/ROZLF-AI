@@ -92,7 +92,7 @@ async def _edit(callback: CallbackQuery, text: str, keyboard=None) -> None:
 async def _show_nexus_home(message: Message) -> None:
     await message.answer(
         fmt.NEXUS_WELCOME,
-        reply_markup=menus.nexus_home_menu(),
+        reply_markup=menus.nexus_home_menu(getattr(message, "chat", None)),
         disable_web_page_preview=True,
     )
 
@@ -152,7 +152,7 @@ async def cb_nx_analyse(callback: CallbackQuery) -> None:
 @router.callback_query(F.data == "nx:home")
 async def cb_nx_home(callback: CallbackQuery) -> None:
     await callback.answer()
-    await _edit(callback, fmt.NEXUS_WELCOME, menus.nexus_home_menu())
+    await _edit(callback, fmt.NEXUS_WELCOME, menus.nexus_home_menu(getattr(callback.message, "chat", None)))
 
 
 @router.callback_query(F.data == "nx:more")
@@ -418,7 +418,7 @@ async def cmd_lo(message: Message) -> None:
         "الاتجاه UP/DOWN يُختار عند اتفاق الأدلة، والثقة تُعرض UNVERIFIED\n"
         "لأنه لا توجد معايرة Walk-Forward لهذا الوضع.\n"
         "عند تعارض الأدلة أو فشل البيانات: NO TRADE / DATA UNAVAILABLE.",
-        reply_markup=menus.nexus_home_menu(),
+        reply_markup=menus.nexus_home_menu(getattr(message, "chat", None)),
     )
 
 
@@ -437,7 +437,7 @@ async def cmd_llo(message: Message) -> None:
         "تمت العودة إلى محرك Walk-Forward المعاير.\n"
         "لا يصدر UP أو DOWN إلا إذا اجتاز السوق والفريم شروط المعايرة،\n"
         "وإلا فالنتيجة NO TRADE مع سبب واضح.",
-        reply_markup=menus.nexus_home_menu(),
+        reply_markup=menus.nexus_home_menu(getattr(message, "chat", None)),
     )
 
 
@@ -521,7 +521,7 @@ async def cmd_activate(message: Message) -> None:
     if result.status == "ACTIVATED" and result.subscription is not None:
         await message.answer(
             fmt.subscription_activated_text(result.subscription),
-            reply_markup=menus.nexus_home_menu(),
+            reply_markup=menus.nexus_home_menu(getattr(message, "chat", None)),
         )
         return
     await message.answer(fmt.activation_failed_text(result))
@@ -606,7 +606,7 @@ async def _send_status(message: Message) -> None:
 @router.callback_query(F.data.in_({"menu:main", "menu:refresh"}))
 async def cb_main(callback: CallbackQuery) -> None:
     await callback.answer()
-    await _edit(callback, fmt.NEXUS_WELCOME, menus.nexus_home_menu())
+    await _edit(callback, fmt.NEXUS_WELCOME, menus.nexus_home_menu(getattr(callback.message, "chat", None)))
 
 
 @router.callback_query(F.data.startswith("mkt:"))

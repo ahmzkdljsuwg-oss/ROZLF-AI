@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from config import settings
@@ -114,8 +114,12 @@ def nexus_favorite(index: int, assets: Iterable[Asset]) -> tuple[str, Asset | No
     return label, _classic_asset_labels(assets).get(label)
 
 
-def nexus_home_menu() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[_button("ابدأ استلام الإشارات 🚀", "nx:analyse")]])
+def nexus_home_menu(chat=None) -> InlineKeyboardMarkup:
+    rows = [[_button("ابدأ استلام الإشارات 🚀", "nx:analyse")]]
+    url = settings.mini_app_link
+    if url and getattr(chat, "type", None) == "private":
+        rows.append([InlineKeyboardButton(text="Mini App ⚡", web_app=WebAppInfo(url=url))])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def nexus_markets_menu(

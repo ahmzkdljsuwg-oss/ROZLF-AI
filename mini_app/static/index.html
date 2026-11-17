@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#090b16">
+  <title>NEXUS AI • Mini App</title>
+  <link rel="stylesheet" href="/mini-app/app.css?v=1">
+  <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script defer src="/mini-app/app.js?v=1"></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="top">
+      <div class="brand"><span class="mark" aria-hidden="true">✦</span><div><b dir="ltr">NEXUS AI</b><small>محطّة تحليل الشموع</small></div></div>
+      <span id="status" class="status" data-state="pending"><i></i><span>يتحقق من الاتصال</span></span>
+    </header>
+
+    <section id="view-markets" aria-label="الأسواق">
+      <div class="heading"><div><span class="eyebrow">NEXUS TERMINAL / 01</span><h1>التحليل</h1></div><span class="index">✧</span></div>
+      <div id="modes" class="modes" aria-label="وضع التحليل">
+        <button type="button" data-mode="fast" aria-pressed="true">⚡ تحليل سريع</button>
+        <button type="button" data-mode="minute" aria-pressed="false">◷ تحليل دقيقة</button>
+      </div>
+      <div class="hero">
+        <span class="overline">NEXT CANDLE</span>
+        <h2 id="mode-title">الشمعة الجاية، قبل افتتاحها</h2>
+        <p id="mode-note">نفس منطق /lo، والمحرك يختار إطار الشمعة من البيانات المتاحة.</p>
+        <div class="decoration" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+      <div class="section-label"><h2>أسواق البوت</h2><span id="market-count">—</span></div>
+      <div id="markets" class="market-row" role="group" aria-label="اختيار السوق"></div>
+      <div id="feedback" class="notice" role="status" hidden></div>
+      <button id="reload" class="line-button" type="button" hidden>إعادة تحميل الأسواق</button>
+      <div id="assets" class="assets" aria-label="أصول السوق"></div>
+    </section>
+
+    <section id="view-last" hidden>
+      <div class="heading"><div><span class="eyebrow">NEXUS TERMINAL / 02</span><h1>آخر تحليل</h1></div><span class="index">⌁</span></div>
+      <div id="last-content" class="notice">ما فيه تحليل في هالجلسة للحين.</div>
+    </section>
+
+    <section id="view-info" hidden>
+      <div class="heading"><div><span class="eyebrow">NEXUS TERMINAL / 03</span><h1>عن المحرك</h1></div><span class="index">ⓘ</span></div>
+      <div class="notice about">
+        <h2>السريع والدقيقة</h2>
+        <p>السريع يستخدم نفس منطق <b dir="ltr">/lo</b> على شموع مغلقة. اتجاهه فني غير معاير.</p>
+        <p>وضع الدقيقة يحلل شموع 60 ثانية، ولا يعرض اتجاه تداول إذا لم تثبت معايرة هذا السوق على هذا الإطار.</p>
+        <p>وقت الشمعة المعروض هو وقت افتتاحها. مصادر البيانات والأسواق مستقلة عن بعض. التطبيق ما ينفّذ صفقات.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom" aria-label="التنقّل">
+    <button type="button" data-tab="markets" aria-current="page"><b>✦</b><span>الأسواق</span></button>
+    <button type="button" data-tab="last"><b>⌁</b><span>آخر تحليل</span></button>
+    <button type="button" data-tab="info"><b>ⓘ</b><span>المعلومات</span></button>
+  </nav>
+
+  <dialog id="sheet" aria-labelledby="sheet-title">
+    <div class="grip"></div>
+    <div class="sheet-head"><div><span class="eyebrow">NEXUS / SIGNAL</span><h2 id="sheet-title">التحليل</h2></div><button id="close" class="icon-button" type="button" aria-label="إغلاق التحليل">×</button></div>
+    <div id="sheet-content"></div>
+  </dialog>
+
+  <template id="result-template">
+    <article class="result">
+      <div class="verdict"><strong data-field="direction"></strong><span data-field="frame"></span></div>
+      <p class="source" data-field="source"></p>
+      <div class="stats"><div>الترند <b data-field="trend"></b></div><div>التذبذب <b data-field="volatility"></b></div>
+      <div>الثقة <b data-field="confidence"></b></div></div>
+      <div class="time-box" data-field="target" hidden><span>افتتاح الشمعة المستهدفة</span><b data-field="clock"></b><small data-field="countdown"></small></div>
+      <p class="reason" data-field="reason"></p>
+      <div class="chart-title"><strong>آخر الشموع المغلقة</strong><span data-field="bars"></span></div>
+      <canvas width="660" height="250" data-field="chart" role="img" aria-label="رسم آخر الشموع المغلقة"></canvas>
+      <details><summary>تفاصيل الشموع</summary><div data-field="candles"></div></details>
+    </article>
+  </template>
+</body>
+</html>
