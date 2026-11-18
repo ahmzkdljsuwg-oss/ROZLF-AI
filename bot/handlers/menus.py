@@ -200,7 +200,7 @@ async def cb_nx_favorite(callback: CallbackQuery) -> None:
         callback,
         f"السوق: <b>{html.escape(label)}</b> 📊\n\n"
         "⛔ <b>البيانات غير متاحة لهذا الأصل حالياً</b>",
-        menus.nexus_result_menu(),
+        menus.back_only(callback.data, "أعد المحاولة 🔄"),
     )
 
 
@@ -227,7 +227,12 @@ async def cb_nx_pick(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.startswith("nx:again:"))
 async def cb_nx_again(callback: CallbackQuery) -> None:
-    market_name = callback.data.split(":", 2)[2].upper()
+    fields = callback.data.split(":", 3)
+    market_name = fields[2].upper()
+    if len(fields) == 4:
+        await _nexus_analyse(callback, market_name, asset_key=fields[3] or None)
+        return
+    # Older buttons and outsize asset identifiers use the per-user selection.
     asset = _NEXUS_PICK.get((callback.from_user.id, market_name))
     if asset is None and market_name in ASSET_PICK_MARKETS:
         await _nexus_assets(callback, market_name, 0)
@@ -243,6 +248,12 @@ async def _nexus_assets(callback: CallbackQuery, market_name: str, page: int) ->
     await callback.answer()
     ctx = get_context()
     inventory = getattr(ctx, "inventory", None)
+
+    async def unavailable(detail: str) -> None:
+        mode = await _user_mode(ctx, callback.from_user.id)
+        await _edit(callback, fmt.nexus_data_unavailable_text(market.value, detail, mode=mode),
+                    menus.back_only(f"nx:assets:{market.name}:{page}", "أعد المحاولة 🔄"))
+
     try:
         if market is Market.FOREX:
             assets = _panel_forex_assets(ctx)
@@ -251,27 +262,15 @@ async def _nexus_assets(callback: CallbackQuery, market_name: str, page: int) ->
         else:
             assets = await _panel_eo_assets(ctx, market)
     except DataUnavailable as exc:
-        await _edit(
-            callback,
-            fmt.nexus_data_unavailable_text(market.value, exc.detail or exc.message),
-            menus.nexus_result_menu(),
-        )
+        await unavailable(exc.detail or exc.message)
         return
     except Exception:  # noqa: BLE001 - discovery failure must be shown, not hidden
         logger.exception("asset discovery failed for %s", market_name)
-        await _edit(
-            callback,
-            fmt.nexus_data_unavailable_text(market.value, "تعذر جلب قائمة الأصول من المصدر."),
-            menus.nexus_result_menu(),
-        )
+        await unavailable("تعذر جلب قائمة الأصول من المصدر.")
         return
     active = [asset for asset in assets if asset.market is market]
     if not active:
-        await _edit(
-            callback,
-            fmt.nexus_data_unavailable_text(market.value, f"لا توجد أصول {market.label} متاحة من المصدر حالياً."),
-            menus.nexus_result_menu(),
-        )
+        await unavailable(f"لا توجد أصول {market.label} متاحة من المصدر حالياً.")
         return
     _NEXUS_ASSETS[(callback.from_user.id, market_name)] = active
     per_page = 20
@@ -306,26 +305,30 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
             mode=mode,
         )
         outcome = await service.analyse(market, asset_key=asset_key)
-        if asset_key:
-            _NEXUS_PICK[(user_id, market_name)] = asset_key
+        retry_asset = asset_key or (outcome.result.asset_key if outcome.result else None)
+        if retry_asset:
+            _NEXUS_PICK[(user_id, market_name)] = retry_asset
+        retry = menus.nexus_result_menu(market, retry_asset)
 
         if outcome.result is None:
             detail = outcome.errors[0] if outcome.errors else None
             await _edit(callback, fmt.nexus_data_unavailable_text(market.value, detail, mode=mode),
-                        menus.nexus_result_menu())
+                        retry)
             return
 
         result = outcome.result
-        if not outcome.actionable:
-            reason = outcome.conflict or "; ".join(outcome.errors[:1]) or None
-            text = fmt.nexus_signal_text(
-                market.value, "NO TRADE", timeframe(result.timeframe).seconds, None,
-                None, [reason] if reason else result.reasons,
-                asset=result.asset_display, confidence_verified=result.confidence_verified,
+        def hold_text(reasons: list[str], seconds: int | None = None) -> str:
+            return fmt.nexus_signal_text(
+                market.value, "NO TRADE", seconds, None, reasons=reasons,
                 mode=mode, trend=result.indicators.get("trend"), volatility=result.indicators.get("volatility"),
                 strategy_readings=getattr(result, "strategy_readings", None),
+                candle_direction=result.indicators.get("last_closed_direction"),
             )
-            await _edit(callback, text, menus.nexus_result_menu())
+
+        if not outcome.actionable:
+            reason = outcome.conflict or "; ".join(outcome.errors[:1]) or None
+            text = hold_text([reason] if reason else result.reasons, timeframe(result.timeframe).seconds)
+            await _edit(callback, text, retry)
             return
 
         fingerprint = (
@@ -340,19 +343,12 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
         if result.target_open_at is not None or mode in {"lo", "fast", "pro"} or market is Market.SMARTY:
             fingerprint += (result.target_open_at,)
             if not can_publish(outcome.duration_seconds, result.target_open_at, utc_now()):
-                await _edit(
-                    callback,
-                    fmt.nexus_signal_text(
-                        market.value, "NO TRADE", None, None, asset=result.asset_display,
-                        reasons=[LATE_REASON], mode=mode,
-                    ),
-                    menus.nexus_result_menu(),
-                )
+                await _edit(callback, hold_text([LATE_REASON]), retry)
                 return
         previous = _NEXUS_LAST.get((user_id, market.value))
         repeated = previous is not None and previous[0] == fingerprint and time.monotonic() - previous[1] < 600
         if repeated and mode != "lo":
-            await _edit(callback, fmt.nexus_unchanged_text(market.value), menus.nexus_result_menu())
+            await _edit(callback, fmt.nexus_unchanged_text(market.value), retry)
             return
 
         text = fmt.nexus_signal_text(
@@ -367,11 +363,9 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
         target = result.target_open_at
         requested_at = utc_now()
         if not can_publish(outcome.duration_seconds, target, requested_at):
-            await _edit(callback, fmt.nexus_signal_text(
-                market.value, "NO TRADE", None, None, asset=result.asset_display,
-                reasons=[LATE_REASON], mode=mode), menus.nexus_result_menu())
+            await _edit(callback, hold_text([LATE_REASON]), retry)
             return
-        sent = await _edit(callback, text, menus.nexus_result_menu())
+        sent = await _edit(callback, text, retry)
         now = utc_now()
         receipt = getattr(sent, "edit_date", None) or getattr(sent, "date", None)
         timely = can_publish(outcome.duration_seconds, target, now, acknowledged=True)
@@ -381,9 +375,7 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
                     round((target-now).total_seconds()*1000), timely)
         if not timely:
             if isinstance(receipt, datetime):
-                await _edit(callback, fmt.nexus_signal_text(
-                    market.value, "NO TRADE", None, None, asset=result.asset_display,
-                    reasons=[LATE_REASON], mode=mode), menus.nexus_result_menu())
+                await _edit(callback, hold_text([LATE_REASON]), retry)
             return
         if repeated or not isinstance(receipt, datetime):
             return
@@ -411,7 +403,7 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
 
 
 async def _user_mode(ctx, user_id: int) -> str:
-    getter = getattr(ctx.repo, "get_analysis_mode", None)
+    getter = getattr(getattr(ctx, "repo", None), "get_analysis_mode", None)
     if getter is None:
         return "strong"
     try:
@@ -433,12 +425,7 @@ async def cmd_lo(message: Message) -> None:
         _NEXUS_LAST.pop(key, None)
     await message.answer(
         "NEXUS AI 🤖\n"
-        "LO MODE: ON\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "التحليل الآن يستخدم المحركات الفنية والشموع المغلقة مباشرة.\n"
-        "الاتجاه التجريبي عند اتفاق الأدلة غير معاير (UNVERIFIED). SMARTY للقراءة الفنية فقط.\n"
-        "لأنه لا توجد معايرة Walk-Forward لهذا الوضع.\n"
-        "عند تعارض الأدلة أو فشل البيانات: NO TRADE / DATA UNAVAILABLE.",
+        "وضع LO شغّال ✅",
         reply_markup=menus.nexus_home_menu(getattr(message, "chat", None)),
     )
 

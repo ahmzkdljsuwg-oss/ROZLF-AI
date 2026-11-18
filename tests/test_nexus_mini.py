@@ -36,16 +36,33 @@ def test_telegram_binding_rejects_expired_tampered_and_duplicate(settings):
             telegram_user(bad, token)
 
 
-def test_button_only_adds_mini_app_in_private_chat(settings, monkeypatch):
-    configured = replace(settings, port=8080, mini_app_url="https://bot.example/")
-    monkeypatch.setattr(menus, "settings", configured)
+def test_telegram_home_has_no_mini_app_even_in_private_chat():
     private = menus.nexus_home_menu(SimpleNamespace(type="private")).inline_keyboard
     group = menus.nexus_home_menu(SimpleNamespace(type="group")).inline_keyboard
     assert private[0][0].callback_data == group[0][0].callback_data == "nx:analyse"
-    assert private[1][0].web_app.url == "https://bot.example/mini-app/"
-    assert len(group) == 1
-    assert replace(configured, mini_app_url="http://bot.example").mini_app_link is None
-    assert replace(configured, mini_app_url="https://user@bot.example").mini_app_link is None
+    assert len(private) == len(group) == 1
+    assert private[0][0].web_app is None
+
+
+async def test_telegram_service_does_not_mount_retired_mini_app(settings, monkeypatch):
+    from aiohttp import ClientSession
+    import main
+
+    monkeypatch.setattr(main, "settings", replace(settings, port=8080, mini_app_url="https://bot.example/"))
+    tcp_site = web.TCPSite
+    monkeypatch.setattr(main.web, "TCPSite", lambda runner, _host, _port: tcp_site(runner, "127.0.0.1", 0))
+    runner = await main._health_server(None, {})
+    try:
+        host = f"http://127.0.0.1:{runner.addresses[0][1]}"
+        async with ClientSession() as client:
+            async with client.get(host + "/health") as response:
+                assert response.status == 200
+                assert len((await response.json())["nexus_home"]) == 1
+            for url in ("/mini-app/", "/mini-app/app.js", "/api/nexus-mini/v1/markets"):
+                async with client.get(host + url) as response:
+                    assert response.status == 404
+    finally:
+        await runner.cleanup()
 
 
 class Feed(FakeProvider):

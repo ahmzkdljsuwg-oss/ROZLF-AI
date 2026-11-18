@@ -341,6 +341,10 @@ def analyze_market_data(
             "buyers": buyers,
             "sellers": sellers,
             "last_candle_at": usable[-1].time.isoformat(),
+            "last_closed_direction": (
+                "UP" if usable[-1].close > usable[-1].open else
+                "DOWN" if usable[-1].close < usable[-1].open else "FLAT"
+            ),
         },
         smc={
             "trend": smc["trend"],

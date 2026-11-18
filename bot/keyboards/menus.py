@@ -4,10 +4,9 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from config import settings
 from engines.signals.generator import DURATION_LABELS, supported_durations
 from providers.catalog import Asset, Market, assets_for, timeframe
 
@@ -48,7 +47,7 @@ TRADE_DURATION_LABELS: dict[int, str] = {
 }
 
 
-NEXUS_MENU_VERSION = "TELEGRAM-CLASSIC-2"
+NEXUS_MENU_VERSION = "TELEGRAM-ONLY-3"
 
 NEXUS_MARKET_ORDER: tuple[tuple[str, str], ...] = (
     ("Football Index ⚽", "nx:market:FOOTBALL"),
@@ -115,11 +114,7 @@ def nexus_favorite(index: int, assets: Iterable[Asset]) -> tuple[str, Asset | No
 
 
 def nexus_home_menu(chat=None) -> InlineKeyboardMarkup:
-    rows = [[_button("ابدأ استلام الإشارات 🚀", "nx:analyse")]]
-    url = settings.mini_app_link
-    if url and getattr(chat, "type", None) == "private":
-        rows.append([InlineKeyboardButton(text="Mini App ⚡", web_app=WebAppInfo(url=url))])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    return InlineKeyboardMarkup(inline_keyboard=[[_button("ابدأ استلام الإشارات 🚀", "nx:analyse")]])
 
 
 def nexus_markets_menu(
@@ -166,9 +161,12 @@ def nexus_assets_menu(market: Market, assets, page: int = 0, per_page: int = 20)
     return builder.as_markup()
 
 
-def nexus_result_menu() -> InlineKeyboardMarkup:
+def nexus_result_menu(market: Market, asset_key: str | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(_button("خذ صفقة أخرى 🔄", "nx:analyse"))
+    prefix = f"nx:again:{market.name}"
+    data = f"{prefix}:{asset_key or ''}"
+    # Telegram limits callback data to 64 bytes. Current catalog IDs fit.
+    builder.row(_button("خذ صفقة أخرى 🔄", data if len(data.encode()) <= 64 else prefix))
     return builder.as_markup()
 
 

@@ -178,7 +178,7 @@ async def test_cricket_unavailable_keeps_market_visible(monkeypatch):
     text, keyboard = callback.message.edits[-1]
     assert "DATA UNAVAILABLE" in text
     assert "CRICKET" in text.upper()
-    assert "nx:analyse" in _ids(keyboard)
+    assert _ids(keyboard) == ["nx:again:CRICKET:"]
 
 
 async def test_otc_unavailable_never_substitutes_forex(monkeypatch):
@@ -189,7 +189,7 @@ async def test_otc_unavailable_never_substitutes_forex(monkeypatch):
     text, keyboard = callback.message.edits[-1]
     assert "DATA UNAVAILABLE" in text
     assert "EUR/USD" not in text
-    assert "nx:analyse" in _ids(keyboard)
+    assert _ids(keyboard) == ["nx:assets:OTC:0"]
 
 
 def test_markets_hub_uses_only_the_canonical_callbacks():

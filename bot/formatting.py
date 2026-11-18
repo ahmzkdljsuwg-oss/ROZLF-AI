@@ -1012,7 +1012,8 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
                        reasons: list[str] | None = None, asset: str | None = None,
                        confidence_verified: bool = True,
                        mode: str = "strong", trend: str | None = None,
-                       volatility: str | None = None, strategy_readings: list[dict] | None = None) -> str:
+                       volatility: str | None = None, strategy_readings: list[dict] | None = None,
+                       candle_direction: str | None = None) -> str:
     trade = {"UP": "شراء / Buy 🟢", "DOWN": "بيع / Sell 🔴"}.get(direction, "NO TRADE ⚪")
     if not expiry_seconds:
         duration = "—"
@@ -1038,25 +1039,29 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
     lines = [
         f"<b>{NEXUS_ANALYSIS_BANNER}</b>\n<b>NEXUS AI 🤖</b>",
         f"📊 السوق: <b>{html.escape(market_name)}</b>",
-        f"💱 الأصل · <b>{html.escape(asset or market_name)}</b>",
-        f"⚡ الوضع · <b>{mode_name}</b>",
-        f"الوقت: <b>{duration}</b> ⏱️{clock}",
-        f"الصفقة: <b>{trade}</b>",
     ]
+    if mode == "scanner" and asset:
+        lines.append(f"💱 الأصل · <b>{html.escape(asset)}</b>")
+    lines += [f"⚡ الوضع · <b>{mode_name}</b>", f"الوقت: <b>{duration}</b> ⏱️{clock}"]
     if mode == "lo":
-        lines.append("🧪 LO MODE · UNCALIBRATED")
-        if target_open_at is not None:
-            lines.append("🕯️ التوقع للشمعة الجاية من آخر شمعة مغلقة")
+        if direction in ("UP", "DOWN"):
+            bias = "صعود 🟢" if direction == "UP" else "هبوط 🔴"
+            lines.append(f"🕯️ الاتجاه التجريبي: <b>{bias}</b>")
+        else:
+            observed = {"UP": "صعود 🟢", "DOWN": "هبوط 🔴", "FLAT": "ثابتة ⚪"}.get(candle_direction)
+            lines.append(f"🕯️ آخر شمعة مغلقة: <b>{observed}</b>" if observed else "🕯️ قراءة فنية فقط")
+    else:
+        lines.append(f"الصفقة: <b>{trade}</b>")
     if trend and volatility:
         trend_label = {"UP": "صاعد", "DOWN": "هابط", "RANGE": "عرضي"}.get(trend)
         volatility_label = {"LOW": "منخفض", "NORMAL": "طبيعي", "HIGH": "عالٍ"}.get(volatility)
         if trend_label and volatility_label:
             lines.append(f"📊 الترند: {trend_label} · التذبذب: {volatility_label}")
-    if confidence_verified and confidence is not None:
+    if mode != "lo" and confidence_verified and confidence is not None:
         lines.append(f"🎯 الثقة: <b>{confidence:.0f}%</b>")
-    elif direction in ("UP", "DOWN"):
+    elif mode != "lo" and direction in ("UP", "DOWN"):
         lines.append("🎯 الثقة: UNVERIFIED")
-    if reasons:
+    if mode != "lo" and reasons:
         selected = " · ".join(reasons[:2]) if direction in ("UP", "DOWN") else reasons[0]
         lines.append(f"🔍 <i>{html.escape(selected)}</i>")
     if strategy_readings:
@@ -1069,10 +1074,14 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
 
 
 def nexus_data_unavailable_text(market: str, detail: str | None = None, *, mode: str = "strong") -> str:
+    if mode == "lo":
+        return (f"<b>{NEXUS_ANALYSIS_BANNER}</b>\nNEXUS AI 🤖\n\n"
+                f"📊 السوق: <b>{market_label(market)}</b>\n\n"
+                "⛔ بيانات السوق غير متاحة حالياً.")
     lines = [
         f"<b>{NEXUS_ANALYSIS_BANNER}</b>\nNEXUS AI 🤖",
         f"📊 السوق: <b>{market_label(market)}</b>",
-        "📈 الصفقة: <b>NO TRADE</b>" if mode != "lo" else "📈 الصفقة: —",
+        "📈 الصفقة: <b>NO TRADE</b>",
         "🎯 الثقة: —",
         "",
         "⛔ <b>DATA UNAVAILABLE</b>",

@@ -192,11 +192,14 @@ async def test_market_analysis_selects_auto_duration_and_never_repeats(monkeypat
         fetched=3,
     )
 
+    selections = []
+
     class FakeService:
         def __init__(self, *args, **kwargs):
             pass
 
         async def analyse(self, market, asset_key=None):
+            selections.append((market, asset_key))
             return outcome
 
     monkeypatch.setattr(handlers, "MarketAnalysisService", FakeService)
@@ -214,17 +217,20 @@ async def test_market_analysis_selects_auto_duration_and_never_repeats(monkeypat
     assert "الصفقة: <b>شراء / Buy 🟢</b>" in text
     assert "🎯 الثقة: <b>78%</b>" in text
     assert [[(b.text, b.callback_data) for b in row] for row in keyboard.inline_keyboard] == [
-        [("خذ صفقة أخرى 🔄", "nx:analyse")]
+        [("خذ صفقة أخرى 🔄", "nx:again:OTC:OTC_1")]
     ]
     assert len(repo.signals) == 1
     assert repo.signals[0]["expiry_seconds"] == 60
 
-    again = FakeCallback("nx:again:OTC")
+    # Reopening an older card must not depend on a later selection or restart.
+    monkeypatch.setitem(handlers._NEXUS_PICK, (42, "OTC"), "OTC_999")
+    again = FakeCallback(keyboard.inline_keyboard[0][0].callback_data)
     await handlers.cb_nx_again(again)
     repeated_text, _ = again.message.edits[-1]
     assert "لم تتغير ظروف السوق" in repeated_text
     assert len(repo.signals) == 1
     assert len(again.message.edits) == 2
+    assert selections == [(Market.OTC, "OTC_1"), (Market.OTC, "OTC_1")]
 
 
 @pytest.mark.asyncio
@@ -323,7 +329,7 @@ async def test_every_dynamic_market_shows_data_unavailable_without_its_source(mo
     assert "DATA UNAVAILABLE" in text
     assert "NO TRADE" in text
     assert [[(b.text, b.callback_data) for b in row] for row in keyboard.inline_keyboard] == [
-        [("خذ صفقة أخرى 🔄", "nx:analyse")]
+        [("خذ صفقة أخرى 🔄", f"nx:again:{market_key}:")]
     ]
     assert ctx.repo.signals == []
 
@@ -395,14 +401,13 @@ async def test_selected_asset_is_the_only_one_analysed(settings):
     assert [asset.bridge_id for asset in chosen] == [11]
 
 
-def test_card_shows_real_asset_and_unverified_confidence():
+def test_lo_card_shows_experimental_bias_without_the_removed_rows():
     text = fmt.nexus_signal_text(
         "otc", "UP", 60, 0.0, asset="EUR/USD OTC", confidence_verified=False, mode="lo",
     )
     assert "السوق: <b>OTC</b>" in text
-    assert "الأصل · <b>EUR/USD OTC</b>" in text
-    assert "LO MODE" in text
-    assert "UNVERIFIED" in text
+    assert "الاتجاه التجريبي: <b>صعود 🟢</b>" in text
+    assert all(line not in text for line in ("الأصل", "LO MODE", "UNVERIFIED", "الثقة", "NO TRADE"))
 
 
 @pytest.mark.asyncio

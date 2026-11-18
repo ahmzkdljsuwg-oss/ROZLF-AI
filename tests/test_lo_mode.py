@@ -8,7 +8,7 @@ from bot.handlers import menus as handlers
 from database.repository import Repository
 from engines.technical.analyzer import AnalysisResult, analyze_market_data
 from providers.base import utc_now
-from providers.catalog import Market, dynamic_asset, timeframe
+from providers.catalog import SMARTY_ASSET, Market, dynamic_asset, timeframe
 from providers.registry import DataSourceRegistry
 from services.market_analysis import MarketAnalysis
 from tests.conftest import FakeProvider
@@ -75,7 +75,7 @@ async def test_lo_and_llo_commands_report_status(monkeypatch, repo):
     monkeypatch.setattr(context, "_context", _ctx(repo), raising=False)
     lo_message = Message(11)
     await handlers.cmd_lo(lo_message)
-    assert "LO MODE: ON" in lo_message.sent[-1][0]
+    assert lo_message.sent[-1][0] == "NEXUS AI 🤖\nوضع LO شغّال ✅"
     assert await repo.get_analysis_mode(11) == "lo"
 
     llo_message = Message(11)
@@ -102,8 +102,9 @@ async def test_lo_engine_gives_direction_but_no_calibrated_confidence(monkeypatc
         "forex", result.direction, 60, result.confidence, result.target_open_at,
         result.reasons, confidence_verified=False, mode="lo",
     )
-    assert "LO MODE" in text
-    assert "UNVERIFIED" in text
+    assert "الاتجاه التجريبي" in text
+    assert "UNCALIBRATED" not in text and "UNVERIFIED" not in text
+    assert result.indicators["last_closed_direction"] in {"UP", "DOWN", "FLAT"}
 
 
 @pytest.mark.asyncio
@@ -183,8 +184,8 @@ async def test_telegram_market_path_uses_saved_mode(monkeypatch, repo, market_na
     assert seen["mode"] == mode
     assert "السوق:" in text
     if market_name == "SMARTY":
-        assert "NO TRADE" in text
-        assert "غير كافٍ" in text
+        assert "NO TRADE" not in text
+        assert "قراءة فنية فقط" in text and "الشمعة المستهدفة" not in text
     else:
         assert "61%" in text
 
@@ -203,6 +204,49 @@ async def test_start_resets_lo_but_menu_does_not(monkeypatch, repo):
     message.text = "/start@ExampleBot"
     await handlers.cmd_start(message)
     assert await repo.get_analysis_mode(11) == "strong"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", ["balanced", "late", "unavailable"])
+async def test_lo_retries_same_asset_and_never_fabricates_a_signal(monkeypatch, case):
+    from bot import context
+
+    async def get_mode(_):
+        return "lo"
+
+    async def add_signal(**_):
+        pytest.fail("A blocked forecast cannot be saved as a signal")
+
+    calls = []
+
+    class Service:
+        def __init__(self, *_args, mode, **_kwargs):
+            assert mode == "lo"
+
+        async def analyse(self, market, asset_key=None):
+            calls.append((market, asset_key))
+            if case == "unavailable":
+                return MarketAnalysis(market, errors=["NO TRADE / DATA UNAVAILABLE"])
+            result = AnalysisResult(SMARTY_ASSET.key, SMARTY_ASSET.display, "smarty", "30sec",
+                                    "UP" if case == "late" else "NO TRADE", 0, 1, 0, 10, "test", utc_now(),
+                                    indicators={"trend": "DOWN", "volatility": "NORMAL", "last_closed_direction": "DOWN"},
+                                    reasons=["technical components are too balanced"],
+                                    target_open_at=utc_now() - timedelta(seconds=1))
+            return MarketAnalysis(market, result, 30 if case == "late" else None)
+
+    monkeypatch.setattr(context, "_context", _ctx(SimpleNamespace(get_analysis_mode=get_mode, add_signal=add_signal)))
+    monkeypatch.setattr(handlers, "MarketAnalysisService", Service)
+    callback = Callback(f"nx:again:SMARTY:{SMARTY_ASSET.key}", 77)
+    await handlers.cb_nx_again(callback)
+    text, keyboard = callback.message.edits[-1]
+    assert calls == [(Market.SMARTY, SMARTY_ASSET.key)]
+    assert keyboard.inline_keyboard[0][0].callback_data == callback.data
+    assert all(s not in text for s in ("NO TRADE", "DATA UNAVAILABLE", "الأصل", "technical", "UNCALIBRATED"))
+    if case == "unavailable":
+        assert "بيانات السوق غير متاحة" in text
+    else:
+        assert "آخر شمعة مغلقة: <b>هبوط 🔴</b>" in text
+    assert "الشمعة المستهدفة" not in text and "الاتجاه التجريبي" not in text
 
 
 @pytest.mark.asyncio
