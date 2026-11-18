@@ -111,10 +111,12 @@ async def test_mini_api_real_analyzer_and_modes(settings, monkeypatch):
         fast = await response.json()
         assert response.status == 200, fast
         assert feed.calls[:2] == [("SMARTY_240", "5sec"), ("SMARTY_240", "15sec")]
-        assert fast["frame"] == "15sec" and fast["direction"] == "UP"
-        assert fast["confidence"] is None and fast["target_ms"] > fast["server_ms"]
-        assert fast["target_ms"] == fast["candles"][-1]["at"] + 2 * 15000
-        assert fast["end_ms"] - fast["target_ms"] == 15000
+        assert fast["frame"] == "15sec" and fast["direction"] == "NO TRADE"
+        assert fast["data_issue"] == "RESEARCH_ONLY"
+        assert fast["confidence"] is None and fast["target_ms"] is None
+        assert fast["end_ms"] is None
+        assert fast["candles"][-1]["close_at"] == fast["candles"][-1]["at"] + 15000
+        assert fast["candles"][-1]["shape"]
         assert all(c["at"] + 15000 <= fast["server_ms"] for c in fast["candles"])
 
         response = await client.post(path + "analyze", headers=auth, json={

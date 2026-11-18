@@ -2,16 +2,22 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import timedelta
+import json
+from functools import lru_cache
+from datetime import datetime, timedelta
 from pathlib import Path
 import logging
-import math
 import time
 
 from aiohttp import web
 
 from engines.markets import profile_for
 from engines.technical.analyzer import analyze_market_data
+from engines.technical.candle_reading import candle_details, valid_candle
+from engines.technical.delivery_window import (
+    ACKNOWLEDGED_SECONDS, PREPUBLISH_SECONDS, SHORT_FRAME_REASON, LATE_REASON,
+    UNVERIFIED_SMARTY_REASON, can_publish, is_research_only,
+)
 from engines.technical.indicators import compute_indicators, frame_from_candles
 from engines.validation import closed_candles
 from providers.base import DataUnavailable, utc_now
@@ -24,7 +30,6 @@ MARKETS = (Market.FOOTBALL, Market.SMARTY, Market.GOLD, Market.OTC, Market.LUXUR
            Market.AI, Market.CRICKET, Market.FOREX, Market.MT5)
 ICONS = dict(zip(MARKETS, ("⚽", "🧠", "🪙", "🌙", "💎", "🤖", "🏏", "💱", "📈")))
 LOG = logging.getLogger(__name__)
-MIN_LEAD = 2.0
 FAST_FRAMES = ("5sec", "15sec", "30sec", "1min")
 FRAME_BUDGET = {"5sec": 5.0, "15sec": 6.0, "30sec": 8.0, "1min": 18.0, "2min": 18.0, "3min": 18.0, "5min": 18.0}
 ANALYSIS_BUDGET = 34.0
@@ -51,6 +56,30 @@ _SECURITY_HEADERS = {
 }
 
 
+@lru_cache(maxsize=1)
+def _smarty_audit():
+    # Committed reproducible market-data summary. Never used for model tuning
+    # or configuration, and never mixed into a user's live performance stats.
+    path = STATIC.parents[1] / "docs" / "SMARTY-CANDLE-AUDIT.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))["frames"]
+    except (OSError, KeyError, ValueError):
+        return {}
+
+
+def _audit_context(asset, frame, mode):
+    if asset.market is not Market.SMARTY:
+        return None
+    frame_row = _smarty_audit().get(frame)
+    method = {"fast": "lo", "fast_v2": "fast"}.get(mode)
+    if not frame_row or not method:
+        return None
+    row = frame_row["methods"][method]
+    return {"mode": method, "wins": row["wins"], "samples": row["signals"],
+            "through_ms": _ms(datetime.fromisoformat(frame_row["holdout_end"])),
+            "established_edge": bool(row["exploratory_screen"])}
+
+
 def _response(payload, status=200):
     return web.json_response(payload, status=status, headers=_SECURITY_HEADERS)
 
@@ -71,15 +100,15 @@ async def _owned_fetch(registry, asset, tf, *, fresh=False):
 
 
 def _bar_window(data, tf, now):
-    bars = closed_candles(data.candles, tf, min(now, data.fetched_at))
+    bars = closed_candles(data.candles, tf, min(now, data.closure_cutoff))
     if not bars:
         raise DataUnavailable("NO_CLOSED_CANDLES", SOURCE_ERRORS["NO_CLOSED_CANDLES"])
-    if any(not math.isfinite(value) for bar in bars for value in (bar.open, bar.high, bar.low, bar.close)):
+    if any(not valid_candle(bar) for bar in bars):
         raise DataUnavailable("INVALID_CANDLES", SOURCE_ERRORS["INVALID_CANDLES"])
     step = timedelta(seconds=tf.seconds)
     end = bars[-1].time + step
     target = end + step
-    contiguous = all(b.time - a.time == step for a, b in zip(bars[-5:-1], bars[-4:]))
+    contiguous = all(b.time - a.time == step for a, b in zip(bars[-16:-1], bars[-15:]))
     return bars, end, target, contiguous
 
 
@@ -110,13 +139,15 @@ async def _analyze_frame(registry, asset, frame, mode, *, budget=None):
     # forecast on incomplete history or late/gapped bars.
     if now - end > timedelta(seconds=2 * tf.seconds):
         raise DataUnavailable("MISSING_RECENT_CANDLE", SOURCE_ERRORS["MISSING_RECENT_CANDLE"])
-    issue = ("SHORT_HISTORY" if len(bars) < 200 else
+    issue = ("CHART_ONLY" if tf.seconds <= PREPUBLISH_SECONDS else
+             "SHORT_HISTORY" if len(bars) < 200 else
              "MISSING_RECENT_CANDLE" if target <= now or not contiguous else None)
     direction = "NO TRADE"
     confidence = None
     if issue:
         indicators = await asyncio.to_thread(lambda: compute_indicators(frame_from_candles(bars)))
-        reasons = [f"وصلت {len(bars)} شمعة مغلقة. نحتاج 200 لتوقع الاتجاه."
+        reasons = [SHORT_FRAME_REASON if issue == "CHART_ONLY" else
+                   f"وصلت {len(bars)} شمعة مغلقة. نحتاج 200 لتوقع الاتجاه."
                    if issue == "SHORT_HISTORY" else
                    "هذا آخر شارت متاح. لم تصل شموع متتابعة في الوقت المناسب للتوقع."]
     else:
@@ -125,10 +156,10 @@ async def _analyze_frame(registry, asset, frame, mode, *, budget=None):
         direction = result.direction
         reasons = result.reasons
         if direction in ("UP", "DOWN") and (
-            result.target_open_at != target or (target - utc_now()).total_seconds() < MIN_LEAD
+            result.target_open_at != target or not can_publish(tf.seconds, target, utc_now())
         ):
             direction = "NO TRADE"
-            reasons = ["نافذة الشمعة قصيرة، أعد الفحص للشمعة التالية."]
+            reasons = [LATE_REASON]
         if (mode == "fast" and direction in ("UP", "DOWN")
                 and indicators.get("trend") == "RANGE" and indicators.get("volatility") == "HIGH"):
             direction = "NO TRADE"
@@ -139,17 +170,19 @@ async def _analyze_frame(registry, asset, frame, mode, *, budget=None):
                 reasons = ["لا توجد معايرة صالحة لهذا الأصل على الدقيقة."]
             elif direction != "NO TRADE":
                 confidence = result.confidence
+        if is_research_only(asset.market, mode == "pro" and result.confidence_verified):
+            direction, confidence, issue = "NO TRADE", None, "RESEARCH_ONLY"
+            reasons = [UNVERIFIED_SMARTY_REASON]
 
-    candles = [
-        {"at": _ms(c.time), "open": c.open, "high": c.high, "low": c.low, "close": c.close}
-        for c in bars[-40:]
-    ]
+    candles = candle_details(bars, tf.seconds)
     return {
         "asset": asset.display, "symbol": asset.symbol, "market": asset.market.value, "source": data.source,
         "mode": mode, "frame": frame, "seconds": tf.seconds, "direction": direction,
         "trend": indicators.get("trend"), "volatility": indicators.get("volatility"), "confidence": confidence,
         "reasons": reasons[:3], "candles": candles, "closed_count": len(bars),
         "data_issue": issue, "last_closed_ms": _ms(end),
+        "captured_ms": _ms(data.fetched_at), "min_view_lead_ms": ACKNOWLEDGED_SECONDS * 1000,
+        "historical_audit": _audit_context(asset, frame, mode),
         "target_ms": _ms(target) if direction != "NO TRADE" else None,
         "end_ms": _ms(target + timedelta(seconds=tf.seconds)) if direction != "NO TRADE" else None,
     }
@@ -370,9 +403,9 @@ def install(app, settings, get_context):
                         best["confidence"] is None or best["confidence"] < settings.min_confidence):
                     best.update(direction="NO TRADE", target_ms=None, end_ms=None, confidence=None,
                                 reasons=["القراءة المعايرة لم تتجاوز حد الثقة المفعّل لهذا الوضع."])
-                if best["target_ms"] is not None and best["target_ms"] - now < MIN_LEAD * 1000:
+                if best["target_ms"] is not None and best["target_ms"] - now < PREPUBLISH_SECONDS * 1000:
                     best.update(direction="NO TRADE", target_ms=None, end_ms=None, confidence=None,
-                                reasons=["انتهت نافذة النشر، أعد الفحص للشمعة التالية."])
+                                reasons=[LATE_REASON])
                 return _response({**best, "mode": mode, "server_ms": now,
                                   "processing_ms": int((time.monotonic() - request["mini_received"]) * 1000)})
         finally:

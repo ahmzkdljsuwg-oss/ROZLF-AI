@@ -1,9 +1,9 @@
 """Lightweight closed-candle technical read. No calibrated win percentage."""
 from datetime import timedelta
-from math import isfinite
 from statistics import mean
 
 from engines.markets import profile_for
+from engines.technical.candle_reading import valid_candle
 from engines.validation import closed_candles
 from providers.base import DataUnavailable
 
@@ -21,7 +21,7 @@ def analyze_fast(data, now):
     tf = data.timeframe
     if tf.code not in profile_for(data.asset.market).frames:
         raise DataUnavailable("UNSUPPORTED_FRAME", "الإطار غير مدعوم للأصل")
-    bars = closed_candles(data.candles, tf, min(now, data.fetched_at))
+    bars = closed_candles(data.candles, tf, min(now, data.closure_cutoff))
     if len(bars) < 200:
         raise DataUnavailable("INSUFFICIENT_BARS", "نحتاج 200 شمعة مغلقة لحساب EMA200")
     step = timedelta(seconds=tf.seconds)
@@ -30,7 +30,7 @@ def analyze_fast(data, now):
     if target <= now or any(y.time - x.time != step for x,y in zip(bars[-16:-1],bars[-15:])):
         raise DataUnavailable("MISSING_RECENT_CANDLE", "الشموع الأخيرة متأخرة أو غير متتابعة")
     candles = bars[-300:]
-    if any(not isfinite(v) or v <= 0 for b in candles for v in (b.open,b.high,b.low,b.close)):
+    if any(not valid_candle(b) for b in candles):
         raise DataUnavailable("INVALID_DATA", "المصدر أعاد أسعاراً غير صالحة")
     close = [b.close for b in candles]
     fast, mid, slow, base = (_ema(close,n) for n in (9,21,50,200))

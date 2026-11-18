@@ -3,10 +3,12 @@ from __future__ import annotations
 
 from datetime import datetime
 import asyncio
-from datetime import timedelta
 
 from config import Settings
 from database.repository import Repository, SignalRecord
+from engines.technical.delivery_window import (
+    PREPUBLISH_SECONDS, SHORT_FRAME_REASON, UNVERIFIED_SMARTY_REASON, can_publish, is_research_only,
+)
 from engines.technical.analyzer import AnalysisResult, analyze_market_data
 from providers.base import DataUnavailable, MarketData, utc_now
 from providers.catalog import Asset, Market, Timeframe, get_asset, timeframe
@@ -65,6 +67,17 @@ class SignalGenerator:
         tf = timeframe(tf) if isinstance(tf, str) else tf
         market_data = await self.registry.fetch(asset, tf, with_quote=with_quote)
         result = await asyncio.to_thread(analyze_market_data, market_data, None, duration_seconds, analysis_mode)
+        if result.direction in ("UP", "DOWN") and (
+            tf.seconds <= PREPUBLISH_SECONDS or
+            is_research_only(asset.market, analysis_mode == "pro" and result.confidence_verified)
+        ):
+            reason = SHORT_FRAME_REASON if tf.seconds <= PREPUBLISH_SECONDS else UNVERIFIED_SMARTY_REASON
+            result.direction = "NO TRADE"
+            result.confidence = 0.0
+            result.confidence_verified = False
+            result.win_probability = None
+            result.reasons = [reason, *result.reasons]
+            result.cancellation_reason = reason
         return market_data, result
 
     async def create_signal(
@@ -139,6 +152,6 @@ class SignalGenerator:
             return None
         if (result.direction == "NO TRADE" or result.confidence < min_confidence
                 or not result.confidence_verified or result.target_open_at is None
-                or result.target_open_at <= utc_now() + timedelta(seconds=2)):
+                or not can_publish(timeframe(result.timeframe).seconds, result.target_open_at, utc_now())):
             return None
         return result

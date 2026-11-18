@@ -21,6 +21,7 @@ class FakeMessage:
 
     async def edit_text(self, text, reply_markup=None, **kwargs):
         self.edits.append((text, reply_markup))
+        return SimpleNamespace(edit_date=utc_now())
 
     async def answer(self, text, reply_markup=None, **kwargs):
         self.answers.append((text, reply_markup))
@@ -61,6 +62,7 @@ def _result(direction="UP", confidence=78.0, price=1.10123):
         generated_at=utc_now(),
         reasons=["Bullish market structure", "EMA confirmation"],
         suggested_expiry_seconds=60,
+        target_open_at=utc_now() + timedelta(seconds=60),
     )
 
 

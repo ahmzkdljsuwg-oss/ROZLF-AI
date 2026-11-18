@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#080c17">
 <title>NEXUS AI · مرصد الأسواق</title>
-<link rel="stylesheet" href="/mini-app/app.css?v=20261117-r2">
+<link rel="stylesheet" href="/mini-app/app.css?v=20261118-candles">
 <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
-<script src="/mini-app/app.js?v=20261117-r2" defer></script>
+<script src="/mini-app/app.js?v=20261118-candles" defer></script>
 </head>
 <body>
 <a href="#main" class="skip">انتقل للمحتوى</a>
@@ -20,11 +20,11 @@
 <main id="main">
 <section class="page" id="home">
   <div class="hero panel">
-    <div class="orbits" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-    <span class="eyebrow"><span aria-hidden="true"></span> MARKET INTELLIGENCE</span>
-    <h1>اقرأ السوق<br><em>شمعة بشمعة.</em></h1>
-    <p>تحليل فني من بيانات السوق، مع توقيت واضح وسبب لكل قراءة.</p>
-    <button class="primary" type="button" data-go="analysis">ابدأ التحليل <span aria-hidden="true">↗</span></button>
+    <div class="candle-motif" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+    <span class="eyebrow"><span aria-hidden="true"></span> CLOSED-CANDLE LAB</span>
+    <h1>مختبر الشموع<br><em>البيانات أولاً.</em></h1>
+    <p>افحص جسم الشمعة وذيولها وتوقيتها من بيانات المصدر.</p>
+    <button class="primary" type="button" data-go="analysis">افتح مختبر الشموع <span aria-hidden="true">↗</span></button>
   </div>
   <div class="overview">
     <article class="panel metric"><span>الأسواق ببيانات حديثة</span><strong id="market-count">—</strong><small id="market-total">بانتظار التحقق</small></article>
@@ -40,7 +40,7 @@
   <div id="markets-list" class="market-grid"><div class="skeleton"></div><div class="skeleton"></div></div>
 </section>
 <section class="page" id="analysis" hidden aria-labelledby="analysis-title">
-  <div class="section-head"><div><span class="overline">ANALYSIS LAB</span><h1 id="analysis-title">مختبر التحليل</h1><p>شموع أصلية مغلقة فقط. وقت الكويت.</p></div></div>
+  <div class="section-head"><div><span class="overline">ANALYSIS LAB</span><h1 id="analysis-title">مختبر التحليل</h1><p>اضغط على أي شمعة لعرض الافتتاح والأعلى والأدنى والإغلاق. الأوقات بتوقيت الكويت.</p></div></div>
   <form class="panel form" id="form">
     <fieldset class="modes"><legend>وضع التحليل</legend><label><input name="mode" type="radio" value="fast" checked><span><b>FAST ⚡</b><small>تحليل سريع</small></span></label><label><input name="mode" type="radio" value="pro"><span><b>PRO ◈</b><small>أدلة ومعايرة</small></span></label></fieldset>
     <div class="fields"><label>السوق<select id="market"></select></label><label>الأصل<select id="asset"></select></label><label>المدة<select id="frame"></select></label></div>

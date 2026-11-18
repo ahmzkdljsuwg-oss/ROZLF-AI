@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import html
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from config import Settings
@@ -1022,7 +1022,12 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
         duration = f"{minutes} دقائق" if minutes <= 10 else f"{minutes} دقيقة"
     else:
         duration = f"{expiry_seconds} ثوانٍ" if 3 <= expiry_seconds <= 10 else f"{expiry_seconds} ثانية"
-    clock = f" · {target_open_at.astimezone(ZoneInfo('Asia/Kuwait')):%H:%M:%S} الكويت" if target_open_at is not None else ""
+    clock = ""
+    if target_open_at is not None and expiry_seconds and direction in ("UP", "DOWN"):
+        start = target_open_at.astimezone(ZoneInfo("Asia/Kuwait"))
+        end = start + timedelta(seconds=expiry_seconds)
+        clock = f"\n🕒 الشمعة المستهدفة · <code>{start:%H:%M:%S} → {end:%H:%M:%S}</code> الكويت"
+
     names = {"football": "Football Index ⚽", "smarty": "Smarty 🧠", "gold": "Gold 🪙",
              "luxury": "Luxury Index 💎", "ai": "AI Index 🤖", "cricket": "Cricket Index 🏏"}
     market_name = names.get(market.lower(), market_label(market))

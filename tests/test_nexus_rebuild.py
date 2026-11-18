@@ -161,3 +161,66 @@ async def test_telegram_scan_panel_uses_personal_preference_and_hides_owner_cont
     await repo.set_scanner_opt_in(42, True)
     await menus.cmd_scan(msg)
     assert "مفعّلة" in answers[1][0]
+
+
+def test_incident_timing_cannot_publish_a_five_second_window():
+    from engines.technical.delivery_window import can_publish
+
+    now = datetime(2026, 11, 18, 12, 28, 49, 783000, tzinfo=timezone.utc)
+    close = now + timedelta(milliseconds=217)
+    assert not can_publish(5, close, now)
+    assert not can_publish(5, now + timedelta(seconds=20), now)
+    assert not can_publish(30, now+timedelta(seconds=7, milliseconds=999), now)
+    assert can_publish(30, now+timedelta(seconds=8), now)
+    assert not can_publish(30, now+timedelta(seconds=4, milliseconds=999), now, acknowledged=True)
+    assert can_publish(30, now+timedelta(seconds=5), now, acknowledged=True)
+
+
+@pytest.mark.asyncio
+async def test_fetch_crossing_boundary_never_promotes_a_partial_candle(eurusd):
+    before = datetime(2026, 11, 18, 12, 28, 59, tzinfo=timezone.utc)
+    slot = before - timedelta(seconds=59)
+    after = before + timedelta(seconds=3)
+    clock = [before]
+    bars = make_candles(n=251, tf_seconds=60, end=slot)
+
+    class Crossing(FakeProvider):
+        async def fetch_candles(self, *args, **kwargs):
+            clock[0] = after
+            return bars
+
+    registry = DataSourceRegistry([Crossing()], clock=lambda: clock[0])
+    data = await registry.fetch(eurusd, "1min", with_quote=False)
+    assert data.fetched_at == after and data.closure_cutoff == before
+    closed, closed_ms, _, _ = api._bar_window(data, timeframe("1min"), after)
+    assert closed[-1].time == slot - timedelta(seconds=60)
+    assert closed_ms == slot
+
+
+@pytest.mark.asyncio
+async def test_mini_five_second_chart_reports_completed_ohlc_but_no_future_prices(monkeypatch):
+    from providers.catalog import SMARTY_ASSET
+
+    now = datetime(2026, 11, 18, 12, 28, 49, tzinfo=timezone.utc)
+    started = now-timedelta(seconds=4)
+    env = make_candles(n=250, tf_seconds=5, end=started)
+    monkeypatch.setattr(api, "utc_now", lambda: now)
+    source = FakeProvider(env)
+    source.markets = frozenset({Market.SMARTY})
+    registry = DataSourceRegistry([source], clock=lambda: now)
+    view = await api._analyze_frame(registry, SMARTY_ASSET, "5sec", "fast_v2")
+    assert view["direction"] == "NO TRADE" and view["data_issue"] == "CHART_ONLY"
+    assert view["target_ms"] is None and view["confidence"] is None
+    assert len(view["candles"]) == 40
+    assert view["candles"][-1]["close_at"] == int(started.timestamp()*1000)
+    assert view["candles"][-1]["close"] == env[-2].close
+    assert 0 <= view["candles"][-1]["body_pct"] <= 100
+
+
+def test_short_candle_close_is_visually_different_from_target_interval():
+    from bot.formatting import nexus_signal_text
+
+    start = datetime(2026, 11, 18, 12, 29, 30, tzinfo=timezone.utc)
+    line = nexus_signal_text("forex", "UP", 30, 70, start)
+    assert "15:29:30 → 15:30:00" in line
+    assert "15:29:30" not in nexus_signal_text("forex", "NO TRADE", 30, None, start)

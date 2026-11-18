@@ -101,7 +101,7 @@ class SignalTracker:
             data = await asyncio.wait_for(self.registry.fetch(asset,tf,with_quote=False),timeout=5)
             if data.source == signal.source:
                 bar = next((b for b in data.candles if b.time == signal.target_open_at),None)
-                if (bar and bar.time + timedelta(seconds=tf.seconds) <= data.fetched_at
+                if (bar and bar.time + timedelta(seconds=tf.seconds) <= data.closure_cutoff
                         and all(isfinite(v) and v > 0 for v in (bar.open,bar.close))):
                     delta = bar.close-bar.open
                     status = (STATUS_DRAW if delta == 0 else STATUS_WIN

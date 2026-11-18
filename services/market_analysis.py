@@ -10,6 +10,9 @@ from config import Settings
 from engines.markets import profile_for
 from engines.technical.analyzer import AnalysisResult, analyze_market_data
 from engines.technical.next_candle import forecast_frames
+from engines.technical.delivery_window import (
+    PREPUBLISH_SECONDS, LATE_REASON, UNVERIFIED_SMARTY_REASON, can_publish, is_research_only,
+)
 from providers.base import DataUnavailable, utc_now
 from providers.catalog import Asset, Market, assets_for, timeframe
 from providers.registry import DataSourceRegistry
@@ -22,8 +25,8 @@ NATIVE_FRAMES = ("5sec", "30sec", "1min", "2min", "3min", "5min")
 def native_frame_plan(asset, mode):
     profile = tuple(f for f in profile_for(asset.market).frames if f in NATIVE_FRAMES)
     if mode == "pro":
-        return forecast_frames(asset.market.value, profile)
-    return tuple(f for f in NATIVE_FRAMES if f in profile)[:3]
+        return forecast_frames(asset.market.value, tuple(f for f in profile if timeframe(f).seconds > PREPUBLISH_SECONDS))
+    return tuple(f for f in NATIVE_FRAMES if f in profile and timeframe(f).seconds > PREPUBLISH_SECONDS)[:3]
 FETCH_TIMEOUT = 18.0
 ANALYSIS_TIMEOUT = 22.0
 
@@ -87,6 +90,9 @@ class MarketAnalysisService:
                       else forecast_frames(asset.market.value, profile_frames))
             if self.mode in {"fast", "pro"}:
                 frames = native_frame_plan(asset, self.mode)
+            if self.mode == "lo" and market is Market.SMARTY:
+                frames = tuple(f for f in ("30sec", "1min", "15sec") if f in profile_frames)
+            frames = tuple(f for f in frames if timeframe(f).seconds > PREPUBLISH_SECONDS)
             for frame in frames:
                 jobs.append((asset, frame))
         semaphore = asyncio.Semaphore(4)
@@ -159,13 +165,17 @@ class MarketAnalysisService:
             return outcome
 
         actionable = [item for item in results if item[0].direction in ("UP", "DOWN")]
-        if (market is Market.SMARTY or self.mode in {"lo", "fast", "pro"}) and actionable:
+        if actionable:
             now = utc_now()
-            usable = [item for item in actionable
-                      if item[0].target_open_at is not None and item[0].target_open_at > now]
+            usable = [item for item in actionable if can_publish(
+                timeframe(item[1]).seconds, item[0].target_open_at, now)]
             if not usable:
                 outcome.result = actionable[0][0]
-                outcome.conflict = "بدأت الشمعة المستهدفة قبل اكتمال التحليل"
+                outcome.conflict = LATE_REASON
+                return outcome
+            if is_research_only(market, self.mode == "pro" and any(r.confidence_verified for r, _ in usable)):
+                outcome.result = usable[0][0]
+                outcome.conflict = UNVERIFIED_SMARTY_REASON
                 return outcome
             actionable = usable
         if actionable:
@@ -235,8 +245,8 @@ class MarketAnalysisService:
                         best.reasons.append(
                             "AI review confirmed by " + ", ".join(v.model for v in review.verdicts)
                         )
-                if (market is Market.SMARTY or self.mode in {"lo", "fast", "pro"}) and best.target_open_at is not None and best.target_open_at <= utc_now():
-                    outcome.conflict = "بدأت الشمعة المستهدفة قبل اكتمال التحليل"
+                if not can_publish(duration, best.target_open_at, utc_now()):
+                    outcome.conflict = LATE_REASON
                     outcome.duration_seconds = None
                 return outcome
             outcome.errors.append("best setup did not pass the confidence or duration filter")
@@ -246,8 +256,8 @@ class MarketAnalysisService:
 
     @staticmethod
     def _timely(result: AnalysisResult) -> bool:
-        return (result.direction in ("UP", "DOWN") and result.target_open_at is not None
-                and result.target_open_at > utc_now())
+        return (result.direction in ("UP", "DOWN") and
+                can_publish(timeframe(result.timeframe).seconds, result.target_open_at, utc_now()))
 
     async def _one(self, asset: Asset, frame: str, semaphore: asyncio.Semaphore):
         async with semaphore:

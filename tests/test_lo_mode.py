@@ -31,6 +31,7 @@ class Callback:
 
         async def edit_text(text, reply_markup=None, **kwargs):
             self.message.edits.append((text, reply_markup))
+            return SimpleNamespace(edit_date=utc_now())
 
         self.message.edit_text = edit_text
 
@@ -164,6 +165,7 @@ async def test_telegram_market_path_uses_saved_mode(monkeypatch, repo, market_na
                     reasons=["trend +8.0"],
                     confidence_verified=mode != "lo",
                     analysis_mode=mode,
+                    target_open_at=utc_now() + timedelta(seconds=30),
                 ),
                 duration_seconds=seconds,
                 duration_reason="test",
@@ -180,12 +182,11 @@ async def test_telegram_market_path_uses_saved_mode(monkeypatch, repo, market_na
     text, _ = callback.message.edits[-1]
     assert seen["mode"] == mode
     assert "السوق:" in text
-    if mode == "lo":
-        assert "UNVERIFIED" in text
+    if market_name == "SMARTY":
+        assert "NO TRADE" in text
+        assert "غير كافٍ" in text
     else:
         assert "61%" in text
-    if market_name == "SMARTY":
-        assert "5 ثوانٍ" in text
 
 
 @pytest.mark.asyncio
@@ -209,10 +210,17 @@ async def test_lo_uses_candles_only_and_skips_external_review(settings, monkeypa
     from services import market_analysis
     from tests.conftest import make_candles
 
+    from datetime import datetime, timezone
+    from engines.technical import analyzer
+
+    fixed = datetime(2026, 11, 18, 12, 28, 3, tzinfo=timezone.utc)
+    monkeypatch.setattr(market_analysis, "utc_now", lambda: fixed)
+    monkeypatch.setattr(analyzer, "utc_now", lambda: fixed)
+
     class Provider(FakeProvider):
         async def fetch_candles(self, asset, tf, limit=300):
             frames.append((asset.key, tf.code))
-            return make_candles(n=300, tf_seconds=tf.seconds)
+            return make_candles(n=300, tf_seconds=tf.seconds, end=fixed-timedelta(seconds=tf.seconds+3))
 
         async def fetch_quote(self, *args, **kwargs):
             pytest.fail("LO must not request a quote")
@@ -222,12 +230,12 @@ async def test_lo_uses_candles_only_and_skips_external_review(settings, monkeypa
             pytest.fail("LO must not ask external AI to review")
 
     frames = []
-    service = market_analysis.MarketAnalysisService(DataSourceRegistry([Provider()]), settings, mode="lo")
+    service = market_analysis.MarketAnalysisService(DataSourceRegistry([Provider()], clock=lambda: fixed), settings, mode="lo")
     service.reviewer = Reviewer()
     outcome = await service.analyse(Market.FOREX, "EUR_USD_FOREX")
     assert outcome.actionable
     assert frames == [("EUR_USD_FOREX", "1min")]
-    assert outcome.result.target_open_at > utc_now()
+    assert outcome.result.target_open_at > fixed
     assert not outcome.result.confidence_verified
 
 
@@ -249,5 +257,6 @@ async def test_smarty_lo_tries_one_minute_after_no_trade_fast_frames(settings, m
     monkeypatch.setattr(market_analysis.MarketAnalysisService, "_one", one)
     service = market_analysis.MarketAnalysisService(DataSourceRegistry([]), settings, mode="lo")
     outcome = await service.analyse(Market.SMARTY)
-    assert attempted == ["5sec", "15sec", "30sec", "1min"]
-    assert outcome.actionable and outcome.result.timeframe == "1min"
+    assert attempted == ["30sec", "1min"]
+    assert not outcome.actionable and outcome.result.timeframe == "1min"
+    assert "لم يثبت" in outcome.conflict

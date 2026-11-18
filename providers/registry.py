@@ -99,7 +99,7 @@ class DataSourceRegistry:
             if self._cache_ttl:
                 if len(self._cache) >= 512:
                     self._cache.pop(next(iter(self._cache)), None)
-                captured = data.fetched_at
+                captured = data.closure_cutoff
                 closes = [bar.time + timedelta(seconds=tf.seconds) for bar in data.candles
                           if bar.time + timedelta(seconds=tf.seconds) > captured]
                 until_close = (min(closes) - self._clock()).total_seconds() if closes else tf.seconds
@@ -142,6 +142,7 @@ class DataSourceRegistry:
                 parallel = self._limits.setdefault("eo_bridge" if provider.id == "eo_forex" else provider.id, asyncio.Semaphore(2 if provider.id in {"eo_bridge", "eo_forex"} else 3))
                 async with asyncio.timeout(17):
                     async with parallel:
+                        request_started = self._clock()
                         candles = await provider.fetch_candles(asset, tf, limit=limit)
             except DataUnavailable as exc:
                 logger.info("%s %s %s failed in %.0f ms: %s", provider.id, asset.key,
@@ -171,7 +172,7 @@ class DataSourceRegistry:
             self._panel_cooldown.pop(asset.key, None)
             ordered = sorted(candles, key=lambda candle: candle.time)
             captured = self._clock()
-            bars = closed_candles(ordered, tf, captured)
+            bars = closed_candles(ordered, tf, request_started)
             if bars:
                 closed_at = bars[-1].time + timedelta(seconds=tf.seconds)
                 current = self._last_valid.get(asset.market.value)
@@ -187,7 +188,7 @@ class DataSourceRegistry:
                 candles=ordered,
                 source=provider.name,
                 quote=None,
-                validation=report, fetched_at=captured,
+                validation=report, fetched_at=captured, closed_as_of=request_started,
             )
 
         detail = "; ".join(attempts) or "no provider registered for this market"

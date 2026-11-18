@@ -111,7 +111,7 @@ async def test_smarty_falls_back_to_real_minute_and_blocks_expired_target(settin
     monkeypatch.setattr(service, "utc_now", lambda: now)
     monkeypatch.setattr(service.MarketAnalysisService, "_one", one)
     outcome = await service.MarketAnalysisService(None, settings, mode="lo").analyse(Market.SMARTY)
-    assert requested == ["5sec", "15sec", "30sec", "1min"]
+    assert requested == ["30sec", "1min", "15sec"]
     assert outcome.fetched == 1
     assert not outcome.actionable
-    assert "بدأت الشمعة" in outcome.conflict
+    assert "غير كافٍ" in outcome.conflict

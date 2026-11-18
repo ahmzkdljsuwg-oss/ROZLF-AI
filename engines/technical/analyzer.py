@@ -90,7 +90,7 @@ def analyze_market_data(
     if analysis_mode == "fast":
         from engines.technical.fast import analyze_fast
         return analyze_fast(market_data, now)
-    usable = closed_candles(market_data.candles, market_data.timeframe, min(now, market_data.fetched_at))
+    usable = closed_candles(market_data.candles, market_data.timeframe, min(now, market_data.closure_cutoff))
     if not usable:
         raise DataUnavailable("NO_CLOSED_CANDLES", "No closed candles are available yet")
     profile = profile_for(market_data.asset.market)

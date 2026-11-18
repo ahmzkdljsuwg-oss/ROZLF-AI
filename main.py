@@ -28,6 +28,7 @@ from config import normalise_database_url, settings
 from database.repository import Repository
 from engines.signals.generator import SignalGenerator
 from providers.base import utc_now
+from engines.technical.delivery_window import LATE_REASON, can_publish
 from providers.eobridge import ExpertOptionBridgeProvider
 from providers.inventory import MarketInventory
 from providers.registry import build_registry
@@ -213,14 +214,23 @@ async def _run_bot(state: dict) -> None:
             return None
         if chat_id != settings.telegram_chat_id and not await repo.scanner_opt_in(chat_id):
             return None
-        if record.target_open_at is not None and (record.target_open_at-utc_now()).total_seconds() < 2:
+        if record.target_open_at is not None and not can_publish(record.expiry_seconds, record.target_open_at, utc_now()):
             return None
         try:
             text = (fmt.nexus_signal_text(record.market,record.direction,record.expiry_seconds,
                      record.confidence,record.target_open_at,record.reasons,asset=record.asset_display,
                      mode="scanner") if record.target_open_at else fmt.signal_text(record))
             sent = await bot.send_message(chat_id, text, disable_web_page_preview=True)
-            return utc_now() if getattr(sent, "date", None) is not None else None
+            if getattr(sent, "date", None) is None:
+                return None
+            ack = utc_now()
+            if record.target_open_at and not can_publish(
+                    record.expiry_seconds, record.target_open_at, ack, acknowledged=True):
+                await sent.edit_text(fmt.nexus_signal_text(
+                    record.market, "NO TRADE", None, None, asset=record.asset_display,
+                    reasons=[LATE_REASON], mode="scanner"))
+                return None
+            return ack
         except Exception:
             logger.exception("failed sending scanner signal")
             return None
@@ -286,7 +296,7 @@ async def _run_bot(state: dict) -> None:
                     BotCommand(command="markets", description="فتح قائمة الأسواق"),
                     BotCommand(command="fast", description="تحليل فني سريع"),
                     BotCommand(command="pro", description="تحليل قوي بمعايرة"),
-                    BotCommand(command="lo", description="تشغيل وضع LO للتوصيات المستمرة"),
+                    BotCommand(command="lo", description="تشغيل وضع LO للقراءة الفنية غير المعايرة"),
                     BotCommand(command="llo", description="العودة إلى التحليل القوي المعاير"),
                     *(
                         [

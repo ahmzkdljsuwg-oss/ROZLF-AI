@@ -21,6 +21,7 @@ from engines.signals.duration import auto_frames, choose_auto_duration
 from engines.markets import profile_for
 from engines.signals.generator import DURATION_LABELS, supported_durations
 from services.market_analysis import MarketAnalysisService
+from engines.technical.delivery_window import LATE_REASON, can_publish
 from providers.base import DataUnavailable, utc_now
 from providers.catalog import (
     SMARTY_ASSET, TIMEFRAMES, Asset, Market, assets_for, get_asset, register_dynamic, timeframe,
@@ -319,12 +320,10 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
             reason = outcome.conflict or "; ".join(outcome.errors[:1]) or None
             text = fmt.nexus_signal_text(
                 market.value, "NO TRADE", timeframe(result.timeframe).seconds, None,
-                result.target_open_at, result.reasons,
+                None, [reason] if reason else result.reasons,
                 asset=result.asset_display, confidence_verified=result.confidence_verified,
                 mode=mode, trend=result.indicators.get("trend"), volatility=result.indicators.get("volatility"),
             )
-            if reason:
-                text += f"\n\n<i>{html.escape(reason)}</i>"
             await _edit(callback, text, menus.nexus_result_menu())
             return
 
@@ -339,12 +338,12 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
         )
         if result.target_open_at is not None or mode in {"lo", "fast", "pro"} or market is Market.SMARTY:
             fingerprint += (result.target_open_at,)
-            if result.target_open_at is not None and result.target_open_at <= utc_now():
+            if not can_publish(outcome.duration_seconds, result.target_open_at, utc_now()):
                 await _edit(
                     callback,
                     fmt.nexus_signal_text(
                         market.value, "NO TRADE", None, None, asset=result.asset_display,
-                        reasons=["بدأت الشمعة المستهدفة قبل إرسال النتيجة"], mode=mode,
+                        reasons=[LATE_REASON], mode=mode,
                     ),
                     menus.nexus_result_menu(),
                 )
@@ -363,22 +362,31 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
         )
         if repeated:
             text += "\n\n<i>نفس الشمعة المستهدفة</i>"
-        sent = await _edit(callback, text, menus.nexus_result_menu())
-        if repeated:
-            return
-        _NEXUS_LAST[(user_id, market.value)] = (fingerprint, time.monotonic())
-        if mode == "lo":
-            logger.info("NEXUS LO displayed market=%s asset=%s tf=%s direction=%s target=%s",
-                        market.value, result.asset_key, result.timeframe, result.direction, result.target_open_at)
         target = result.target_open_at
+        requested_at = utc_now()
+        if not can_publish(outcome.duration_seconds, target, requested_at):
+            await _edit(callback, fmt.nexus_signal_text(
+                market.value, "NO TRADE", None, None, asset=result.asset_display,
+                reasons=[LATE_REASON], mode=mode), menus.nexus_result_menu())
+            return
+        sent = await _edit(callback, text, menus.nexus_result_menu())
+        now = utc_now()
         receipt = getattr(sent, "edit_date", None) or getattr(sent, "date", None)
-        delivery = utc_now() if isinstance(receipt, datetime) and target is not None and utc_now() < target else None
-        if target is not None and delivery is None:
+        timely = can_publish(outcome.duration_seconds, target, now, acknowledged=True)
+        logger.info("NEXUS delivery market=%s asset=%s tf=%s lead_ms=%d ack_lead_ms=%d timely=%s",
+                    market.value, result.asset_key, result.timeframe,
+                    round((target-requested_at).total_seconds()*1000),
+                    round((target-now).total_seconds()*1000), timely)
+        if not timely:
             if isinstance(receipt, datetime):
                 await _edit(callback, fmt.nexus_signal_text(
                     market.value, "NO TRADE", None, None, asset=result.asset_display,
-                    reasons=["انتهت نافذة الإرسال"], mode=mode), menus.nexus_result_menu())
+                    reasons=[LATE_REASON], mode=mode), menus.nexus_result_menu())
             return
+        if repeated or not isinstance(receipt, datetime):
+            return
+        _NEXUS_LAST[(user_id, market.value)] = (fingerprint, time.monotonic())
+        delivery = now
         try:
             await ctx.repo.add_signal(
                 user_id=user_id,
@@ -426,7 +434,7 @@ async def cmd_lo(message: Message) -> None:
         "LO MODE: ON\n"
         "━━━━━━━━━━━━━━━━━━\n"
         "التحليل الآن يستخدم المحركات الفنية والشموع المغلقة مباشرة.\n"
-        "الاتجاه UP/DOWN يُختار عند اتفاق الأدلة، والثقة تُعرض UNVERIFIED\n"
+        "الاتجاه التجريبي عند اتفاق الأدلة غير معاير (UNVERIFIED). SMARTY للقراءة الفنية فقط.\n"
         "لأنه لا توجد معايرة Walk-Forward لهذا الوضع.\n"
         "عند تعارض الأدلة أو فشل البيانات: NO TRADE / DATA UNAVAILABLE.",
         reply_markup=menus.nexus_home_menu(getattr(message, "chat", None)),
@@ -1729,7 +1737,7 @@ async def cb_scan_now(callback: CallbackQuery) -> None:
     await _edit(callback, "⏳ جارٍ فحص الأسواق…")
     records = await scanner.scan_once(
         user_ids=[callback.from_user.id], min_confidence=ctx.settings.min_confidence, notify=False)
-    records = [r for r in records if r.target_open_at is not None and r.target_open_at > utc_now()]
+    records = [r for r in records if can_publish(r.expiry_seconds, r.target_open_at, utc_now())]
     keyboard = menus.back_only("scan:menu", "🔙 الماسح")
     if not records:
         await _edit(callback, "<b>NO TRADE</b>\nلم تصل قراءة معايرة قبل موعد الشمعة.", keyboard)
@@ -1740,9 +1748,13 @@ async def cb_scan_now(callback: CallbackQuery) -> None:
     sent = await _edit(callback, body, keyboard)
     if sent:
         now = utc_now()
-        for r in records:
-            if now < r.target_open_at:
-                await ctx.repo.mark_candle_delivery(r.id, now)
+        timely = [r for r in records if can_publish(r.expiry_seconds, r.target_open_at, now, acknowledged=True)]
+        if len(timely) != len(records):
+            # Prevent the on-demand panel keeping a direction for a missed window.
+            await _edit(callback, "<b>NO TRADE</b>\n" + LATE_REASON, keyboard)
+            return
+        for r in timely:
+            await ctx.repo.mark_candle_delivery(r.id, now)
 
 
 @router.callback_query(F.data.startswith("scan:mk:"))

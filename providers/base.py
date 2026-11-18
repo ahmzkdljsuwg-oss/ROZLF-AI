@@ -92,6 +92,11 @@ class MarketData:
     quote: Quote | None
     validation: ValidationReport
     fetched_at: datetime = field(default_factory=utc_now)
+    closed_as_of: datetime | None = None
+
+    @property
+    def closure_cutoff(self) -> datetime:
+        return min(self.fetched_at, self.closed_as_of) if self.closed_as_of is not None else self.fetched_at
 
     @property
     def last_close(self) -> float:

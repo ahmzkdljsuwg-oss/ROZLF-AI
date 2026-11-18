@@ -11,6 +11,7 @@ from config import Settings
 from database.repository import Repository, SignalRecord
 from engines.signals.generator import SignalGenerator
 from engines.technical.analyzer import AnalysisResult
+from engines.technical.delivery_window import can_publish, is_research_only
 from providers.base import DataUnavailable, utc_now
 from providers.catalog import Asset, Market, assets_for, timeframe
 from providers.inventory import MarketInventory
@@ -168,7 +169,7 @@ class AutoScanner:
                     return None
 
         async def publish(target, result):
-            if (result.target_open_at-utc_now()).total_seconds()<2:
+            if not can_publish(timeframe(result.timeframe).seconds, result.target_open_at, utc_now()):
                 return None
             if self.settings.subscriptions_enabled and (target not in self.settings.owner_ids and
                                                         not await self.repo.is_subscribed(target)):
@@ -183,11 +184,13 @@ class AutoScanner:
                 if notify and self.notifier is not None:
                     try:
                         receipt = await asyncio.wait_for(self.notifier(record), timeout=6)
-                        if receipt is not None:
+                        timely = receipt is not None and can_publish(
+                            record.expiry_seconds, result.target_open_at, receipt, acknowledged=True)
+                        if timely:
                             await self.repo.mark_candle_delivery(record.id,receipt)
                         logger.info("nexus scanner dispatch asset=%s frame=%s ready_ms=%d on_time=%s",
                             result.asset_key,result.timeframe,round((time.monotonic()-started)*1000),
-                            receipt is not None and receipt < result.target_open_at)
+                            timely)
                     except Exception:
                         logger.exception("scanner notifier failed")
                 return record
@@ -200,7 +203,9 @@ class AutoScanner:
             if not result or admitted >= limit or not targets:
                 return
             checked_at = utc_now()
-            if not result.target_open_at or result.target_open_at-checked_at < timedelta(seconds=2):
+            if not can_publish(timeframe(result.timeframe).seconds, result.target_open_at, checked_at):
+                return
+            if is_research_only(Market(result.market), False):
                 return
             signature = f"{result.asset_key}:{result.timeframe}"
             cooldown = timedelta(seconds=max(300,timeframe(result.timeframe).seconds*2))

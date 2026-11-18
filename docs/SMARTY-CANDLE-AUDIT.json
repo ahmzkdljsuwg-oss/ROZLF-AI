@@ -1,0 +1,195 @@
+{
+  "source": "ExpertOption SMARTY asset 240",
+  "sample": "Saved native OHLC snapshot; exploratory historical evaluation, not a new prospective trial.",
+  "target": "i+2, forecast uses only the 300 completed bars through i",
+  "frames": {
+    "5sec": {
+      "bars": 1500,
+      "holdout_start": "2026-11-16T14:37:20+00:00",
+      "holdout_end": "2026-11-16T15:27:15+00:00",
+      "eligible": 600,
+      "can_offer_manual_target": false,
+      "methods": {
+        "constant": {
+          "signals": 600,
+          "wins": 291,
+          "draws": 34,
+          "hit_rate": 48.5,
+          "coverage": 100.0,
+          "wilson_99_lower": 43.29
+        },
+        "lo": {
+          "signals": 315,
+          "wins": 143,
+          "draws": 19,
+          "hit_rate": 45.4,
+          "coverage": 52.5,
+          "wilson_99_lower": 38.34,
+          "constant_same_bars_pct": 46.98,
+          "exploratory_screen": false
+        },
+        "fast": {
+          "signals": 130,
+          "wins": 64,
+          "draws": 4,
+          "hit_rate": 49.23,
+          "coverage": 21.67,
+          "wilson_99_lower": 38.25,
+          "constant_same_bars_pct": 52.31,
+          "exploratory_screen": false
+        },
+        "agreement": {
+          "signals": 128,
+          "wins": 62,
+          "draws": 4,
+          "hit_rate": 48.44,
+          "coverage": 21.33,
+          "wilson_99_lower": 37.42,
+          "constant_same_bars_pct": 51.56,
+          "exploratory_screen": false
+        }
+      }
+    },
+    "15sec": {
+      "bars": 1500,
+      "holdout_start": "2026-11-16T12:57:45+00:00",
+      "holdout_end": "2026-11-16T15:27:30+00:00",
+      "eligible": 600,
+      "can_offer_manual_target": true,
+      "methods": {
+        "constant": {
+          "signals": 600,
+          "wins": 316,
+          "draws": 14,
+          "hit_rate": 52.67,
+          "coverage": 100.0,
+          "wilson_99_lower": 47.42
+        },
+        "lo": {
+          "signals": 321,
+          "wins": 140,
+          "draws": 10,
+          "hit_rate": 43.61,
+          "coverage": 53.5,
+          "wilson_99_lower": 36.68,
+          "constant_same_bars_pct": 48.29,
+          "exploratory_screen": false
+        },
+        "fast": {
+          "signals": 152,
+          "wins": 65,
+          "draws": 3,
+          "hit_rate": 42.76,
+          "coverage": 25.33,
+          "wilson_99_lower": 32.94,
+          "constant_same_bars_pct": 41.45,
+          "exploratory_screen": false
+        },
+        "agreement": {
+          "signals": 149,
+          "wins": 64,
+          "draws": 3,
+          "hit_rate": 42.95,
+          "coverage": 24.83,
+          "wilson_99_lower": 33.03,
+          "constant_same_bars_pct": 41.61,
+          "exploratory_screen": false
+        }
+      }
+    },
+    "30sec": {
+      "bars": 1500,
+      "holdout_start": "2026-11-16T10:28:00+00:00",
+      "holdout_end": "2026-11-16T15:27:30+00:00",
+      "eligible": 600,
+      "can_offer_manual_target": true,
+      "methods": {
+        "constant": {
+          "signals": 600,
+          "wins": 275,
+          "draws": 9,
+          "hit_rate": 45.83,
+          "coverage": 100.0,
+          "wilson_99_lower": 40.67
+        },
+        "lo": {
+          "signals": 306,
+          "wins": 146,
+          "draws": 4,
+          "hit_rate": 47.71,
+          "coverage": 51.0,
+          "wilson_99_lower": 40.48,
+          "constant_same_bars_pct": 46.73,
+          "exploratory_screen": false
+        },
+        "fast": {
+          "signals": 132,
+          "wins": 63,
+          "draws": 2,
+          "hit_rate": 47.73,
+          "coverage": 22.0,
+          "wilson_99_lower": 36.91,
+          "constant_same_bars_pct": 50.0,
+          "exploratory_screen": false
+        },
+        "agreement": {
+          "signals": 130,
+          "wins": 61,
+          "draws": 2,
+          "hit_rate": 46.92,
+          "coverage": 21.67,
+          "wilson_99_lower": 36.07,
+          "constant_same_bars_pct": 50.77,
+          "exploratory_screen": false
+        }
+      }
+    },
+    "1min": {
+      "bars": 1500,
+      "holdout_start": "2026-11-16T05:28:00+00:00",
+      "holdout_end": "2026-11-16T15:27:00+00:00",
+      "eligible": 600,
+      "can_offer_manual_target": true,
+      "methods": {
+        "constant": {
+          "signals": 600,
+          "wins": 301,
+          "draws": 7,
+          "hit_rate": 50.17,
+          "coverage": 100.0,
+          "wilson_99_lower": 44.94
+        },
+        "lo": {
+          "signals": 321,
+          "wins": 153,
+          "draws": 5,
+          "hit_rate": 47.66,
+          "coverage": 53.5,
+          "wilson_99_lower": 40.6,
+          "constant_same_bars_pct": 45.17,
+          "exploratory_screen": false
+        },
+        "fast": {
+          "signals": 160,
+          "wins": 73,
+          "draws": 2,
+          "hit_rate": 45.62,
+          "coverage": 26.67,
+          "wilson_99_lower": 35.86,
+          "constant_same_bars_pct": 48.75,
+          "exploratory_screen": false
+        },
+        "agreement": {
+          "signals": 156,
+          "wins": 71,
+          "draws": 2,
+          "hit_rate": 45.51,
+          "coverage": 26.0,
+          "wilson_99_lower": 35.64,
+          "constant_same_bars_pct": 48.72,
+          "exploratory_screen": false
+        }
+      }
+    }
+  }
+}
