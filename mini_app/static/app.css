@@ -29,3 +29,34 @@ body{background:radial-gradient(ellipse at 86% -9%,#173335 0%,#101822 38%,#0a0f1
 .nav{width:min(calc(100% - 24px),41rem);grid-template-columns:repeat(3,1fr);padding:4px;bottom:max(8px,env(safe-area-inset-bottom));background:#141d2ae9;border:1px solid #657486;border-radius:16px;box-shadow:0 3px 22px #0008}.nav button{min-height:43px}.nav button svg{width:18px;height:18px;display:block;margin:0 auto 2px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.nav button small{font-size:.67rem}.nav [aria-current=page]{background:#1e4348;border:1px solid #7ee4d2;color:var(--mint)}.footnote{color:#a8b5c1}
 @keyframes terminal-focus{from{opacity:.6}to{opacity:1}}@keyframes terminal-wait{from{background:#314955}to{background:#569d98}}
 @media(prefers-reduced-motion:reduce){.terminal-hero[data-phase=loading] .terminal-emblem,.terminal-progress[data-phase=loading] .phase-track i,.reading-tile[data-tone=pending] small{animation:none}}
+
+
+/* NEXUS motion pass: smooth native-feeling transitions, restrained glass, touch feedback. */
+:root{--ease-premium:cubic-bezier(.22,1,.36,1)}
+html{scroll-behavior:smooth;-webkit-tap-highlight-color:transparent}
+body{background:radial-gradient(ellipse at 50% -12%,#1a4547 0%,#0c1924 40%,#070e18 85%);background-attachment:fixed}
+.panel{background:linear-gradient(145deg,rgba(28,45,58,.88),rgba(13,23,35,.94));border:1px solid rgba(124,172,185,.24);box-shadow:0 10px 34px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.045);transition:transform .32s var(--ease-premium),border-color .32s ease,box-shadow .32s ease}
+.page:not([hidden]){animation:nexus-page .48s var(--ease-premium) both}
+@keyframes nexus-page{from{opacity:0;transform:translate3d(0,13px,0);filter:blur(3px)}to{opacity:1;transform:translate3d(0,0,0);filter:blur(0)}}
+.terminal-hero{min-height:166px;border-radius:20px;border-color:#398f8b;background:radial-gradient(ellipse at 90% 8%,#1e5c5c,#10303b 50%,#0b202e);box-shadow:inset 0 1px #ffffff20,0 12px 35px #0a706626;transition:background .45s ease,border-color .45s ease,box-shadow .45s ease,transform .35s var(--ease-premium)}
+.terminal-hero-copy strong{font-size:clamp(1.6rem,6vw,2.4rem);letter-spacing:-.045em;text-shadow:0 0 20px #3debc52c}
+.terminal-emblem{width:76px;height:76px;transition:transform .5s var(--ease-premium),filter .5s ease}
+.terminal-hero[data-phase=loading] .terminal-emblem{animation:nexus-pulse 1.6s ease-in-out infinite}
+@keyframes nexus-pulse{0%,100%{transform:scale(.94);opacity:.75}50%{transform:scale(1.06);opacity:1}}
+.terminal-inputs{border-radius:20px;padding:14px;gap:14px}
+.terminal-inputs select{border-radius:12px;min-height:48px;transition:border-color .2s ease,box-shadow .2s ease}
+.terminal-inputs select:focus{border-color:#78f2d6;box-shadow:0 0 0 3px #64efc020;outline:0}
+.terminal-submit{min-height:52px;border-radius:14px;transition:transform .25s var(--ease-premium),filter .25s ease,box-shadow .25s ease}
+.terminal-submit:active:not(:disabled){transform:scale(.97)}
+.reading-tile{min-height:77px;border-radius:14px;background:linear-gradient(140deg,#243545,#152331);border-color:#415d69;transition:transform .3s var(--ease-premium),border-color .3s ease,box-shadow .3s ease}
+.reading-tile[data-tone=positive]{border-color:#397b72}.reading-tile[data-tone=negative]{border-color:#80505f}
+.reading-tile .tile-icon{width:35px;height:35px;border-radius:11px}
+.reading-tile small{font-variant-numeric:tabular-nums}
+.nav{border-radius:22px;background:rgba(17,31,42,.87);border-color:#56747a;box-shadow:0 10px 36px #0009;-webkit-backdrop-filter:blur(26px) saturate(1.4);backdrop-filter:blur(26px) saturate(1.4)}
+.nav button{border-radius:16px;transition:background .25s ease,color .25s ease,transform .25s var(--ease-premium)}
+.nav button:active{transform:scale(.92)}
+.nav [aria-current=page]{background:linear-gradient(135deg,#1e5655,#164047);box-shadow:inset 0 1px #91ffe52b,0 0 14px #40c5b01e}
+.market-card{transition:transform .3s var(--ease-premium),border-color .3s ease}.market-card:active{transform:scale(.97)}
+.result{animation:nexus-page .5s var(--ease-premium) both}
+@media(hover:hover){.reading-tile:hover,.market-card:hover{transform:translateY(-3px);border-color:#68b9b0;box-shadow:0 12px 30px #0004}.terminal-submit:hover:not(:disabled){filter:brightness(1.08);box-shadow:0 7px 24px #50dcca55}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.page:not([hidden]),.result,.terminal-hero[data-phase=loading] .terminal-emblem{animation:none!important}*,*::before,*::after{transition:none!important}}
