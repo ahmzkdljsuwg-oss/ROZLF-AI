@@ -3,22 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#080c17">
+<meta name="theme-color" content="#0a0f19">
 <title>NEXUS AI · مرصد الأسواق</title>
-<link rel="stylesheet" href="/mini-app/app.css?v=20261118-candles">
+<link rel="stylesheet" href="/mini-app/app.css?v=20261118-terminal">
 <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
-<script src="/mini-app/app.js?v=20261118-candles" defer></script>
+<script src="/mini-app/app.js?v=20261118-terminal" defer></script>
 </head>
 <body>
 <a href="#main" class="skip">انتقل للمحتوى</a>
 <div class="shell">
 <header class="masthead">
-  <div class="brand"><span class="mark" aria-hidden="true">N</span><span><b>NEXUS AI</b><small>مرصد الأسواق</small></span></div>
+  <div class="brand"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="21" height="21" fill="none"><path d="M4 17L9 12L13 15L20 7M15 7h5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span><b>NEXUS AI</b><small>محطة التحليل</small></span></div>
   <button class="connection" id="connection" type="button" title="إعادة التحقق من الاتصال"><span class="dot"></span><span id="connection-text">جارٍ التحقق</span></button>
 </header>
 <aside class="notice" id="notice" role="status" hidden></aside>
 <main id="main">
-<section class="page" id="home">
+<section class="page" id="home" hidden>
   <div class="hero panel">
     <div class="candle-motif" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
     <span class="eyebrow"><span aria-hidden="true"></span> CLOSED-CANDLE LAB</span>
@@ -39,13 +39,29 @@
   <div class="section-head"><div><span class="overline">MARKETS</span><h1 id="market-title">الأسواق</h1><p>حالة الشموع من مصدرها. «لم يُفحص» لا تعني أن السوق مغلق.</p></div></div>
   <div id="markets-list" class="market-grid"><div class="skeleton"></div><div class="skeleton"></div></div>
 </section>
-<section class="page" id="analysis" hidden aria-labelledby="analysis-title">
-  <div class="section-head"><div><span class="overline">ANALYSIS LAB</span><h1 id="analysis-title">مختبر التحليل</h1><p>اضغط على أي شمعة لعرض الافتتاح والأعلى والأدنى والإغلاق. الأوقات بتوقيت الكويت.</p></div></div>
-  <form class="panel form" id="form">
-    <fieldset class="modes"><legend>وضع التحليل</legend><label><input name="mode" type="radio" value="fast" checked><span><b>FAST ⚡</b><small>تحليل سريع</small></span></label><label><input name="mode" type="radio" value="pro"><span><b>PRO ◈</b><small>أدلة ومعايرة</small></span></label></fieldset>
+<section class="page" id="analysis" aria-labelledby="analysis-title">
+  <div class="lab-heading">
+    <div><span class="overline">N E X U S / 0 1</span><h1 id="analysis-title">مختبر التحليل</h1></div>
+    <button type="button" class="lab-pill" data-go="home">نظرة عامة <span aria-hidden="true">↗</span></button>
+  </div>
+  <form class="panel form terminal-inputs" id="form">
     <div class="fields"><label>السوق<select id="market"></select></label><label>الأصل<select id="asset"></select></label><label>المدة<select id="frame"></select></label></div>
-    <button id="analyze-button" class="primary wide" type="submit" disabled>حلّل الآن <span aria-hidden="true">↗</span></button>
+    <fieldset class="modes"><legend class="sr-only">وضع التحليل</legend><label><input name="mode" type="radio" value="fast" checked><span><b>⚡ FAST</b><small>تحليل سريع</small></span></label><label><input name="mode" type="radio" value="pro"><span><b>◈ PRO</b><small>أدلة ومعايرة</small></span></label></fieldset>
+    <div class="terminal-hero" id="terminal-hero" data-phase="idle" role="status">
+      <div class="terminal-hero-copy"><span class="overline" id="terminal-kicker">CLOSED CANDLES</span><strong id="terminal-title">أبدا ي وحش 😪</strong><small id="terminal-detail">القراءة تبدأ بعد اختيار السوق.</small></div>
+      <svg class="terminal-emblem" viewBox="0 0 80 80" fill="none" aria-hidden="true">
+        <circle cx="40" cy="40" r="36" stroke="currentColor" opacity=".32"/>
+        <circle cx="40" cy="40" r="29" stroke="currentColor" opacity=".23" stroke-dasharray="2 5"/>
+        <path d="M22 53 31 43 38 48 55 28m-10 0h10v10" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M27 55v7m12-8v8m12-11v11" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".6"/>
+      </svg>
+      <svg class="terminal-trace" id="terminal-trace" viewBox="0 0 240 46" preserveAspectRatio="none" aria-hidden="true"></svg>
+    </div>
+    <div class="terminal-progress" id="terminal-progress" data-phase="idle"><div class="phase-track" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span id="progress-label">بانتظار التحليل</span><b id="progress-count">— / 8</b></div>
+    <button id="analyze-button" class="primary wide terminal-submit" type="submit" disabled>حلّل الآن <span aria-hidden="true">↗</span></button>
   </form>
+  <div class="section-head terminal-read-head"><div><span class="overline">MARKET READINGS</span><h2>قراءات الشموع</h2></div><span class="source-pill" id="reading-source">مصدر غير مفحوص</span></div>
+  <div class="terminal-grid" id="reading-grid" aria-busy="false"></div>
   <div id="analysis-result" class="stack" aria-live="polite"></div>
 </section>
 <section class="page" id="signals" hidden aria-labelledby="signal-title">
@@ -60,6 +76,11 @@
 </section>
 <section class="page" id="settings" hidden aria-labelledby="settings-title">
   <div class="section-head"><div><span class="overline">PREFERENCES</span><h1 id="settings-title">الإعدادات</h1><p>التفضيلات مرتبطة بحسابك. التحليل لا ينفّذ أي صفقات.</p></div></div>
+  <div class="profile-links">
+    <button type="button" class="lab-pill" data-go="home">نظرة عامة</button>
+    <button type="button" class="lab-pill" data-go="signals">السجل</button>
+    <button type="button" class="lab-pill" data-go="performance">الأداء</button>
+  </div>
   <div class="panel pref"><span><b>تنبيهات الماسح</b><small id="pref-scanner-hint">تشغيل وإيقاف توصيات Telegram</small></span><button id="scanner-toggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="تنبيهات الماسح" disabled><i></i></button></div>
   <div class="panel pref"><label for="pref-mode"><b>الوضع الافتراضي</b><small>يتزامن مع وضع تحليل البوت</small></label><select id="pref-mode" disabled><option value="fast">FAST</option><option value="pro">PRO</option><option value="lo">LO</option><option value="strong">LLO</option></select></div>
   <div class="panel pref"><label for="lang"><b>اللغة</b><small>تغيير لغة الواجهة على جهازك</small></label><select id="lang"><option value="ar">العربية</option><option value="en">English</option></select></div>
@@ -68,12 +89,9 @@
 <footer class="footnote">NEXUS AI · متابعة فنية فقط، لا تنفيذ للصفقات</footer>
 </div>
 <nav class="nav" aria-label="التنقل">
-<button data-go="home" aria-current="page"><span aria-hidden="true">⌂</span><small>الرئيسية</small></button>
-<button data-go="markets"><span aria-hidden="true">◫</span><small>الأسواق</small></button>
-<button data-go="analysis"><span aria-hidden="true">✧</span><small>التحليل</small></button>
-<button data-go="signals"><span aria-hidden="true">≋</span><small>السجل</small></button>
-<button data-go="performance"><span aria-hidden="true">▥</span><small>الأداء</small></button>
-<button data-go="settings"><span aria-hidden="true">⚙</span><small>الإعدادات</small></button>
+<button data-go="analysis" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19v-5m7 5V5m7 14v-9"/></svg><small>التحليل</small></button>
+<button data-go="markets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 15 5-6 5 4 7-7m-5 0h5v5"/></svg><small>الأسواق</small></button>
+<button data-go="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.3 2.8-6 7-6s7 2.7 7 6"/></svg><small>الملف</small></button>
 </nav>
 </body>
 </html>

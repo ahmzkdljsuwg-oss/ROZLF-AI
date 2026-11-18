@@ -293,7 +293,7 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
     async with _analysis_lock(user_id):
         await _edit(
             callback,
-            f"⏳ جارٍ تحليل {market.label}…",
+            f"<b>{fmt.NEXUS_ANALYSIS_BANNER}</b>\n\n⏳ جارٍ قراءة الشموع المغلقة · {market.label}",
         )
         ctx = get_context()
         mode = await _user_mode(ctx, user_id)

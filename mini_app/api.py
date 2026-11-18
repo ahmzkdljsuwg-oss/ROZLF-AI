@@ -19,6 +19,7 @@ from engines.technical.delivery_window import (
     UNVERIFIED_SMARTY_REASON, can_publish, is_research_only,
 )
 from engines.technical.indicators import compute_indicators, frame_from_candles
+from engines.technical.readings import read_indicators
 from engines.validation import closed_candles
 from providers.base import DataUnavailable, utc_now
 from providers.catalog import Market, assets_for, timeframe
@@ -175,11 +176,13 @@ async def _analyze_frame(registry, asset, frame, mode, *, budget=None):
             reasons = [UNVERIFIED_SMARTY_REASON]
 
     candles = candle_details(bars, tf.seconds)
+    readings = await asyncio.to_thread(read_indicators, bars, tf.seconds)
     return {
         "asset": asset.display, "symbol": asset.symbol, "market": asset.market.value, "source": data.source,
         "mode": mode, "frame": frame, "seconds": tf.seconds, "direction": direction,
         "trend": indicators.get("trend"), "volatility": indicators.get("volatility"), "confidence": confidence,
         "reasons": reasons[:3], "candles": candles, "closed_count": len(bars),
+        "readings": readings, "readings_available": sum(r["value"] is not None for r in readings),
         "data_issue": issue, "last_closed_ms": _ms(end),
         "captured_ms": _ms(data.fetched_at), "min_view_lead_ms": ACKNOWLEDGED_SECONDS * 1000,
         "historical_audit": _audit_context(asset, frame, mode),

@@ -6,6 +6,14 @@ const api = "/api/nexus-mini/v1";
 const state = {data: null, page: "home", request: null, busy: false, failed: null};
 const initialText = new WeakMap();
 const strings = {
+  "محطة التحليل":"Analysis terminal","نظرة عامة":"Overview","الملف":"Profile",
+  "أبدا ي وحش 😪":"Let’s go 😪","القراءة تبدأ بعد اختيار السوق.":"Choose a market to begin.",
+  "بانتظار التحليل":"Waiting for analysis","قراءات الشموع":"Candle readings","مصدر غير مفحوص":"Source not checked",
+  "فحص الشموع المغلقة":"Checking closed candles","جارٍ طلب بيانات المصدر وتحليلها.":"Fetching the source snapshot and computing readings.",
+  "القراءات المتاحة":"Readings available","تعذّر التحليل":"Analysis unavailable","تعذر جلب القراءات":"Readings could not be fetched",
+  "الاتجاه":"Trend","الزخم":"Momentum","التذبذب":"Volatility","الدعم":"Support","المقاومة":"Resistance",
+  "صاعد":"Rising","هابط":"Falling","عرضي":"Range","محايد":"Neutral","مرتفع":"High","متوسط":"Normal","منخفض":"Low",
+  "غير متاح":"Unavailable","بيانات آخر إغلاق":"Last closed-candle data",
   "مختبر الشموع":"Candle lab","البيانات أولاً.":"Data first.",
   "افحص جسم الشمعة وذيولها وتوقيتها من بيانات المصدر.":"Inspect candle bodies, wicks and timing from the source.",
   "افتح مختبر الشموع":"Open candle lab",
@@ -110,7 +118,7 @@ function show(page) {
   state.page = page;
   for (const section of document.querySelectorAll(".page")) section.hidden = section.id !== page;
   for (const button of document.querySelectorAll(".nav button")) {
-    if (button.dataset.go === page) button.setAttribute("aria-current", "page");
+    if (button.dataset.go === page || (button.dataset.go === "settings" && ["home","signals","performance"].includes(page))) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
   }
   window.scrollTo(0, 0);
@@ -122,7 +130,7 @@ function marketCard(m) {
   button.append(el("span",m.icon || "◫"),details);
   details.append(el("b",m.label),el("small",barsState(m.state),"state-"+m.state));
   if (m.last_closed_ms) details.append(el("small",clock(m.last_closed_ms)));
-  button.addEventListener("click",() => { show("analysis"); $("market").value=m.key; assets(); });
+  button.addEventListener("click",() => { show("analysis"); $("market").value=m.key; resetTerminal(); assets(); });
   return button;
 }
 function signalView(row, markets) {
@@ -271,6 +279,64 @@ function candleChart(candles) {
   select(slice.length-1);
   return panel;
 }
+const readingTiles=[
+  ["trend","الاتجاه","↗"],["ema","EMA 50/200","∿"],["momentum","الزخم","ϟ"],["rsi","RSI 14","⊙"],
+  ["volatility","التذبذب","≈"],["support","الدعم","⌊"],["resistance","المقاومة","⌈"],["candle","شمعة مغلقة","◫"]
+];
+let terminalPhase="idle", terminalError="";
+function formatReading(row){
+  if(row?.value==null)return [t("غير متاح"),"neutral"];
+  const v=row.value;
+  const words={UP:"صاعد",DOWN:"هابط",RANGE:"عرضي",FLAT:"ثابتة",BULLISH:"صاعد",BEARISH:"هابط",NEUTRAL:"محايد",
+    HIGH:"مرتفع",NORMAL:"متوسط",LOW:"منخفض",DOJI:"دوجي",WICK:"ذيل طويل",INSIDE:"شمعة داخلية",ENGULFING:"ابتلاع",BODY:"جسم ممتد",MIXED:"حركة مختلطة"};
+  const tone=["UP","BULLISH"].includes(v)?"positive":["DOWN","BEARISH"].includes(v)?"negative":"neutral";
+  if(row.key==="volatility" && row.state in words)return [t(words[row.state])+" · ATR "+formatPrecise(v),tone];
+  if(row.key==="candle")return [t(words[v]||v)+" · "+number(row.body_pct)+"%",row.movement==="UP"?"positive":row.movement==="DOWN"?"negative":"neutral"];
+  return [typeof v==="number"?formatPrecise(v):t(words[v]||v),tone];
+}
+function formatPrecise(v){
+  return new Intl.NumberFormat(lang==="en"?"en":"ar-KW",{maximumFractionDigits:8,useGrouping:false}).format(v);
+}
+function renderReadings(phase,result=null,direction=null,message=""){
+  terminalPhase=phase;
+  terminalError=message;
+  const hero=$("terminal-hero"), grid=$("reading-grid"), progress=$("terminal-progress");
+  hero.dataset.phase=phase==="done"?(direction==="UP"?"up":direction==="DOWN"?"down":"hold"):phase;
+  progress.dataset.phase=phase;
+  grid.setAttribute("aria-busy",String(phase==="loading"));
+  $("terminal-kicker").textContent=phase==="done"?(result.mode.toUpperCase()+" · "+result.frame):"CLOSED CANDLES";
+  $("terminal-title").textContent=phase==="done"?resultLabel(direction):
+    phase==="loading"?t("فحص الشموع المغلقة"):phase==="error"?t("تعذّر التحليل"):t("أبدا ي وحش 😪");
+  $("terminal-detail").textContent=phase==="done"?result.asset+" · "+t("بيانات آخر إغلاق"):
+    phase==="loading"?t("جارٍ طلب بيانات المصدر وتحليلها."):phase==="error"?message:t("القراءة تبدأ بعد اختيار السوق.");
+  const available=phase==="done"?(result.readings || []).filter(r=>r.value!=null).length:0;
+  $("progress-count").textContent=phase==="done"||phase==="loading"?String(available)+" / 8":"— / 8";
+  $("progress-label").textContent=t(phase==="done"?"القراءات المتاحة":phase==="loading"?"فحص الشموع المغلقة":
+    phase==="error"?"تعذر جلب القراءات":"بانتظار التحليل");
+  $("reading-source").textContent=result?.source || t("مصدر غير مفحوص");
+  $("reading-source").title=result?.source || "";
+  progress.querySelectorAll(".phase-track i").forEach((bar,i)=>bar.classList.toggle("lit",i<available));
+  const readings=result?.readings || [];
+  grid.replaceChildren(...readingTiles.map(([key,title,icon])=>{
+    const tile=el("div",null,"reading-tile"), glyph=el("span",icon,"tile-icon"), copy=el("div");
+    glyph.setAttribute("aria-hidden","true");
+    const [value,tone]=phase==="done"?formatReading(readings.find(r=>r.key===key)):
+      phase==="loading"?["• • •","pending"]:["—","neutral"];
+    const caption=phase==="done"&&key==="trend"?t(title)+" · "+result.frame:t(title);
+    tile.dataset.tone=tone;
+    copy.append(el("b",caption),el("small",value));
+    tile.append(glyph,copy);return tile;
+  }));
+  const trace=$("terminal-trace");
+  trace.replaceChildren();
+  const series=(result?.candles || []).slice(-36).map(c=>c.close).filter(Number.isFinite);
+  if(series.length>1){
+    const min=Math.min(...series),max=Math.max(...series),span=max-min;
+    const path=document.createElementNS("http://www.w3.org/2000/svg","polyline");
+    path.setAttribute("points",series.map((v,i)=>[2+i*236/(series.length-1),span?40-36*(v-min)/span:23].join(",")).join(" "));
+    trace.append(path);
+  }
+}
 let lastResult=null;
 let expiryTimer=null;
 function effectiveTime(result) {
@@ -283,6 +349,7 @@ function displayAnalysis(result) {
   const remaining=result.target_ms == null?null:result.target_ms-effectiveTime(result)-(result.min_view_lead_ms||5000);
   const timely=remaining==null || remaining>0;
   const direction=timely?result.direction:"NO TRADE";
+  renderReadings("done",result,direction);
   const title=el("div");
   title.append(el("span",result.mode.toUpperCase()+" · "+result.frame,"overline"),el("h2",result.asset));
   top.append(title,el("span",resultLabel(direction),"badge "+(direction==="UP"?"positive":direction==="DOWN"?"negative":"flat")));
@@ -313,7 +380,17 @@ document.addEventListener("click", event=>{
   const action=event.target.closest("[data-go]");
   if(action)show(action.dataset.go);
 });
-$("market").addEventListener("change",assets);
+function resetTerminal(){
+  if(state.request && state.busy)state.request.abort();
+  lastResult=null;
+  if(expiryTimer!==null){clearTimeout(expiryTimer);expiryTimer=null;}
+  $("analysis-result").replaceChildren();
+  renderReadings("idle");
+}
+$("market").addEventListener("change",()=>{resetTerminal();assets();});
+$("asset").addEventListener("change",resetTerminal);
+$("frame").addEventListener("change",resetTerminal);
+for(const control of document.querySelectorAll('input[name="mode"]'))control.addEventListener("change",resetTerminal);
 $("connection").addEventListener("click",refresh);
 $("lang").addEventListener("change",()=>{
   lang=$("lang").value;
@@ -322,6 +399,7 @@ $("lang").addEventListener("change",()=>{
   if(state.failed)showFailure(state.failed);else if(state.data)setConnection("ok","متصل بالخادم");
   render();
   if(lastResult && !state.busy)displayAnalysis(lastResult);
+  else renderReadings(terminalPhase,null,null,terminalError);
 });
 $("form").addEventListener("submit", async event=>{
   event.preventDefault();
@@ -332,7 +410,8 @@ $("form").addEventListener("submit", async event=>{
   const submit=$("analyze-button"), oldLabel=submit.firstChild;
   submit.disabled=true;
   oldLabel.nodeValue=t("تحليل جارٍ");
-  $("analysis-result").replaceChildren(empty("جارٍ قراءة الشموع المغلقة…"),el("div",null,"skeleton"));
+  $("analysis-result").replaceChildren();
+  renderReadings("loading");
   try {
     const requestedAt=performance.now();
     const result=await request("/analyze",{market:$("market").value,asset:$("asset").value,
@@ -345,7 +424,7 @@ $("form").addEventListener("submit", async event=>{
     void refresh();
     try{webapp?.HapticFeedback?.selectionChanged();}catch(_){}
   } catch(error){
-    $("analysis-result").replaceChildren(empty(error.name==="AbortError"?"أعد المحاولة":error.message));
+    renderReadings(error.name==="AbortError"?"idle":"error",null,null,error.message);
     if(error.http===401||error.http===403||(!error.http&&error.name!=="AbortError"))showFailure(error);
   } finally {state.busy=false;state.request=null;const native=initialText.get(oldLabel)||"حلّل الآن";initialText.set(oldLabel,native);oldLabel.nodeValue=t(native)+" ";assets();}
 });
@@ -369,7 +448,9 @@ async function save(payload){
 $("scanner-toggle").addEventListener("click",()=>save({scanner:!state.data.scanner.enabled}));
 $("pref-mode").addEventListener("change",()=>save({mode:$("pref-mode").value}));
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)void refresh();});
-try {webapp?.ready();webapp?.expand();webapp?.setHeaderColor("#080c17");webapp?.setBackgroundColor("#080c17");} catch (_) {}
+try {webapp?.ready();webapp?.expand();webapp?.setHeaderColor("#0a0f19");webapp?.setBackgroundColor("#0a0f19");} catch (_) {}
 applyLanguage();
+show("analysis");
+renderReadings("idle");
 void refresh();
 setInterval(()=>{if(!document.hidden && auth && !state.busy && !saving)void refresh();},30000);

@@ -1004,6 +1004,9 @@ def nexus_tools_text() -> str:
     )
 
 
+NEXUS_ANALYSIS_BANNER = "أبدا ي وحش 😪"
+
+
 def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
                        confidence: float | None, target_open_at=None,
                        reasons: list[str] | None = None, asset: str | None = None,
@@ -1033,7 +1036,7 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
     market_name = names.get(market.lower(), market_label(market))
     mode_name = {"fast": "FAST", "pro": "PRO", "lo": "LO", "strong": "LLO", "scanner": "الماسح"}.get(mode, mode.upper())
     lines = [
-        "<b>NEXUS AI 🤖</b>",
+        f"<b>{NEXUS_ANALYSIS_BANNER}</b>\n<b>NEXUS AI 🤖</b>",
         f"📊 السوق: <b>{html.escape(market_name)}</b>",
         f"💱 الأصل · <b>{html.escape(asset or market_name)}</b>",
         f"⚡ الوضع · <b>{mode_name}</b>",
@@ -1044,6 +1047,7 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
         lines.append("🧪 LO MODE · UNCALIBRATED")
         if target_open_at is not None:
             lines.append("🕯️ التوقع للشمعة الجاية من آخر شمعة مغلقة")
+    if trend and volatility:
         trend_label = {"UP": "صاعد", "DOWN": "هابط", "RANGE": "عرضي"}.get(trend)
         volatility_label = {"LOW": "منخفض", "NORMAL": "طبيعي", "HIGH": "عالٍ"}.get(volatility)
         if trend_label and volatility_label:
@@ -1060,7 +1064,7 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
 
 def nexus_data_unavailable_text(market: str, detail: str | None = None, *, mode: str = "strong") -> str:
     lines = [
-        "NEXUS AI 🤖",
+        f"<b>{NEXUS_ANALYSIS_BANNER}</b>\nNEXUS AI 🤖",
         f"📊 السوق: <b>{market_label(market)}</b>",
         "📈 الصفقة: <b>NO TRADE</b>" if mode != "lo" else "📈 الصفقة: —",
         "🎯 الثقة: —",

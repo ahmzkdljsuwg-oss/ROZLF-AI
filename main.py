@@ -17,6 +17,7 @@ from aiohttp import web
 
 from ai.gemini import GeminiClient
 from ai.mistral import MistralClient
+from ai.provider_status import configured_providers, probe_cloudflare
 from ai.vision import MistralVision
 from bot import formatting as fmt
 from bot.context import AppContext, set_context
@@ -83,6 +84,7 @@ async def _health_server(ctx: AppContext | None, state: dict) -> web.AppRunner |
             "scanner_last_run": str(live.scanner.last_run) if live and live.scanner and live.scanner.last_run else None,
             "sources": live.source_map() if live else {},
             "ai": live.ai_health() if live else settings.describe().get("ai", {}),
+            "provider_checks": state.get("provider_checks", {}),
             "bridge_configured": bool(settings.bridge_url and settings.eo_bridge_key),
             "build": os.getenv("ROZLF_BUILD_SHA") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "unknown",
             "menu_version": keyboards.NEXUS_MENU_VERSION,
@@ -278,7 +280,18 @@ async def _run_bot(state: dict) -> None:
 
     state["ctx"] = ctx
 
+    state["provider_checks"] = configured_providers()
+    provider_task = None
+
+    async def run_provider_probe():
+        status = await probe_cloudflare(state["provider_checks"])
+        logger.info("NEXUS Workers AI catalogue: %s", status)
+
     async def on_startup() -> None:
+        nonlocal provider_task
+        if provider_task is None or provider_task.done():
+            provider_task = asyncio.create_task(run_provider_probe(), name="nexus-provider-catalogue")
+
         try:
             await bot.delete_webhook(drop_pending_updates=False)
         except Exception:
@@ -323,6 +336,9 @@ async def _run_bot(state: dict) -> None:
         logger.info("ROZLF AI started: %s", settings.describe())
 
     async def on_shutdown() -> None:
+        if provider_task is not None and not provider_task.done():
+            provider_task.cancel()
+            await asyncio.gather(provider_task, return_exceptions=True)
         state["polling"] = False
         await scanner.stop()
         await repo.close()
