@@ -36,10 +36,23 @@ def _add(signals: list[StrategySignal], name: str, family: str, direction: str,
         signals.append(StrategySignal(name, family, direction, float(score), reason, invalidation))
 
 
-def _resample(frame: pd.DataFrame, factor: int) -> pd.DataFrame:
-    return frame.resample(f"{max(1, factor) * 60}s").agg(
-        {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
-    ).dropna()
+def _resample(frame: pd.DataFrame, native_seconds: int, factor: int) -> pd.DataFrame:
+    """Only use complete native buckets, with no join across missing history."""
+    if frame.empty or frame.index.has_duplicates:
+        return frame.iloc[:0]
+    native = f"{native_seconds}s"
+    if not (frame.index.floor(native) == frame.index).all():
+        return frame.iloc[:0]
+    unit = f"{native_seconds * factor}s"
+    bins = frame.groupby(frame.index.floor(unit))
+    whole = bins.agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
+    whole = whole.loc[bins.size() == factor].dropna()
+    step = pd.Timedelta(seconds=native_seconds * factor)
+    last_complete_open = (frame.index[-1] + pd.Timedelta(seconds=native_seconds)).floor(unit) - step
+    if whole.empty or whole.index[-1] != last_complete_open:
+        return whole.iloc[:0]
+    breaks = whole.index.to_series().diff() != step
+    return whole.loc[breaks[breaks].index[-1]:]
 
 
 def _ema_trend(frame: pd.DataFrame) -> str:
@@ -59,8 +72,8 @@ def _ema_trend(frame: pd.DataFrame) -> str:
 def multi_timeframe(frame: pd.DataFrame, timeframe_seconds: int) -> dict:
     """Base frame plus 3x and 6x aggregations; no future bars are used."""
     base = _ema_trend(frame)
-    medium = _ema_trend(_resample(frame, round(timeframe_seconds * 3 / 60)))
-    long = _ema_trend(_resample(frame, round(timeframe_seconds * 6 / 60)))
+    medium = _ema_trend(_resample(frame, timeframe_seconds, 3))
+    long = _ema_trend(_resample(frame, timeframe_seconds, 6))
     available = [value for value in (base, medium, long) if value != "UNKNOWN"]
     aligned = bool(available) and len(set(available)) == 1 and available[0] != "RANGE"
     return {

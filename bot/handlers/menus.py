@@ -323,6 +323,7 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
                 None, [reason] if reason else result.reasons,
                 asset=result.asset_display, confidence_verified=result.confidence_verified,
                 mode=mode, trend=result.indicators.get("trend"), volatility=result.indicators.get("volatility"),
+                strategy_readings=getattr(result, "strategy_readings", None),
             )
             await _edit(callback, text, menus.nexus_result_menu())
             return
@@ -359,6 +360,7 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
             result.confidence, result.target_open_at, result.reasons,
             asset=result.asset_display, confidence_verified=result.confidence_verified,
             mode=mode, trend=result.indicators.get("trend"), volatility=result.indicators.get("volatility"),
+            strategy_readings=getattr(result, "strategy_readings", None),
         )
         if repeated:
             text += "\n\n<i>نفس الشمعة المستهدفة</i>"

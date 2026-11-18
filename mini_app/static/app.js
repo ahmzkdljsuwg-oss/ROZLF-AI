@@ -25,6 +25,8 @@ const strings = {
   "جسم ممتد":"Extended body","حركة مختلطة":"Mixed body","ثابتة":"Flat",
   "اختبار تاريخي فقط":"Historical test only","مطابقة الاتجاه":"Directions matched",
   "لا يثبت أفضلية للتوقع.":"No forecasting edge established.",
+  "قراءة الاستراتيجيات":"Strategy readings","قراءة فنية وليست توصية أو نسبة ثقة.":"Technical observations, not a signal or confidence score.",
+  "الترند":"Trend","الانعكاس":"Reversal","هيكل السعر":"Price structure","حركة الشموع":"Price action","متعارض":"Conflicting",
   "قراءة فقط":"Read only","فجوة قبل هذه الشمعة":"Gap before this candle",
   "الوقت المتبقي للعرض غير كافٍ.":"Insufficient time to display this forecast.",
   "الفريم أقصر من مهلة العرض اللازمة. الشموع معروضة للقراءة فقط.":"This frame is shorter than the delivery window. Candles are read-only.",
@@ -342,6 +344,30 @@ let expiryTimer=null;
 function effectiveTime(result) {
   return result.server_ms + (result._wireMs || 0) + Math.max(0,performance.now() - (result._received || performance.now()));
 }
+function strategyPanel(groups) {
+  if (!groups?.length) return null;
+  const titles={trend:"الترند", momentum:"الزخم", reversal:"الانعكاس", structure:"هيكل السعر", price_action:"حركة الشموع"};
+  const labels={UP:"صاعد", DOWN:"هابط", MIXED:"متعارض", NEUTRAL:"محايد", UNAVAILABLE:"غير متاح"};
+  const panel=el("details",null,"strategy-panel");
+  panel.append(el("summary",t("قراءة الاستراتيجيات")),el("p",t("قراءة فنية وليست توصية أو نسبة ثقة.")));
+  for (const group of groups) {
+    const details=el("details",null,"strategy-family");
+    const summary=el("summary",t(titles[group.key] || group.key));
+    summary.append(el("b",t(labels[group.state] || "غير متاح"),"strategy-state"));
+    summary.lastChild.dataset.state=group.state;
+    const rules=el("ul");
+    for (const rule of group.rules || []) {
+      const line=el("li");
+      const label=el("span",rule.name);
+      label.dir="ltr";
+      line.append(label,el("span",t(labels[rule.state] || "غير متاح")));
+      rules.append(line);
+    }
+    details.append(summary,rules);
+    panel.append(details);
+  }
+  return panel;
+}
 function displayAnalysis(result) {
   if(expiryTimer!==null){clearTimeout(expiryTimer);expiryTimer=null;}
   const card=el("article",null,"panel result"), top=el("div",null,"signal-line"), dl=el("dl");
@@ -361,6 +387,8 @@ function displayAnalysis(result) {
   card.append(top,reasons);
   const chart=candleChart(result.candles || []);
   if(chart) card.append(chart);
+  const lab=strategyPanel(result.strategy_readings);
+  if(lab) card.append(lab);
   if(result.historical_audit){
     const audit=result.historical_audit, info=el("div",null,"result-audit");
     const date=new Intl.DateTimeFormat(lang==="en"?"en-GB":"ar-KW",{timeZone:"Asia/Kuwait",month:"short",day:"numeric"}).format(new Date(audit.through_ms));

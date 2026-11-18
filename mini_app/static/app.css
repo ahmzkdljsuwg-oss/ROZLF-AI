@@ -60,3 +60,12 @@ body{background:radial-gradient(ellipse at 50% -12%,#1a4547 0%,#0c1924 40%,#070e
 .result{animation:nexus-page .5s var(--ease-premium) both}
 @media(hover:hover){.reading-tile:hover,.market-card:hover{transform:translateY(-3px);border-color:#68b9b0;box-shadow:0 12px 30px #0004}.terminal-submit:hover:not(:disabled){filter:brightness(1.08);box-shadow:0 7px 24px #50dcca55}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.page:not([hidden]),.result,.terminal-hero[data-phase=loading] .terminal-emblem{animation:none!important}*,*::before,*::after{transition:none!important}}
+
+/* Closed-candle strategy details. No animation on the disclosure height. */
+.strategy-panel{margin-block:14px 0;padding:11px 13px;border:1px solid #496670;border-radius:15px;background:#101d29;color:var(--fg)}
+.strategy-panel summary{cursor:pointer;min-height:36px;line-height:36px;font-weight:700;touch-action:manipulation}
+.strategy-panel p{margin:0 0 9px;color:#a8b5c1;font-size:.82rem}
+.strategy-family{border-top:1px solid #283b49}
+.strategy-state{float:inline-end;font-size:.8rem;color:#a8b5c1;margin-inline-start:5px}
+.strategy-state[data-state=UP]{color:#74e1aa}.strategy-state[data-state=DOWN]{color:#ff9297}.strategy-state[data-state=MIXED]{color:#ffd274}
+.strategy-family ul{margin:0 0 9px;padding:0;list-style:none}.strategy-family li{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:.82rem;color:#c6d4de}

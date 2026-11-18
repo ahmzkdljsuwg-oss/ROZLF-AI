@@ -12,6 +12,7 @@ import time
 from aiohttp import web
 
 from engines.markets import profile_for
+from engines.strategies.candle_lab import strategy_snapshot
 from engines.technical.analyzer import analyze_market_data
 from engines.technical.candle_reading import candle_details, valid_candle
 from engines.technical.delivery_window import (
@@ -20,7 +21,7 @@ from engines.technical.delivery_window import (
 )
 from engines.technical.indicators import compute_indicators, frame_from_candles
 from engines.technical.readings import read_indicators
-from engines.validation import closed_candles
+from engines.validation import closed_candles, contiguous_candles
 from providers.base import DataUnavailable, utc_now
 from providers.catalog import Market, assets_for, timeframe
 from services.market_analysis import NATIVE_FRAMES, native_frame_plan
@@ -140,20 +141,24 @@ async def _analyze_frame(registry, asset, frame, mode, *, budget=None):
     # forecast on incomplete history or late/gapped bars.
     if now - end > timedelta(seconds=2 * tf.seconds):
         raise DataUnavailable("MISSING_RECENT_CANDLE", SOURCE_ERRORS["MISSING_RECENT_CANDLE"])
+    usable_count = len(contiguous_candles(bars, tf.seconds)) if mode == "pro" else len(bars)
     issue = ("CHART_ONLY" if tf.seconds <= PREPUBLISH_SECONDS else
-             "SHORT_HISTORY" if len(bars) < 200 else
+             "SHORT_HISTORY" if usable_count < 200 else
              "MISSING_RECENT_CANDLE" if target <= now or not contiguous else None)
     direction = "NO TRADE"
     confidence = None
+    strategy_readings = None
     if issue:
         indicators = await asyncio.to_thread(lambda: compute_indicators(frame_from_candles(bars)))
         reasons = [SHORT_FRAME_REASON if issue == "CHART_ONLY" else
-                   f"وصلت {len(bars)} شمعة مغلقة. نحتاج 200 لتوقع الاتجاه."
+                   (f"وصلت {usable_count} شمعة مغلقة متتالية. نحتاج 200 لتوقع الاتجاه."
+                    if mode == "pro" else f"وصلت {usable_count} شمعة مغلقة. نحتاج 200 لتوقع الاتجاه.")
                    if issue == "SHORT_HISTORY" else
                    "هذا آخر شارت متاح. لم تصل شموع متتابعة في الوقت المناسب للتوقع."]
     else:
         result = await asyncio.to_thread(analyze_market_data, data, now, None, {"fast": "lo", "fast_v2": "fast", "pro": "pro", "minute": "strong"}[mode])
         indicators = result.indicators
+        strategy_readings = getattr(result, "strategy_readings", None) or None
         direction = result.direction
         reasons = result.reasons
         if direction in ("UP", "DOWN") and (
@@ -177,12 +182,15 @@ async def _analyze_frame(registry, asset, frame, mode, *, budget=None):
 
     candles = candle_details(bars, tf.seconds)
     readings = await asyncio.to_thread(read_indicators, bars, tf.seconds)
+    if mode == "pro" and strategy_readings is None:
+        strategy_readings = await asyncio.to_thread(lambda: strategy_snapshot(frame_from_candles(bars[-201:]), tf.seconds))
     return {
         "asset": asset.display, "symbol": asset.symbol, "market": asset.market.value, "source": data.source,
         "mode": mode, "frame": frame, "seconds": tf.seconds, "direction": direction,
         "trend": indicators.get("trend"), "volatility": indicators.get("volatility"), "confidence": confidence,
         "reasons": reasons[:3], "candles": candles, "closed_count": len(bars),
         "readings": readings, "readings_available": sum(r["value"] is not None for r in readings),
+        "strategy_readings": strategy_readings or [],
         "data_issue": issue, "last_closed_ms": _ms(end),
         "captured_ms": _ms(data.fetched_at), "min_view_lead_ms": ACKNOWLEDGED_SECONDS * 1000,
         "historical_audit": _audit_context(asset, frame, mode),

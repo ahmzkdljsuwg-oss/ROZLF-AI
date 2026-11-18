@@ -1,7 +1,8 @@
 """Candle integrity checks. Nothing trades unless these pass."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
+from math import isfinite
 
 from providers.base import Candle, ValidationReport, utc_now
 from providers.catalog import Timeframe
@@ -15,6 +16,14 @@ def closed_candles(candles: list[Candle], tf: Timeframe, now: datetime) -> list[
     never leak into a decision.
     """
     return [candle for candle in candles if candle.time.timestamp() + tf.seconds <= now.timestamp()]
+
+
+def contiguous_candles(candles: list[Candle], seconds: int) -> list[Candle]:
+    step = timedelta(seconds=seconds)
+    for end in range(len(candles) - 1, 0, -1):
+        if candles[end].time - candles[end - 1].time != step:
+            return candles[end:]
+    return candles
 
 
 def validate_candles(
@@ -37,7 +46,7 @@ def validate_candles(
     bad_ohlc = 0
     for candle in candles:
         values = (candle.open, candle.high, candle.low, candle.close)
-        if any(value <= 0 for value in values):
+        if any(not isfinite(value) or value <= 0 for value in values):
             bad_ohlc += 1
             continue
         if candle.high < max(candle.open, candle.close) or candle.low > min(candle.open, candle.close):

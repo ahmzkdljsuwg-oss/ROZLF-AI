@@ -1012,7 +1012,7 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
                        reasons: list[str] | None = None, asset: str | None = None,
                        confidence_verified: bool = True,
                        mode: str = "strong", trend: str | None = None,
-                       volatility: str | None = None) -> str:
+                       volatility: str | None = None, strategy_readings: list[dict] | None = None) -> str:
     trade = {"UP": "شراء / Buy 🟢", "DOWN": "بيع / Sell 🔴"}.get(direction, "NO TRADE ⚪")
     if not expiry_seconds:
         duration = "—"
@@ -1059,6 +1059,12 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
     if reasons:
         selected = " · ".join(reasons[:2]) if direction in ("UP", "DOWN") else reasons[0]
         lines.append(f"🔍 <i>{html.escape(selected)}</i>")
+    if strategy_readings:
+        names_by_family = {"trend": "الترند", "momentum": "الزخم", "reversal": "الانعكاس",
+                           "structure": "هيكل السعر", "price_action": "حركة الشموع"}
+        states = {"UP": "↑", "DOWN": "↓", "MIXED": "متعارض", "NEUTRAL": "محايد", "UNAVAILABLE": "—"}
+        summary = [f"{names_by_family[row['key']]} {states[row['state']]}" for row in strategy_readings]
+        lines.append("🧪 <b>قراءة الشموع المغلقة · ليست توصية</b>\n" + " · ".join(summary))
     return "\n\n".join(lines)
 
 

@@ -12,8 +12,9 @@ from engines.technical.next_candle import forecast_from_frame, target_open_for
 from engines.technical.regime_candle import TARGET_OFFSET, diagnose_regime
 from engines.technical.smc import analyze_smc
 from engines.strategies.alligator_ma import assess_alligator_ma
+from engines.strategies.candle_lab import strategy_snapshot
 from engines.strategies.engine import evaluate_strategies
-from engines.validation import closed_candles
+from engines.validation import closed_candles, contiguous_candles
 from providers.base import DataUnavailable, MarketData, utc_now
 from providers.catalog import Market
 
@@ -62,6 +63,7 @@ class AnalysisResult:
     target_timeframe: str = ""
     confidence_verified: bool = True
     analysis_mode: str = "strong"
+    strategy_readings: list[dict] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         data = asdict(self)
@@ -101,10 +103,9 @@ def analyze_market_data(
         )
     if analysis_mode == "pro":
         step = timedelta(seconds=market_data.timeframe.seconds)
-        if usable[-1].time + step * 2 <= now or any(
-            b.time-a.time != step for a,b in zip(usable[-16:-1],usable[-15:])
-        ):
-            raise DataUnavailable("MISSING_RECENT_CANDLE", "شموع PRO متأخرة أو غير متتابعة")
+        if usable[-1].time + step * 2 <= now:
+            raise DataUnavailable("MISSING_RECENT_CANDLE", "شموع PRO متأخرة")
+        usable = contiguous_candles(usable, market_data.timeframe.seconds)
     min_bars = max(60, profile.min_bars)
     if len(usable) < min_bars:
         raise DataUnavailable(
@@ -263,6 +264,9 @@ def analyze_market_data(
             reasons = [summary]
     invalidation = [signal.invalidation for signal in confirmed[:3]]
 
+    if analysis_mode == "pro" and direction == "NO TRADE" and len(usable) < 200:
+        reasons = [f"متاح {len(usable)} شمعة مغلقة متتالية. يحتاج PRO إلى 200 لتوقع الاتجاه."]
+        blocks = reasons[:]
     if analysis_mode == "pro" and direction in ("UP","DOWN"):
         families = {signal.family for signal in confirmed}
         if len(families) < 3 or ind["volatility"] == "HIGH" or (
@@ -375,6 +379,7 @@ def analyze_market_data(
         target_timeframe=market_data.timeframe.code,
         confidence_verified=forecast.verified and direction in ("UP","DOWN") and analysis_mode != "lo",
         analysis_mode=analysis_mode,
+        strategy_readings=strategy_snapshot(frame, seconds) if analysis_mode == "pro" else [],
     )
     LOG.info(
         "ROZLF DECISION market=%s asset=%s tf=%s duration=%s direction=%s confidence=%.1f "

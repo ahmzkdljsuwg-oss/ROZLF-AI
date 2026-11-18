@@ -1,0 +1,2186 @@
+{
+  "source": "ExpertOption Bridge SMARTY asset 240, native OHLC",
+  "target_offset": 2,
+  "promotion": "none",
+  "interpretation": "Exploratory historical replay, not prospective validation. Rules and frames can overlap and are not independent. Ties count as misses for all methods. Baseline selection uses matured labels only. Baselines are scored on exactly the same target candles.",
+  "frames": {
+    "5sec": {
+      "bars": 1500,
+      "start": "2026-11-18T12:12:10+00:00",
+      "end": "2026-11-18T14:17:05+00:00",
+      "eligible": 898,
+      "can_meet_manual_lead": false,
+      "rules": {
+        "ema_stack": {
+          "n": 652,
+          "wins": 294,
+          "ties": 29,
+          "majority": 308,
+          "last_candle": 327,
+          "hit_pct": 45.09,
+          "above_both_in_all_folds": false
+        },
+        "alligator": {
+          "n": 567,
+          "wins": 251,
+          "ties": 29,
+          "majority": 275,
+          "last_candle": 279,
+          "hit_pct": 44.27,
+          "above_both_in_all_folds": false
+        },
+        "macd_cross": {
+          "n": 69,
+          "wins": 34,
+          "ties": 3,
+          "majority": 37,
+          "last_candle": 34,
+          "hit_pct": 49.28,
+          "above_both_in_all_folds": false
+        },
+        "rate_of_change": {
+          "n": 637,
+          "wins": 322,
+          "ties": 32,
+          "majority": 296,
+          "last_candle": 309,
+          "hit_pct": 50.55,
+          "above_both_in_all_folds": false
+        },
+        "rsi_recovery": {
+          "n": 27,
+          "wins": 13,
+          "ties": 0,
+          "majority": 15,
+          "last_candle": 14,
+          "hit_pct": 48.15,
+          "above_both_in_all_folds": false
+        },
+        "bollinger_reentry": {
+          "n": 47,
+          "wins": 23,
+          "ties": 2,
+          "majority": 15,
+          "last_candle": 23,
+          "hit_pct": 48.94,
+          "above_both_in_all_folds": false
+        },
+        "stochastic_turn": {
+          "n": 165,
+          "wins": 74,
+          "ties": 7,
+          "majority": 69,
+          "last_candle": 74,
+          "hit_pct": 44.85,
+          "above_both_in_all_folds": false
+        },
+        "donchian_break": {
+          "n": 160,
+          "wins": 79,
+          "ties": 5,
+          "majority": 85,
+          "last_candle": 79,
+          "hit_pct": 49.38,
+          "above_both_in_all_folds": false
+        },
+        "liquidity_sweep": {
+          "n": 44,
+          "wins": 20,
+          "ties": 1,
+          "majority": 16,
+          "last_candle": 20,
+          "hit_pct": 45.45,
+          "above_both_in_all_folds": false
+        },
+        "engulfing": {
+          "n": 101,
+          "wins": 43,
+          "ties": 4,
+          "majority": 46,
+          "last_candle": 43,
+          "hit_pct": 42.57,
+          "above_both_in_all_folds": false
+        },
+        "pin_bar": {
+          "n": 63,
+          "wins": 28,
+          "ties": 2,
+          "majority": 23,
+          "last_candle": 28,
+          "hit_pct": 44.44,
+          "above_both_in_all_folds": false
+        },
+        "inside_break": {
+          "n": 73,
+          "wins": 33,
+          "ties": 4,
+          "majority": 35,
+          "last_candle": 34,
+          "hit_pct": 45.21,
+          "above_both_in_all_folds": false
+        },
+        "family:trend": {
+          "n": 684,
+          "wins": 308,
+          "ties": 32,
+          "majority": 323,
+          "last_candle": 340,
+          "hit_pct": 45.03,
+          "above_both_in_all_folds": false
+        },
+        "family:momentum": {
+          "n": 653,
+          "wins": 334,
+          "ties": 30,
+          "majority": 307,
+          "last_candle": 322,
+          "hit_pct": 51.15,
+          "above_both_in_all_folds": false
+        },
+        "family:reversal": {
+          "n": 188,
+          "wins": 84,
+          "ties": 8,
+          "majority": 74,
+          "last_candle": 85,
+          "hit_pct": 44.68,
+          "above_both_in_all_folds": false
+        },
+        "family:structure": {
+          "n": 204,
+          "wins": 99,
+          "ties": 6,
+          "majority": 101,
+          "last_candle": 99,
+          "hit_pct": 48.53,
+          "above_both_in_all_folds": false
+        },
+        "family:price_action": {
+          "n": 219,
+          "wins": 96,
+          "ties": 10,
+          "majority": 98,
+          "last_candle": 97,
+          "hit_pct": 43.84,
+          "above_both_in_all_folds": false
+        }
+      },
+      "folds": [
+        {
+          "target_start": "2026-11-18T13:02:20+00:00",
+          "eligible": 300,
+          "majority_side": "DOWN",
+          "metrics": {
+            "ema_stack": {
+              "n": 205,
+              "wins": 87,
+              "ties": 16,
+              "majority": 99,
+              "last_candle": 98
+            },
+            "alligator": {
+              "n": 175,
+              "wins": 73,
+              "ties": 15,
+              "majority": 88,
+              "last_candle": 78
+            },
+            "macd_cross": {
+              "n": 21,
+              "wins": 12,
+              "ties": 0,
+              "majority": 12,
+              "last_candle": 12
+            },
+            "rate_of_change": {
+              "n": 220,
+              "wins": 109,
+              "ties": 16,
+              "majority": 107,
+              "last_candle": 102
+            },
+            "rsi_recovery": {
+              "n": 15,
+              "wins": 9,
+              "ties": 0,
+              "majority": 10,
+              "last_candle": 10
+            },
+            "bollinger_reentry": {
+              "n": 16,
+              "wins": 8,
+              "ties": 1,
+              "majority": 5,
+              "last_candle": 8
+            },
+            "stochastic_turn": {
+              "n": 54,
+              "wins": 24,
+              "ties": 5,
+              "majority": 24,
+              "last_candle": 21
+            },
+            "donchian_break": {
+              "n": 60,
+              "wins": 31,
+              "ties": 3,
+              "majority": 30,
+              "last_candle": 29
+            },
+            "liquidity_sweep": {
+              "n": 11,
+              "wins": 6,
+              "ties": 0,
+              "majority": 4,
+              "last_candle": 6
+            },
+            "engulfing": {
+              "n": 38,
+              "wins": 16,
+              "ties": 4,
+              "majority": 16,
+              "last_candle": 16
+            },
+            "pin_bar": {
+              "n": 16,
+              "wins": 8,
+              "ties": 0,
+              "majority": 9,
+              "last_candle": 8
+            },
+            "inside_break": {
+              "n": 17,
+              "wins": 9,
+              "ties": 2,
+              "majority": 9,
+              "last_candle": 9
+            },
+            "family:trend": {
+              "n": 216,
+              "wins": 92,
+              "ties": 17,
+              "majority": 105,
+              "last_candle": 102
+            },
+            "family:momentum": {
+              "n": 226,
+              "wins": 112,
+              "ties": 16,
+              "majority": 113,
+              "last_candle": 106
+            },
+            "family:reversal": {
+              "n": 65,
+              "wins": 29,
+              "ties": 6,
+              "majority": 28,
+              "last_candle": 27
+            },
+            "family:structure": {
+              "n": 71,
+              "wins": 37,
+              "ties": 3,
+              "majority": 34,
+              "last_candle": 35
+            },
+            "family:price_action": {
+              "n": 67,
+              "wins": 31,
+              "ties": 6,
+              "majority": 32,
+              "last_candle": 31
+            }
+          }
+        },
+        {
+          "target_start": "2026-11-18T13:27:20+00:00",
+          "eligible": 300,
+          "majority_side": "DOWN",
+          "metrics": {
+            "ema_stack": {
+              "n": 213,
+              "wins": 99,
+              "ties": 8,
+              "majority": 101,
+              "last_candle": 107
+            },
+            "alligator": {
+              "n": 186,
+              "wins": 87,
+              "ties": 8,
+              "majority": 87,
+              "last_candle": 96
+            },
+            "macd_cross": {
+              "n": 24,
+              "wins": 12,
+              "ties": 2,
+              "majority": 13,
+              "last_candle": 12
+            },
+            "rate_of_change": {
+              "n": 212,
+              "wins": 100,
+              "ties": 9,
+              "majority": 96,
+              "last_candle": 100
+            },
+            "rsi_recovery": {
+              "n": 4,
+              "wins": 0,
+              "ties": 0,
+              "majority": 1,
+              "last_candle": 0
+            },
+            "bollinger_reentry": {
+              "n": 13,
+              "wins": 6,
+              "ties": 0,
+              "majority": 5,
+              "last_candle": 6
+            },
+            "stochastic_turn": {
+              "n": 49,
+              "wins": 21,
+              "ties": 1,
+              "majority": 19,
+              "last_candle": 24
+            },
+            "donchian_break": {
+              "n": 46,
+              "wins": 23,
+              "ties": 1,
+              "majority": 25,
+              "last_candle": 23
+            },
+            "liquidity_sweep": {
+              "n": 17,
+              "wins": 4,
+              "ties": 0,
+              "majority": 4,
+              "last_candle": 4
+            },
+            "engulfing": {
+              "n": 34,
+              "wins": 15,
+              "ties": 0,
+              "majority": 15,
+              "last_candle": 15
+            },
+            "pin_bar": {
+              "n": 22,
+              "wins": 12,
+              "ties": 1,
+              "majority": 5,
+              "last_candle": 12
+            },
+            "inside_break": {
+              "n": 26,
+              "wins": 10,
+              "ties": 0,
+              "majority": 15,
+              "last_candle": 10
+            },
+            "family:trend": {
+              "n": 227,
+              "wins": 106,
+              "ties": 9,
+              "majority": 107,
+              "last_candle": 114
+            },
+            "family:momentum": {
+              "n": 217,
+              "wins": 105,
+              "ties": 8,
+              "majority": 99,
+              "last_candle": 106
+            },
+            "family:reversal": {
+              "n": 57,
+              "wins": 24,
+              "ties": 1,
+              "majority": 20,
+              "last_candle": 27
+            },
+            "family:structure": {
+              "n": 63,
+              "wins": 27,
+              "ties": 1,
+              "majority": 29,
+              "last_candle": 27
+            },
+            "family:price_action": {
+              "n": 76,
+              "wins": 34,
+              "ties": 1,
+              "majority": 33,
+              "last_candle": 34
+            }
+          }
+        },
+        {
+          "target_start": "2026-11-18T13:52:20+00:00",
+          "eligible": 298,
+          "majority_side": "DOWN",
+          "metrics": {
+            "ema_stack": {
+              "n": 234,
+              "wins": 108,
+              "ties": 5,
+              "majority": 108,
+              "last_candle": 122
+            },
+            "alligator": {
+              "n": 206,
+              "wins": 91,
+              "ties": 6,
+              "majority": 100,
+              "last_candle": 105
+            },
+            "macd_cross": {
+              "n": 24,
+              "wins": 10,
+              "ties": 1,
+              "majority": 12,
+              "last_candle": 10
+            },
+            "rate_of_change": {
+              "n": 205,
+              "wins": 113,
+              "ties": 7,
+              "majority": 93,
+              "last_candle": 107
+            },
+            "rsi_recovery": {
+              "n": 8,
+              "wins": 4,
+              "ties": 0,
+              "majority": 4,
+              "last_candle": 4
+            },
+            "bollinger_reentry": {
+              "n": 18,
+              "wins": 9,
+              "ties": 1,
+              "majority": 5,
+              "last_candle": 9
+            },
+            "stochastic_turn": {
+              "n": 62,
+              "wins": 29,
+              "ties": 1,
+              "majority": 26,
+              "last_candle": 29
+            },
+            "donchian_break": {
+              "n": 54,
+              "wins": 25,
+              "ties": 1,
+              "majority": 30,
+              "last_candle": 27
+            },
+            "liquidity_sweep": {
+              "n": 16,
+              "wins": 10,
+              "ties": 1,
+              "majority": 8,
+              "last_candle": 10
+            },
+            "engulfing": {
+              "n": 29,
+              "wins": 12,
+              "ties": 0,
+              "majority": 15,
+              "last_candle": 12
+            },
+            "pin_bar": {
+              "n": 25,
+              "wins": 8,
+              "ties": 1,
+              "majority": 9,
+              "last_candle": 8
+            },
+            "inside_break": {
+              "n": 30,
+              "wins": 14,
+              "ties": 2,
+              "majority": 11,
+              "last_candle": 15
+            },
+            "family:trend": {
+              "n": 241,
+              "wins": 110,
+              "ties": 6,
+              "majority": 111,
+              "last_candle": 124
+            },
+            "family:momentum": {
+              "n": 210,
+              "wins": 117,
+              "ties": 6,
+              "majority": 95,
+              "last_candle": 110
+            },
+            "family:reversal": {
+              "n": 66,
+              "wins": 31,
+              "ties": 1,
+              "majority": 26,
+              "last_candle": 31
+            },
+            "family:structure": {
+              "n": 70,
+              "wins": 35,
+              "ties": 2,
+              "majority": 38,
+              "last_candle": 37
+            },
+            "family:price_action": {
+              "n": 76,
+              "wins": 31,
+              "ties": 3,
+              "majority": 33,
+              "last_candle": 32
+            }
+          }
+        }
+      ],
+      "snapshot_sha256": "419e7241e8d9fae21bf92bcf09b46d864fc12857bee58775120a310d8e6017ad"
+    },
+    "30sec": {
+      "bars": 1500,
+      "start": "2026-11-18T01:47:30+00:00",
+      "end": "2026-11-18T14:17:00+00:00",
+      "eligible": 898,
+      "can_meet_manual_lead": true,
+      "rules": {
+        "ema_stack": {
+          "n": 553,
+          "wins": 288,
+          "ties": 8,
+          "majority": 273,
+          "last_candle": 265,
+          "hit_pct": 52.08,
+          "above_both_in_all_folds": false
+        },
+        "alligator": {
+          "n": 523,
+          "wins": 268,
+          "ties": 7,
+          "majority": 267,
+          "last_candle": 249,
+          "hit_pct": 51.24,
+          "above_both_in_all_folds": false
+        },
+        "macd_cross": {
+          "n": 74,
+          "wins": 35,
+          "ties": 0,
+          "majority": 39,
+          "last_candle": 39,
+          "hit_pct": 47.3,
+          "above_both_in_all_folds": false
+        },
+        "rate_of_change": {
+          "n": 566,
+          "wins": 292,
+          "ties": 8,
+          "majority": 279,
+          "last_candle": 271,
+          "hit_pct": 51.59,
+          "above_both_in_all_folds": true
+        },
+        "rsi_recovery": {
+          "n": 23,
+          "wins": 7,
+          "ties": 0,
+          "majority": 16,
+          "last_candle": 6,
+          "hit_pct": 30.43,
+          "above_both_in_all_folds": false
+        },
+        "bollinger_reentry": {
+          "n": 43,
+          "wins": 14,
+          "ties": 0,
+          "majority": 22,
+          "last_candle": 14,
+          "hit_pct": 32.56,
+          "above_both_in_all_folds": false
+        },
+        "stochastic_turn": {
+          "n": 177,
+          "wins": 72,
+          "ties": 2,
+          "majority": 82,
+          "last_candle": 74,
+          "hit_pct": 40.68,
+          "above_both_in_all_folds": false
+        },
+        "donchian_break": {
+          "n": 145,
+          "wins": 75,
+          "ties": 1,
+          "majority": 67,
+          "last_candle": 75,
+          "hit_pct": 51.72,
+          "above_both_in_all_folds": false
+        },
+        "liquidity_sweep": {
+          "n": 60,
+          "wins": 26,
+          "ties": 1,
+          "majority": 32,
+          "last_candle": 26,
+          "hit_pct": 43.33,
+          "above_both_in_all_folds": false
+        },
+        "engulfing": {
+          "n": 129,
+          "wins": 64,
+          "ties": 1,
+          "majority": 60,
+          "last_candle": 64,
+          "hit_pct": 49.61,
+          "above_both_in_all_folds": false
+        },
+        "pin_bar": {
+          "n": 61,
+          "wins": 26,
+          "ties": 2,
+          "majority": 31,
+          "last_candle": 26,
+          "hit_pct": 42.62,
+          "above_both_in_all_folds": false
+        },
+        "inside_break": {
+          "n": 50,
+          "wins": 23,
+          "ties": 1,
+          "majority": 25,
+          "last_candle": 23,
+          "hit_pct": 46.0,
+          "above_both_in_all_folds": false
+        },
+        "family:trend": {
+          "n": 608,
+          "wins": 314,
+          "ties": 8,
+          "majority": 298,
+          "last_candle": 294,
+          "hit_pct": 51.64,
+          "above_both_in_all_folds": false
+        },
+        "family:momentum": {
+          "n": 591,
+          "wins": 303,
+          "ties": 8,
+          "majority": 292,
+          "last_candle": 283,
+          "hit_pct": 51.27,
+          "above_both_in_all_folds": false
+        },
+        "family:reversal": {
+          "n": 192,
+          "wins": 75,
+          "ties": 2,
+          "majority": 92,
+          "last_candle": 76,
+          "hit_pct": 39.06,
+          "above_both_in_all_folds": false
+        },
+        "family:structure": {
+          "n": 205,
+          "wins": 101,
+          "ties": 2,
+          "majority": 99,
+          "last_candle": 101,
+          "hit_pct": 49.27,
+          "above_both_in_all_folds": false
+        },
+        "family:price_action": {
+          "n": 226,
+          "wins": 106,
+          "ties": 3,
+          "majority": 110,
+          "last_candle": 106,
+          "hit_pct": 46.9,
+          "above_both_in_all_folds": false
+        }
+      },
+      "folds": [
+        {
+          "target_start": "2026-11-18T06:48:30+00:00",
+          "eligible": 300,
+          "majority_side": "UP",
+          "metrics": {
+            "ema_stack": {
+              "n": 207,
+              "wins": 112,
+              "ties": 3,
+              "majority": 105,
+              "last_candle": 104
+            },
+            "alligator": {
+              "n": 191,
+              "wins": 101,
+              "ties": 3,
+              "majority": 100,
+              "last_candle": 96
+            },
+            "macd_cross": {
+              "n": 27,
+              "wins": 12,
+              "ties": 0,
+              "majority": 12,
+              "last_candle": 14
+            },
+            "rate_of_change": {
+              "n": 183,
+              "wins": 92,
+              "ties": 3,
+              "majority": 89,
+              "last_candle": 86
+            },
+            "rsi_recovery": {
+              "n": 8,
+              "wins": 3,
+              "ties": 0,
+              "majority": 6,
+              "last_candle": 3
+            },
+            "bollinger_reentry": {
+              "n": 13,
+              "wins": 5,
+              "ties": 0,
+              "majority": 7,
+              "last_candle": 5
+            },
+            "stochastic_turn": {
+              "n": 59,
+              "wins": 25,
+              "ties": 0,
+              "majority": 30,
+              "last_candle": 32
+            },
+            "donchian_break": {
+              "n": 50,
+              "wins": 27,
+              "ties": 0,
+              "majority": 21,
+              "last_candle": 27
+            },
+            "liquidity_sweep": {
+              "n": 21,
+              "wins": 9,
+              "ties": 0,
+              "majority": 13,
+              "last_candle": 9
+            },
+            "engulfing": {
+              "n": 46,
+              "wins": 21,
+              "ties": 0,
+              "majority": 20,
+              "last_candle": 21
+            },
+            "pin_bar": {
+              "n": 20,
+              "wins": 9,
+              "ties": 1,
+              "majority": 9,
+              "last_candle": 9
+            },
+            "inside_break": {
+              "n": 14,
+              "wins": 6,
+              "ties": 0,
+              "majority": 6,
+              "last_candle": 6
+            },
+            "family:trend": {
+              "n": 213,
+              "wins": 115,
+              "ties": 3,
+              "majority": 109,
+              "last_candle": 108
+            },
+            "family:momentum": {
+              "n": 191,
+              "wins": 97,
+              "ties": 3,
+              "majority": 94,
+              "last_candle": 91
+            },
+            "family:reversal": {
+              "n": 64,
+              "wins": 26,
+              "ties": 0,
+              "majority": 33,
+              "last_candle": 33
+            },
+            "family:structure": {
+              "n": 71,
+              "wins": 36,
+              "ties": 0,
+              "majority": 34,
+              "last_candle": 36
+            },
+            "family:price_action": {
+              "n": 77,
+              "wins": 35,
+              "ties": 1,
+              "majority": 35,
+              "last_candle": 35
+            }
+          }
+        },
+        {
+          "target_start": "2026-11-18T09:18:30+00:00",
+          "eligible": 300,
+          "majority_side": "UP",
+          "metrics": {
+            "ema_stack": {
+              "n": 181,
+              "wins": 84,
+              "ties": 2,
+              "majority": 83,
+              "last_candle": 85
+            },
+            "alligator": {
+              "n": 179,
+              "wins": 82,
+              "ties": 1,
+              "majority": 83,
+              "last_candle": 87
+            },
+            "macd_cross": {
+              "n": 20,
+              "wins": 10,
+              "ties": 0,
+              "majority": 10,
+              "last_candle": 11
+            },
+            "rate_of_change": {
+              "n": 191,
+              "wins": 100,
+              "ties": 2,
+              "majority": 91,
+              "last_candle": 93
+            },
+            "rsi_recovery": {
+              "n": 10,
+              "wins": 3,
+              "ties": 0,
+              "majority": 6,
+              "last_candle": 3
+            },
+            "bollinger_reentry": {
+              "n": 15,
+              "wins": 7,
+              "ties": 0,
+              "majority": 6,
+              "last_candle": 7
+            },
+            "stochastic_turn": {
+              "n": 61,
+              "wins": 25,
+              "ties": 1,
+              "majority": 23,
+              "last_candle": 23
+            },
+            "donchian_break": {
+              "n": 49,
+              "wins": 24,
+              "ties": 0,
+              "majority": 25,
+              "last_candle": 24
+            },
+            "liquidity_sweep": {
+              "n": 21,
+              "wins": 10,
+              "ties": 0,
+              "majority": 9,
+              "last_candle": 10
+            },
+            "engulfing": {
+              "n": 42,
+              "wins": 25,
+              "ties": 1,
+              "majority": 19,
+              "last_candle": 25
+            },
+            "pin_bar": {
+              "n": 22,
+              "wins": 8,
+              "ties": 1,
+              "majority": 8,
+              "last_candle": 8
+            },
+            "inside_break": {
+              "n": 16,
+              "wins": 8,
+              "ties": 1,
+              "majority": 8,
+              "last_candle": 8
+            },
+            "family:trend": {
+              "n": 211,
+              "wins": 98,
+              "ties": 2,
+              "majority": 95,
+              "last_candle": 101
+            },
+            "family:momentum": {
+              "n": 197,
+              "wins": 102,
+              "ties": 2,
+              "majority": 92,
+              "last_candle": 96
+            },
+            "family:reversal": {
+              "n": 66,
+              "wins": 26,
+              "ties": 1,
+              "majority": 26,
+              "last_candle": 24
+            },
+            "family:structure": {
+              "n": 70,
+              "wins": 34,
+              "ties": 0,
+              "majority": 34,
+              "last_candle": 34
+            },
+            "family:price_action": {
+              "n": 75,
+              "wins": 38,
+              "ties": 2,
+              "majority": 32,
+              "last_candle": 38
+            }
+          }
+        },
+        {
+          "target_start": "2026-11-18T11:48:30+00:00",
+          "eligible": 298,
+          "majority_side": "DOWN",
+          "metrics": {
+            "ema_stack": {
+              "n": 165,
+              "wins": 92,
+              "ties": 3,
+              "majority": 85,
+              "last_candle": 76
+            },
+            "alligator": {
+              "n": 153,
+              "wins": 85,
+              "ties": 3,
+              "majority": 84,
+              "last_candle": 66
+            },
+            "macd_cross": {
+              "n": 27,
+              "wins": 13,
+              "ties": 0,
+              "majority": 17,
+              "last_candle": 14
+            },
+            "rate_of_change": {
+              "n": 192,
+              "wins": 100,
+              "ties": 3,
+              "majority": 99,
+              "last_candle": 92
+            },
+            "rsi_recovery": {
+              "n": 5,
+              "wins": 1,
+              "ties": 0,
+              "majority": 4,
+              "last_candle": 0
+            },
+            "bollinger_reentry": {
+              "n": 15,
+              "wins": 2,
+              "ties": 0,
+              "majority": 9,
+              "last_candle": 2
+            },
+            "stochastic_turn": {
+              "n": 57,
+              "wins": 22,
+              "ties": 1,
+              "majority": 29,
+              "last_candle": 19
+            },
+            "donchian_break": {
+              "n": 46,
+              "wins": 24,
+              "ties": 1,
+              "majority": 21,
+              "last_candle": 24
+            },
+            "liquidity_sweep": {
+              "n": 18,
+              "wins": 7,
+              "ties": 1,
+              "majority": 10,
+              "last_candle": 7
+            },
+            "engulfing": {
+              "n": 41,
+              "wins": 18,
+              "ties": 0,
+              "majority": 21,
+              "last_candle": 18
+            },
+            "pin_bar": {
+              "n": 19,
+              "wins": 9,
+              "ties": 0,
+              "majority": 14,
+              "last_candle": 9
+            },
+            "inside_break": {
+              "n": 20,
+              "wins": 9,
+              "ties": 0,
+              "majority": 11,
+              "last_candle": 9
+            },
+            "family:trend": {
+              "n": 184,
+              "wins": 101,
+              "ties": 3,
+              "majority": 94,
+              "last_candle": 85
+            },
+            "family:momentum": {
+              "n": 203,
+              "wins": 104,
+              "ties": 3,
+              "majority": 106,
+              "last_candle": 96
+            },
+            "family:reversal": {
+              "n": 62,
+              "wins": 23,
+              "ties": 1,
+              "majority": 33,
+              "last_candle": 19
+            },
+            "family:structure": {
+              "n": 64,
+              "wins": 31,
+              "ties": 2,
+              "majority": 31,
+              "last_candle": 31
+            },
+            "family:price_action": {
+              "n": 74,
+              "wins": 33,
+              "ties": 0,
+              "majority": 43,
+              "last_candle": 33
+            }
+          }
+        }
+      ],
+      "snapshot_sha256": "3de91930298f031b449673cffe95b5cb27d651a2c9516d701331e1450a1a1623"
+    },
+    "1min": {
+      "bars": 1500,
+      "start": "2026-11-17T13:16:00+00:00",
+      "end": "2026-11-18T14:16:00+00:00",
+      "eligible": 896,
+      "can_meet_manual_lead": true,
+      "rules": {
+        "ema_stack": {
+          "n": 567,
+          "wins": 268,
+          "ties": 7,
+          "majority": 280,
+          "last_candle": 289,
+          "hit_pct": 47.27,
+          "above_both_in_all_folds": false
+        },
+        "alligator": {
+          "n": 503,
+          "wins": 235,
+          "ties": 4,
+          "majority": 251,
+          "last_candle": 263,
+          "hit_pct": 46.72,
+          "above_both_in_all_folds": false
+        },
+        "macd_cross": {
+          "n": 64,
+          "wins": 36,
+          "ties": 0,
+          "majority": 34,
+          "last_candle": 41,
+          "hit_pct": 56.25,
+          "above_both_in_all_folds": false
+        },
+        "rate_of_change": {
+          "n": 562,
+          "wins": 295,
+          "ties": 7,
+          "majority": 268,
+          "last_candle": 292,
+          "hit_pct": 52.49,
+          "above_both_in_all_folds": false
+        },
+        "rsi_recovery": {
+          "n": 35,
+          "wins": 18,
+          "ties": 0,
+          "majority": 15,
+          "last_candle": 19,
+          "hit_pct": 51.43,
+          "above_both_in_all_folds": false
+        },
+        "bollinger_reentry": {
+          "n": 44,
+          "wins": 15,
+          "ties": 0,
+          "majority": 17,
+          "last_candle": 15,
+          "hit_pct": 34.09,
+          "above_both_in_all_folds": false
+        },
+        "stochastic_turn": {
+          "n": 168,
+          "wins": 76,
+          "ties": 2,
+          "majority": 78,
+          "last_candle": 77,
+          "hit_pct": 45.24,
+          "above_both_in_all_folds": false
+        },
+        "donchian_break": {
+          "n": 134,
+          "wins": 65,
+          "ties": 3,
+          "majority": 59,
+          "last_candle": 64,
+          "hit_pct": 48.51,
+          "above_both_in_all_folds": false
+        },
+        "liquidity_sweep": {
+          "n": 61,
+          "wins": 29,
+          "ties": 1,
+          "majority": 25,
+          "last_candle": 29,
+          "hit_pct": 47.54,
+          "above_both_in_all_folds": false
+        },
+        "engulfing": {
+          "n": 125,
+          "wins": 60,
+          "ties": 2,
+          "majority": 56,
+          "last_candle": 60,
+          "hit_pct": 48.0,
+          "above_both_in_all_folds": false
+        },
+        "pin_bar": {
+          "n": 79,
+          "wins": 42,
+          "ties": 1,
+          "majority": 38,
+          "last_candle": 42,
+          "hit_pct": 53.16,
+          "above_both_in_all_folds": false
+        },
+        "inside_break": {
+          "n": 46,
+          "wins": 28,
+          "ties": 0,
+          "majority": 22,
+          "last_candle": 29,
+          "hit_pct": 60.87,
+          "above_both_in_all_folds": false
+        },
+        "family:trend": {
+          "n": 609,
+          "wins": 288,
+          "ties": 7,
+          "majority": 301,
+          "last_candle": 309,
+          "hit_pct": 47.29,
+          "above_both_in_all_folds": false
+        },
+        "family:momentum": {
+          "n": 583,
+          "wins": 307,
+          "ties": 7,
+          "majority": 280,
+          "last_candle": 305,
+          "hit_pct": 52.66,
+          "above_both_in_all_folds": false
+        },
+        "family:reversal": {
+          "n": 194,
+          "wins": 90,
+          "ties": 2,
+          "majority": 90,
+          "last_candle": 91,
+          "hit_pct": 46.39,
+          "above_both_in_all_folds": false
+        },
+        "family:structure": {
+          "n": 195,
+          "wins": 94,
+          "ties": 4,
+          "majority": 84,
+          "last_candle": 93,
+          "hit_pct": 48.21,
+          "above_both_in_all_folds": false
+        },
+        "family:price_action": {
+          "n": 237,
+          "wins": 125,
+          "ties": 3,
+          "majority": 109,
+          "last_candle": 126,
+          "hit_pct": 52.74,
+          "above_both_in_all_folds": false
+        }
+      },
+      "folds": [
+        {
+          "target_start": "2026-11-17T23:18:00+00:00",
+          "eligible": 300,
+          "majority_side": "UP",
+          "metrics": {
+            "ema_stack": {
+              "n": 177,
+              "wins": 84,
+              "ties": 2,
+              "majority": 91,
+              "last_candle": 83
+            },
+            "alligator": {
+              "n": 174,
+              "wins": 83,
+              "ties": 1,
+              "majority": 89,
+              "last_candle": 84
+            },
+            "macd_cross": {
+              "n": 26,
+              "wins": 16,
+              "ties": 0,
+              "majority": 15,
+              "last_candle": 17
+            },
+            "rate_of_change": {
+              "n": 185,
+              "wins": 97,
+              "ties": 3,
+              "majority": 92,
+              "last_candle": 84
+            },
+            "rsi_recovery": {
+              "n": 11,
+              "wins": 7,
+              "ties": 0,
+              "majority": 7,
+              "last_candle": 7
+            },
+            "bollinger_reentry": {
+              "n": 11,
+              "wins": 3,
+              "ties": 0,
+              "majority": 4,
+              "last_candle": 3
+            },
+            "stochastic_turn": {
+              "n": 57,
+              "wins": 25,
+              "ties": 1,
+              "majority": 27,
+              "last_candle": 25
+            },
+            "donchian_break": {
+              "n": 42,
+              "wins": 18,
+              "ties": 1,
+              "majority": 22,
+              "last_candle": 17
+            },
+            "liquidity_sweep": {
+              "n": 20,
+              "wins": 7,
+              "ties": 0,
+              "majority": 9,
+              "last_candle": 7
+            },
+            "engulfing": {
+              "n": 28,
+              "wins": 17,
+              "ties": 0,
+              "majority": 14,
+              "last_candle": 17
+            },
+            "pin_bar": {
+              "n": 28,
+              "wins": 12,
+              "ties": 0,
+              "majority": 18,
+              "last_candle": 12
+            },
+            "inside_break": {
+              "n": 17,
+              "wins": 11,
+              "ties": 0,
+              "majority": 7,
+              "last_candle": 12
+            },
+            "family:trend": {
+              "n": 202,
+              "wins": 99,
+              "ties": 2,
+              "majority": 103,
+              "last_candle": 92
+            },
+            "family:momentum": {
+              "n": 193,
+              "wins": 102,
+              "ties": 3,
+              "majority": 97,
+              "last_candle": 90
+            },
+            "family:reversal": {
+              "n": 69,
+              "wins": 32,
+              "ties": 1,
+              "majority": 33,
+              "last_candle": 32
+            },
+            "family:structure": {
+              "n": 62,
+              "wins": 25,
+              "ties": 1,
+              "majority": 31,
+              "last_candle": 24
+            },
+            "family:price_action": {
+              "n": 70,
+              "wins": 39,
+              "ties": 0,
+              "majority": 38,
+              "last_candle": 40
+            }
+          }
+        },
+        {
+          "target_start": "2026-11-18T04:18:00+00:00",
+          "eligible": 300,
+          "majority_side": "UP",
+          "metrics": {
+            "ema_stack": {
+              "n": 197,
+              "wins": 87,
+              "ties": 4,
+              "majority": 103,
+              "last_candle": 102
+            },
+            "alligator": {
+              "n": 158,
+              "wins": 63,
+              "ties": 2,
+              "majority": 90,
+              "last_candle": 86
+            },
+            "macd_cross": {
+              "n": 24,
+              "wins": 13,
+              "ties": 0,
+              "majority": 11,
+              "last_candle": 15
+            },
+            "rate_of_change": {
+              "n": 193,
+              "wins": 102,
+              "ties": 4,
+              "majority": 92,
+              "last_candle": 103
+            },
+            "rsi_recovery": {
+              "n": 11,
+              "wins": 6,
+              "ties": 0,
+              "majority": 3,
+              "last_candle": 6
+            },
+            "bollinger_reentry": {
+              "n": 14,
+              "wins": 5,
+              "ties": 0,
+              "majority": 6,
+              "last_candle": 5
+            },
+            "stochastic_turn": {
+              "n": 62,
+              "wins": 30,
+              "ties": 1,
+              "majority": 35,
+              "last_candle": 29
+            },
+            "donchian_break": {
+              "n": 44,
+              "wins": 19,
+              "ties": 2,
+              "majority": 19,
+              "last_candle": 19
+            },
+            "liquidity_sweep": {
+              "n": 22,
+              "wins": 10,
+              "ties": 1,
+              "majority": 6,
+              "last_candle": 10
+            },
+            "engulfing": {
+              "n": 52,
+              "wins": 23,
+              "ties": 2,
+              "majority": 26,
+              "last_candle": 23
+            },
+            "pin_bar": {
+              "n": 26,
+              "wins": 13,
+              "ties": 1,
+              "majority": 9,
+              "last_candle": 13
+            },
+            "inside_break": {
+              "n": 15,
+              "wins": 9,
+              "ties": 0,
+              "majority": 8,
+              "last_candle": 9
+            },
+            "family:trend": {
+              "n": 209,
+              "wins": 89,
+              "ties": 4,
+              "majority": 111,
+              "last_candle": 110
+            },
+            "family:momentum": {
+              "n": 201,
+              "wins": 105,
+              "ties": 4,
+              "majority": 95,
+              "last_candle": 107
+            },
+            "family:reversal": {
+              "n": 70,
+              "wins": 35,
+              "ties": 1,
+              "majority": 39,
+              "last_candle": 34
+            },
+            "family:structure": {
+              "n": 66,
+              "wins": 29,
+              "ties": 3,
+              "majority": 25,
+              "last_candle": 29
+            },
+            "family:price_action": {
+              "n": 88,
+              "wins": 43,
+              "ties": 3,
+              "majority": 40,
+              "last_candle": 43
+            }
+          }
+        },
+        {
+          "target_start": "2026-11-18T09:18:00+00:00",
+          "eligible": 296,
+          "majority_side": "UP",
+          "metrics": {
+            "ema_stack": {
+              "n": 193,
+              "wins": 97,
+              "ties": 1,
+              "majority": 86,
+              "last_candle": 104
+            },
+            "alligator": {
+              "n": 171,
+              "wins": 89,
+              "ties": 1,
+              "majority": 72,
+              "last_candle": 93
+            },
+            "macd_cross": {
+              "n": 14,
+              "wins": 7,
+              "ties": 0,
+              "majority": 8,
+              "last_candle": 9
+            },
+            "rate_of_change": {
+              "n": 184,
+              "wins": 96,
+              "ties": 0,
+              "majority": 84,
+              "last_candle": 105
+            },
+            "rsi_recovery": {
+              "n": 13,
+              "wins": 5,
+              "ties": 0,
+              "majority": 5,
+              "last_candle": 6
+            },
+            "bollinger_reentry": {
+              "n": 19,
+              "wins": 7,
+              "ties": 0,
+              "majority": 7,
+              "last_candle": 7
+            },
+            "stochastic_turn": {
+              "n": 49,
+              "wins": 21,
+              "ties": 0,
+              "majority": 16,
+              "last_candle": 23
+            },
+            "donchian_break": {
+              "n": 48,
+              "wins": 28,
+              "ties": 0,
+              "majority": 18,
+              "last_candle": 28
+            },
+            "liquidity_sweep": {
+              "n": 19,
+              "wins": 12,
+              "ties": 0,
+              "majority": 10,
+              "last_candle": 12
+            },
+            "engulfing": {
+              "n": 45,
+              "wins": 20,
+              "ties": 0,
+              "majority": 16,
+              "last_candle": 20
+            },
+            "pin_bar": {
+              "n": 25,
+              "wins": 17,
+              "ties": 0,
+              "majority": 11,
+              "last_candle": 17
+            },
+            "inside_break": {
+              "n": 14,
+              "wins": 8,
+              "ties": 0,
+              "majority": 7,
+              "last_candle": 8
+            },
+            "family:trend": {
+              "n": 198,
+              "wins": 100,
+              "ties": 1,
+              "majority": 87,
+              "last_candle": 107
+            },
+            "family:momentum": {
+              "n": 189,
+              "wins": 100,
+              "ties": 0,
+              "majority": 88,
+              "last_candle": 108
+            },
+            "family:reversal": {
+              "n": 55,
+              "wins": 23,
+              "ties": 0,
+              "majority": 18,
+              "last_candle": 25
+            },
+            "family:structure": {
+              "n": 67,
+              "wins": 40,
+              "ties": 0,
+              "majority": 28,
+              "last_candle": 40
+            },
+            "family:price_action": {
+              "n": 79,
+              "wins": 43,
+              "ties": 0,
+              "majority": 31,
+              "last_candle": 43
+            }
+          }
+        }
+      ],
+      "snapshot_sha256": "6a80a9b4a55e56bd372ab39c59c4f2174d2ea24d698d21fc2ec9c404e1de8ce9"
+    },
+    "2min": {
+      "error": "Native 2min source history not available or invalid (FileNotFoundError)"
+    },
+    "3min": {
+      "error": "Native 3min source history not available or invalid (FileNotFoundError)"
+    },
+    "5min": {
+      "bars": 1500,
+      "start": "2026-11-13T09:20:00+00:00",
+      "end": "2026-11-18T14:15:00+00:00",
+      "eligible": 898,
+      "can_meet_manual_lead": true,
+      "rules": {
+        "ema_stack": {
+          "n": 604,
+          "wins": 292,
+          "ties": 6,
+          "majority": 290,
+          "last_candle": 290,
+          "hit_pct": 48.34,
+          "above_both_in_all_folds": false
+        },
+        "alligator": {
+          "n": 523,
+          "wins": 254,
+          "ties": 6,
+          "majority": 252,
+          "last_candle": 252,
+          "hit_pct": 48.57,
+          "above_both_in_all_folds": false
+        },
+        "macd_cross": {
+          "n": 96,
+          "wins": 46,
+          "ties": 1,
+          "majority": 50,
+          "last_candle": 51,
+          "hit_pct": 47.92,
+          "above_both_in_all_folds": false
+        },
+        "rate_of_change": {
+          "n": 505,
+          "wins": 230,
+          "ties": 6,
+          "majority": 259,
+          "last_candle": 228,
+          "hit_pct": 45.54,
+          "above_both_in_all_folds": false
+        },
+        "rsi_recovery": {
+          "n": 17,
+          "wins": 7,
+          "ties": 0,
+          "majority": 7,
+          "last_candle": 7,
+          "hit_pct": 41.18,
+          "above_both_in_all_folds": false
+        },
+        "bollinger_reentry": {
+          "n": 45,
+          "wins": 22,
+          "ties": 0,
+          "majority": 23,
+          "last_candle": 22,
+          "hit_pct": 48.89,
+          "above_both_in_all_folds": false
+        },
+        "stochastic_turn": {
+          "n": 152,
+          "wins": 81,
+          "ties": 0,
+          "majority": 75,
+          "last_candle": 83,
+          "hit_pct": 53.29,
+          "above_both_in_all_folds": false
+        },
+        "donchian_break": {
+          "n": 124,
+          "wins": 55,
+          "ties": 3,
+          "majority": 67,
+          "last_candle": 55,
+          "hit_pct": 44.35,
+          "above_both_in_all_folds": false
+        },
+        "liquidity_sweep": {
+          "n": 61,
+          "wins": 34,
+          "ties": 0,
+          "majority": 28,
+          "last_candle": 34,
+          "hit_pct": 55.74,
+          "above_both_in_all_folds": false
+        },
+        "engulfing": {
+          "n": 138,
+          "wins": 74,
+          "ties": 0,
+          "majority": 74,
+          "last_candle": 74,
+          "hit_pct": 53.62,
+          "above_both_in_all_folds": false
+        },
+        "pin_bar": {
+          "n": 85,
+          "wins": 40,
+          "ties": 1,
+          "majority": 40,
+          "last_candle": 40,
+          "hit_pct": 47.06,
+          "above_both_in_all_folds": false
+        },
+        "inside_break": {
+          "n": 38,
+          "wins": 19,
+          "ties": 0,
+          "majority": 14,
+          "last_candle": 19,
+          "hit_pct": 50.0,
+          "above_both_in_all_folds": false
+        },
+        "family:trend": {
+          "n": 648,
+          "wins": 309,
+          "ties": 7,
+          "majority": 320,
+          "last_candle": 310,
+          "hit_pct": 47.69,
+          "above_both_in_all_folds": false
+        },
+        "family:momentum": {
+          "n": 540,
+          "wins": 252,
+          "ties": 6,
+          "majority": 271,
+          "last_candle": 250,
+          "hit_pct": 46.67,
+          "above_both_in_all_folds": false
+        },
+        "family:reversal": {
+          "n": 172,
+          "wins": 91,
+          "ties": 0,
+          "majority": 84,
+          "last_candle": 93,
+          "hit_pct": 52.91,
+          "above_both_in_all_folds": false
+        },
+        "family:structure": {
+          "n": 185,
+          "wins": 89,
+          "ties": 3,
+          "majority": 95,
+          "last_candle": 89,
+          "hit_pct": 48.11,
+          "above_both_in_all_folds": false
+        },
+        "family:price_action": {
+          "n": 242,
+          "wins": 125,
+          "ties": 1,
+          "majority": 121,
+          "last_candle": 125,
+          "hit_pct": 51.65,
+          "above_both_in_all_folds": false
+        }
+      },
+      "folds": [
+        {
+          "target_start": "2026-11-15T11:30:00+00:00",
+          "eligible": 300,
+          "majority_side": "UP",
+          "metrics": {
+            "ema_stack": {
+              "n": 182,
+              "wins": 83,
+              "ties": 4,
+              "majority": 79,
+              "last_candle": 82
+            },
+            "alligator": {
+              "n": 163,
+              "wins": 75,
+              "ties": 4,
+              "majority": 72,
+              "last_candle": 75
+            },
+            "macd_cross": {
+              "n": 37,
+              "wins": 16,
+              "ties": 1,
+              "majority": 16,
+              "last_candle": 17
+            },
+            "rate_of_change": {
+              "n": 181,
+              "wins": 85,
+              "ties": 4,
+              "majority": 89,
+              "last_candle": 71
+            },
+            "rsi_recovery": {
+              "n": 3,
+              "wins": 0,
+              "ties": 0,
+              "majority": 0,
+              "last_candle": 0
+            },
+            "bollinger_reentry": {
+              "n": 14,
+              "wins": 4,
+              "ties": 0,
+              "majority": 6,
+              "last_candle": 4
+            },
+            "stochastic_turn": {
+              "n": 50,
+              "wins": 24,
+              "ties": 0,
+              "majority": 26,
+              "last_candle": 22
+            },
+            "donchian_break": {
+              "n": 39,
+              "wins": 15,
+              "ties": 2,
+              "majority": 24,
+              "last_candle": 15
+            },
+            "liquidity_sweep": {
+              "n": 19,
+              "wins": 7,
+              "ties": 0,
+              "majority": 7,
+              "last_candle": 7
+            },
+            "engulfing": {
+              "n": 49,
+              "wins": 22,
+              "ties": 0,
+              "majority": 29,
+              "last_candle": 22
+            },
+            "pin_bar": {
+              "n": 30,
+              "wins": 12,
+              "ties": 1,
+              "majority": 15,
+              "last_candle": 12
+            },
+            "inside_break": {
+              "n": 14,
+              "wins": 7,
+              "ties": 0,
+              "majority": 3,
+              "last_candle": 7
+            },
+            "family:trend": {
+              "n": 198,
+              "wins": 89,
+              "ties": 4,
+              "majority": 90,
+              "last_candle": 90
+            },
+            "family:momentum": {
+              "n": 194,
+              "wins": 93,
+              "ties": 4,
+              "majority": 92,
+              "last_candle": 80
+            },
+            "family:reversal": {
+              "n": 55,
+              "wins": 25,
+              "ties": 0,
+              "majority": 27,
+              "last_candle": 23
+            },
+            "family:structure": {
+              "n": 58,
+              "wins": 22,
+              "ties": 2,
+              "majority": 31,
+              "last_candle": 22
+            },
+            "family:price_action": {
+              "n": 87,
+              "wins": 39,
+              "ties": 1,
+              "majority": 45,
+              "last_candle": 39
+            }
+          }
+        },
+        {
+          "target_start": "2026-11-16T12:30:00+00:00",
+          "eligible": 300,
+          "majority_side": "UP",
+          "metrics": {
+            "ema_stack": {
+              "n": 178,
+              "wins": 91,
+              "ties": 1,
+              "majority": 85,
+              "last_candle": 94
+            },
+            "alligator": {
+              "n": 146,
+              "wins": 77,
+              "ties": 2,
+              "majority": 68,
+              "last_candle": 76
+            },
+            "macd_cross": {
+              "n": 34,
+              "wins": 16,
+              "ties": 0,
+              "majority": 19,
+              "last_candle": 18
+            },
+            "rate_of_change": {
+              "n": 169,
+              "wins": 79,
+              "ties": 2,
+              "majority": 85,
+              "last_candle": 87
+            },
+            "rsi_recovery": {
+              "n": 5,
+              "wins": 4,
+              "ties": 0,
+              "majority": 3,
+              "last_candle": 4
+            },
+            "bollinger_reentry": {
+              "n": 14,
+              "wins": 10,
+              "ties": 0,
+              "majority": 5,
+              "last_candle": 10
+            },
+            "stochastic_turn": {
+              "n": 55,
+              "wins": 32,
+              "ties": 0,
+              "majority": 26,
+              "last_candle": 35
+            },
+            "donchian_break": {
+              "n": 37,
+              "wins": 20,
+              "ties": 1,
+              "majority": 16,
+              "last_candle": 20
+            },
+            "liquidity_sweep": {
+              "n": 24,
+              "wins": 16,
+              "ties": 0,
+              "majority": 12,
+              "last_candle": 16
+            },
+            "engulfing": {
+              "n": 53,
+              "wins": 32,
+              "ties": 0,
+              "majority": 26,
+              "last_candle": 32
+            },
+            "pin_bar": {
+              "n": 28,
+              "wins": 14,
+              "ties": 0,
+              "majority": 12,
+              "last_candle": 14
+            },
+            "inside_break": {
+              "n": 9,
+              "wins": 5,
+              "ties": 0,
+              "majority": 4,
+              "last_candle": 5
+            },
+            "family:trend": {
+              "n": 193,
+              "wins": 97,
+              "ties": 2,
+              "majority": 94,
+              "last_candle": 102
+            },
+            "family:momentum": {
+              "n": 182,
+              "wins": 88,
+              "ties": 2,
+              "majority": 91,
+              "last_candle": 96
+            },
+            "family:reversal": {
+              "n": 59,
+              "wins": 35,
+              "ties": 0,
+              "majority": 27,
+              "last_candle": 38
+            },
+            "family:structure": {
+              "n": 61,
+              "wins": 36,
+              "ties": 1,
+              "majority": 28,
+              "last_candle": 36
+            },
+            "family:price_action": {
+              "n": 82,
+              "wins": 47,
+              "ties": 0,
+              "majority": 38,
+              "last_candle": 47
+            }
+          }
+        },
+        {
+          "target_start": "2026-11-17T13:30:00+00:00",
+          "eligible": 298,
+          "majority_side": "DOWN",
+          "metrics": {
+            "ema_stack": {
+              "n": 244,
+              "wins": 118,
+              "ties": 1,
+              "majority": 126,
+              "last_candle": 114
+            },
+            "alligator": {
+              "n": 214,
+              "wins": 102,
+              "ties": 0,
+              "majority": 112,
+              "last_candle": 101
+            },
+            "macd_cross": {
+              "n": 25,
+              "wins": 14,
+              "ties": 0,
+              "majority": 15,
+              "last_candle": 16
+            },
+            "rate_of_change": {
+              "n": 155,
+              "wins": 66,
+              "ties": 0,
+              "majority": 85,
+              "last_candle": 70
+            },
+            "rsi_recovery": {
+              "n": 9,
+              "wins": 3,
+              "ties": 0,
+              "majority": 4,
+              "last_candle": 3
+            },
+            "bollinger_reentry": {
+              "n": 17,
+              "wins": 8,
+              "ties": 0,
+              "majority": 12,
+              "last_candle": 8
+            },
+            "stochastic_turn": {
+              "n": 47,
+              "wins": 25,
+              "ties": 0,
+              "majority": 23,
+              "last_candle": 26
+            },
+            "donchian_break": {
+              "n": 48,
+              "wins": 20,
+              "ties": 0,
+              "majority": 27,
+              "last_candle": 20
+            },
+            "liquidity_sweep": {
+              "n": 18,
+              "wins": 11,
+              "ties": 0,
+              "majority": 9,
+              "last_candle": 11
+            },
+            "engulfing": {
+              "n": 36,
+              "wins": 20,
+              "ties": 0,
+              "majority": 19,
+              "last_candle": 20
+            },
+            "pin_bar": {
+              "n": 27,
+              "wins": 14,
+              "ties": 0,
+              "majority": 13,
+              "last_candle": 14
+            },
+            "inside_break": {
+              "n": 15,
+              "wins": 7,
+              "ties": 0,
+              "majority": 7,
+              "last_candle": 7
+            },
+            "family:trend": {
+              "n": 257,
+              "wins": 123,
+              "ties": 1,
+              "majority": 136,
+              "last_candle": 118
+            },
+            "family:momentum": {
+              "n": 164,
+              "wins": 71,
+              "ties": 0,
+              "majority": 88,
+              "last_candle": 74
+            },
+            "family:reversal": {
+              "n": 58,
+              "wins": 31,
+              "ties": 0,
+              "majority": 30,
+              "last_candle": 32
+            },
+            "family:structure": {
+              "n": 66,
+              "wins": 31,
+              "ties": 0,
+              "majority": 36,
+              "last_candle": 31
+            },
+            "family:price_action": {
+              "n": 73,
+              "wins": 39,
+              "ties": 0,
+              "majority": 38,
+              "last_candle": 39
+            }
+          }
+        }
+      ],
+      "snapshot_sha256": "64fba9d1bee44e584f17b187d0635ff9360449c0000829e53270e151e3aa7250"
+    }
+  }
+}

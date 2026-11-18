@@ -127,6 +127,15 @@ async def test_mini_api_real_analyzer_and_modes(settings, monkeypatch):
         assert precise["frame"] == "1min" and precise["target_ms"] is None
         assert feed.calls[-1] == ("GBP_JPY_FOREX", "1min")
 
+        response = await client.post(path + "analyze", headers=auth, json={
+            "market": "smarty", "asset": "SMARTY_240", "mode": "pro", "frame": "30sec"
+        })
+        pro = await response.json()
+        assert response.status == 200 and pro["direction"] == "NO TRADE"
+        assert len(pro["strategy_readings"]) == 5
+        assert sum(len(row["rules"]) for row in pro["strategy_readings"]) == 12
+        assert pro["confidence"] is None and pro["target_ms"] is None
+
         feed.old = True
         response = await client.post(path + "analyze", headers=auth, json={
             "market": "otc", "asset": "OTC_559", "mode": "fast"
