@@ -1,8 +1,7 @@
-"""Walk-forward test of next-candle prediction on real ExpertOption candles.
+"""Research-only walk-forward replay of first-unopened ExpertOption candles.
 
-Every prediction at bar ``i`` uses bars ``0..i`` only. The next bar ``i+1`` is
-skipped because it is already open. Bar i+2 is the realised label. Confidence calibration is fitted on past
-samples only, then applied to the current sample (expanding walk-forward).
+The forecast uses only completed, contiguous candles. The outcome is the
+direction of bar i+2, not a broker settlement or a simulated trade.
 """
 from __future__ import annotations
 
@@ -10,18 +9,19 @@ import argparse
 import asyncio
 import json
 import time
-from collections import defaultdict
-from collections import Counter
+from collections import Counter, defaultdict
+from hashlib import sha256
 from heapq import heappop, heappush
 from math import isfinite
-from datetime import timedelta
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import aiohttp
 import pandas as pd
 
-from engines.technical.next_candle import DEFAULT_BINS, MIN_CALIBRATION_SAMPLES, _series, score_at
+from engines.technical.delivery_window import PREPUBLISH_SECONDS
+from engines.technical.next_candle import CALIBRATION_PATH, DEFAULT_BINS, MIN_CALIBRATION_SAMPLES, score_at
+from engines.technical.regime_candle import TARGET_OFFSET
 from engines.technical.indicators import frame_from_candles
 from providers.base import Candle
 
@@ -37,93 +37,121 @@ ASSETS = {
 }
 FRAMES = {"5sec": 5, "30sec": 30, "1min": 60, "2min": 120, "3min": 180, "5min": 300, "15min": 900}
 MIN_HISTORY = 220
+MAX_FEATURE_BARS = 299  # 300 provider rows minus the forming bar
+MIN_SETTLED_HISTORY = 300
+SCREENING_HIT_RATE = 52.0  # Historical research screen, not a break-even threshold.
+METHOD = ("Expanding walk-forward by instrument, frame and score direction; "
+          "learn only from labels closed strictly before the forecast; target bar i+2.")
+
+
+def _direction(score: float) -> str | None:
+    return "UP" if score > 0 else "DOWN" if score < 0 else None
+
+
+def _bucket_key(score: float, bins=DEFAULT_BINS) -> tuple[str, int] | None:
+    if not isfinite(score) or not (side := _direction(score)):
+        return None
+    for i, (low, high) in enumerate(zip(bins, bins[1:])):
+        if low <= abs(score) < high:
+            return side, i
+    return None
 
 
 def _bucket_table(records: list[dict], bins=DEFAULT_BINS) -> list[dict]:
-    table = []
-    for low, high in zip(bins, bins[1:]):
-        rows = [r for r in records if low <= r["abs_score"] < high]
-        if not rows:
-            continue
-        table.append({
-            "low": low, "high": high, "n": len(rows),
-            "up_wins": sum(1 for r in rows if r["target"] == "UP"),
-            "down_wins": sum(1 for r in rows if r["target"] == "DOWN"),
-            "draws": sum(1 for r in rows if r["target"] == "DRAW"),
-        })
-    return table
-
-
-def _lookup(table: list[dict], score: float, min_n: int = MIN_CALIBRATION_SAMPLES) -> dict | None:
-    for row in table:
-        if row["low"] <= abs(score) < row["high"]:
-            return row if row["n"] >= min_n else None
-    return None
+    counts = defaultdict(Counter)
+    for row in records:
+        if (key := _bucket_key(row["score"], bins)) is not None:
+            counts[key][row["target"]] += 1
+    return [
+        {"direction": side, "low": bins[i], "high": bins[i + 1],
+         "n": sum(bucket.values()), "hits": bucket[side], "draws": bucket["DRAW"]}
+        for (side, i), bucket in sorted(counts.items())
+    ]
 
 
 def _stats(rows: list[dict]) -> dict:
     decided = [r for r in rows if r["prediction"] in ("UP", "DOWN")]
-    wins = sum(1 for r in decided if r["prediction"] == r["target"])
-    draws = sum(1 for r in decided if r["target"] == "DRAW")
+    wins = sum(r["prediction"] == r["target"] for r in decided)
+    draws = sum(r["target"] == "DRAW" for r in decided)
     return {
         "signals": len(decided),
         "wins": wins,
         "draws": draws,
-        "hit_rate": round(100 * wins / max(len(decided), 1), 2),
-        "coverage": round(100 * len(decided) / max(len(rows), 1), 2),
+        "hit_rate": round(100 * wins / len(decided), 2) if decided else None,
+        "coverage": round(100 * len(decided) / len(rows), 2) if rows else 0.0,
     }
 
 
-async def _fetch(session: aiohttp.ClientSession, base: str, asset_id: int, tf: str, limit: int) -> list[Candle]:
+def _decode_candles(body: dict, market: str, asset_id: int, tf: str) -> list[Candle]:
+    if (not isinstance(body, dict) or body.get("source") != "ExpertOption"
+            or body.get("asset_id") != asset_id or body.get("market") != market
+            or body.get("timeframe") != f"{FRAMES[tf]}s"):
+        raise ValueError("bridge response is not for the requested source, instrument and native frame")
+    return [
+        Candle(
+            time=datetime.fromisoformat(row["time"].replace("Z", "+00:00")),
+            open=float(row["open"]), high=float(row["high"]),
+            low=float(row["low"]), close=float(row["close"]),
+        )
+        for row in body.get("candles") or []
+    ]
+
+
+async def _fetch(session: aiohttp.ClientSession, base: str, market: str,
+                 asset_id: int, tf: str, limit: int) -> list[Candle]:
     params = {"id": asset_id, "timeframe": tf, "limit": limit, "ts": str(time.time())}
     for attempt in range(3):
         try:
             async with session.get(f"{base}/verify/history", params=params, timeout=90) as resp:
-                body = await resp.json(content_type=None)
-            if (resp.status != 200 or body.get("source") != "ExpertOption" or body.get("asset_id") != asset_id
-                    or body.get("timeframe") != f"{FRAMES[tf]}s"):
-                return []
-            raw = body.get("candles") or []
-            if raw:
-                return [
-                    Candle(
-                        time=datetime.fromisoformat(row["time"].replace("Z", "+00:00")),
-                        open=float(row["open"]), high=float(row["high"]),
-                        low=float(row["low"]), close=float(row["close"]),
-                    )
-                    for row in raw
-                ]
-        except Exception:
+                if resp.status != 200:
+                    return []
+                candles = _decode_candles(await resp.json(content_type=None), market, asset_id, tf)
+            if candles:
+                return candles
+        except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError, AttributeError):
             pass
-        await asyncio.sleep(1.5 * (attempt + 1))
+        if attempt < 2:
+            await asyncio.sleep(1.5 * (attempt + 1))
     return []
 
 
 def _samples(frame: pd.DataFrame, market: str, tf: str, now=None) -> list[dict]:
     now = now or datetime.now(timezone.utc)
     step = timedelta(seconds=FRAMES[tf])
-    frame = frame.loc[frame.index + step <= now]
-    arrays = _series(frame)
+    times = frame.index
+    if times.tz is None or times.has_duplicates or not times.is_monotonic_increasing:
+        raise ValueError("candle timestamps must be unique, increasing and timezone-aware")
+    frame = frame.loc[times + step <= now]
+    times = frame.index
+    # A broken candle acts like a gap. Neither the feature window nor the
+    # target can straddle one, even if the last 15 bars appear contiguous.
+    block_start = 0
+    last_side = []
     rows = []
-    for index in range(MIN_HISTORY, len(frame) - 1):
-        # Live uses the first unopened bar. At close of index, index+1 is
-        # already open, so its OHLC is neither a feature nor the target.
-        position = index + 2
-        if position >= len(frame) or frame.index[position] - frame.index[index] != 2 * step:
+    for i, prices in enumerate(frame[["open", "high", "low", "close"]].itertuples(index=False, name=None)):
+        op, hi, lo, cl = prices
+        if not (all(isfinite(p) and p > 0 for p in prices)
+                and hi >= max(op, cl) and lo <= min(op, cl)):
+            block_start = i + 1
+            last_side.append(None)
             continue
-        if any(b - a != step for a,b in zip(frame.index[index-15:index], frame.index[index-14:index+1])):
+        if i and times[i] - times[i - 1] != step:
+            block_start = i
+        last_side.append("UP" if cl > op else "DOWN" if cl < op else "DRAW")
+
+        feature_idx = i - TARGET_OFFSET
+        if feature_idx - block_start + 1 < MIN_HISTORY:
             continue
-        score, components = score_at(frame, arrays, index)
-        target_close = float(frame["close"].iloc[position])
-        target_open = float(frame["open"].iloc[position])
-        if not (isfinite(target_close) and isfinite(target_open) and target_close > 0 and target_open > 0):
+        left = max(block_start, feature_idx + 1 - MAX_FEATURE_BARS)
+        score, components = score_at(frame.iloc[left:feature_idx + 1])
+        if not isfinite(score):
             continue
-        target = "UP" if target_close > target_open else "DOWN" if target_close < target_open else "DRAW"
         rows.append({
-            "time": (frame.index[index]+step).isoformat(),
-            "settled_at": (frame.index[position]+step).isoformat(),
+            "time": (times[feature_idx] + step).isoformat(),
+            "target_open": times[i].isoformat(),
+            "settled_at": (times[i] + step).isoformat(),
             "market": market, "timeframe": tf, "asset": "",
-            "score": score, "abs_score": abs(score), "target": target,
+            "score": score, "target": last_side[i], "last_candle": last_side[feature_idx],
             "components": components,
         })
     return rows
@@ -151,49 +179,73 @@ def _strategy_rows(rows: list[dict]) -> dict[str, dict]:
     return outputs
 
 
+def _timestamp(value: str) -> datetime:
+    result = datetime.fromisoformat(value)
+    if result.utcoffset() is None:
+        raise ValueError("forecast and settlement timestamps must carry a timezone")
+    return result
+
+
 def _walk_forward(rows: list[dict]) -> tuple[dict, list[dict]]:
-    """Calibrate on past rows, predict the next row, then add it to history."""
+    """The signed buckets learn only from labels known at each decision."""
+    groups = {(row.get("market"), row.get("asset"), row.get("timeframe")) for row in rows}
+    if len(groups) > 1:
+        raise ValueError("walk-forward expects exactly one instrument and timeframe")
     tested = []
     prior = defaultdict(Counter)
+    outcomes = Counter()
     pending = []
-    seen = 0
-    edges = list(zip(DEFAULT_BINS, DEFAULT_BINS[1:]))
 
-    def bucket_key(score):
-        return next((i for i,(low,high) in enumerate(edges) if low <= abs(score) < high), None)
-
-    for index, row in enumerate(sorted(rows, key=lambda r: r["time"])):
-        # Across markets/assets, rows at the same timestamp cannot train
-        # each other; realized labels become eligible only after settlement.
-        while pending and pending[0][0] < row["time"]:
-            _, _, group, target = heappop(pending)
-            prior[group][target] += 1
-            seen += 1
-        group = bucket_key(row["score"])
-        if group is not None:
-            heappush(pending, (row["settled_at"], index, group, row["target"]))
-        bucket = prior[group]
+    ordered = sorted(((_timestamp(r["time"]), i, r) for i, r in enumerate(rows)))
+    for at, index, row in ordered:
+        settled = _timestamp(row["settled_at"])
+        target = row["target"]
+        if settled <= at or target not in ("UP", "DOWN", "DRAW"):
+            raise ValueError("each forecast requires a valid outcome that closes after the decision")
+        while pending and pending[0][0] < at:
+            _, _, key, past_target = heappop(pending)
+            outcomes[past_target] += 1
+            if key is not None:
+                prior[key][past_target] += 1
+        key = _bucket_key(row["score"])
+        heappush(pending, (settled, index, key, target))
+        bucket = prior.get(key, Counter())
         n = sum(bucket.values())
-        if seen < 300 or n < MIN_CALIBRATION_SAMPLES:
-            tested.append(dict(row, prediction="NO TRADE", confidence=None))
-            continue
-        up = (bucket["UP"] + 0.5 * bucket["DRAW"]) / n
-        direction = "UP" if row["score"] > 0 else "DOWN"
-        confidence = 100 * (up if direction == "UP" else 1 - up)
-        prediction = direction if confidence >= 52.0 else "NO TRADE"
-        tested.append(dict(row, prediction=prediction, confidence=round(confidence, 2)))
+        side = _direction(row["score"])
+        majority = "UP" if outcomes["UP"] >= outcomes["DOWN"] else "DOWN"
+        confidence = (100 * bucket[side] / n
+                      if key is not None and n >= MIN_CALIBRATION_SAMPLES
+                      and sum(outcomes.values()) >= MIN_SETTLED_HISTORY else None)
+        prediction = side if confidence is not None and confidence >= SCREENING_HIT_RATE else "NO TRADE"
+        tested.append(dict(row, prediction=prediction, confidence=confidence,
+                           direction=side, past_majority=majority, bucket_samples=n))
     return _stats(tested), tested
 
 
 def _summary(rows: list[dict], walk: list[dict]) -> dict:
-    baseline_up = 100 * sum(1 for r in rows if r["target"] == "UP") / max(
-        sum(1 for r in rows if r["target"] in ("UP", "DOWN")), 1
-    )
+    selected = [r for r in walk if r["prediction"] in ("UP", "DOWN")]
+    probabilities = [r for r in walk if r["confidence"] is not None]
+    baselines = {
+        "always_up": "UP", "always_down": "DOWN",
+        "past_majority": "past_majority", "last_candle": "last_candle",
+    }
+    matched = {}
+    for name, side in baselines.items():
+        predictions = [r.get(side) if side not in ("UP", "DOWN") else side for r in selected]
+        # A flat previous candle falls back to the majority known at decision
+        # time, keeping the comparison on exactly the same selected targets.
+        wins = sum((p if p in ("UP", "DOWN") else r["past_majority"]) == r["target"]
+                   for p, r in zip(predictions, selected))
+        matched[name] = {"wins": wins, "signals": len(selected),
+                         "hit_rate": round(100 * wins / len(selected), 2) if selected else None}
+    brier = sum((r["confidence"] / 100 - (r["direction"] == r["target"])) ** 2 for r in probabilities)
     return {
         "samples": len(rows),
-        "baseline_always_up": round(baseline_up, 2),
-        "strategies": _strategy_rows(rows),
-        "combo_walk_forward": _stats(walk),
+        "strategies_exploratory": _strategy_rows(rows),
+        "walk_forward": _stats(walk),
+        "matched_baselines": matched,
+        "probability_check": {"samples": len(probabilities),
+                              "brier": round(brier / len(probabilities), 6) if probabilities else None},
     }
 
 
@@ -201,118 +253,135 @@ async def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="https://worker-production-03c94.up.railway.app")
     parser.add_argument("--limit", type=int, default=1500)
+    parser.add_argument("--as-of", help="ISO 8601 cutoff with timezone (default: replay start time)")
+    parser.add_argument("--snapshot-dir", type=Path,
+                        help="Replay saved /verify/history responses named ASSET_ID-FRAME.json")
     parser.add_argument("--output", default="docs/NEXT-CANDLE-BACKTEST.json")
     parser.add_argument("--calibration", default="docs/NEXT-CANDLE-CALIBRATION-CANDIDATE.json")
     parser.add_argument("--frames", default="1min,5min,15min")
     parser.add_argument("--market", choices=tuple(ASSETS), help="Analyze only the selected market")
     args = parser.parse_args()
     frames = [item.strip() for item in args.frames.split(",") if item.strip()]
+    if args.limit < 1:
+        parser.error("--limit must be positive")
     if not frames or any(item not in FRAMES for item in frames):
         parser.error("Unsupported native candle timeframe")
-    if Path(args.calibration).resolve() == Path("engines/technical/calibration.json").resolve():
-        parser.error("Write a candidate calibration. Production calibration must be reviewed separately.")
+    output = Path(args.output)
+    cal_path = Path(args.calibration)
+    markdown = output.with_suffix(".md")
+    outputs = {output.resolve(), cal_path.resolve(), markdown.resolve()}
+    if len(outputs) != 3 or CALIBRATION_PATH.resolve() in outputs:
+        parser.error("Use distinct research paths; the production calibration must not be overwritten.")
     all_rows: dict[str, list[dict]] = defaultdict(list)
-    raw_meta = defaultdict(dict)
-    async with aiohttp.ClientSession() as session:
+    raw_meta = {}
+    try:
+        as_of = _timestamp(args.as_of).astimezone(timezone.utc) if args.as_of else datetime.now(timezone.utc)
+    except ValueError as exc:
+        parser.error(str(exc))
+    async with aiohttp.ClientSession(trust_env=True) as session:
         for market, assets in ASSETS.items():
             if args.market and market != args.market:
                 continue
             for tf in frames:
                 for asset_id, symbol in assets:
-                    candles = await _fetch(session, args.base_url, asset_id, tf, args.limit)
-                    if len(candles) < MIN_HISTORY + 2:
+                    snapshot_hash = None
+                    if args.snapshot_dir is None:
+                        candles = await _fetch(session, args.base_url, market, asset_id, tf, args.limit)
+                    else:
+                        try:
+                            payload = (args.snapshot_dir / f"{asset_id}-{tf}.json").read_bytes()
+                            candles = _decode_candles(json.loads(payload), market, asset_id, tf)[-args.limit:]
+                            snapshot_hash = sha256(payload).hexdigest()
+                        except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+                            print(f"skip {market} {symbol} {tf}: invalid or missing snapshot ({type(exc).__name__})",
+                                  flush=True)
+                            continue
+                    if len(candles) < MIN_HISTORY + TARGET_OFFSET:
                         print(f"skip {market} {symbol} {tf}: {len(candles)} candles", flush=True)
                         continue
-                    frame = frame_from_candles(candles)
-                    rows = _samples(frame, market, tf)
+                    try:
+                        if any(a.time >= b.time for a, b in zip(candles, candles[1:])):
+                            raise ValueError("duplicate or unordered source timestamps")
+                        rows = _samples(frame_from_candles(candles), market, tf, now=as_of)
+                    except (TypeError, ValueError) as exc:
+                        print(f"skip {market} {symbol} {tf}: {exc}", flush=True)
+                        continue
                     for row in rows:
                         row["asset"] = symbol
-                    all_rows[f"{market}:{tf}"].extend(rows)
-                    raw_meta[f"{market}:{tf}"][symbol] = {
+                    key = f"{market}:{symbol}:{tf}"
+                    all_rows[key] = rows
+                    raw_meta[key] = {
+                        "asset_id": asset_id,
                         "candles": len(candles),
                         "first": candles[0].time.isoformat(),
                         "last": candles[-1].time.isoformat(),
+                        "snapshot_sha256": snapshot_hash,
                     }
                     print(f"ok {market} {symbol} {tf}: {len(candles)} candles -> {len(rows)} samples", flush=True)
 
     report = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "source": "ExpertOption bridge /verify/history (real OHLC, read-only)",
-        "method": "expanding walk-forward; features use bars <= i; first unopened target is i+2; train on settled past labels only",
+        "as_of": as_of.isoformat(),
+        "source": "ExpertOption bridge /verify/history (native OHLC, read-only)",
+        "method": METHOD,
+        "limits": "Candle-motion research only. No broker entry/settlement prices, actual payouts or delivery latency.",
         "assets": raw_meta,
         "results": {},
     }
     calibration = {
-        "version": 2,
-        "target_offset": 2,
-        "generated_at": report["generated_at"],
+        "schema": "next-candle-research-v3",
+        "target_offset": TARGET_OFFSET,
+        "as_of": report["as_of"],
         "source": report["source"],
-        "method": report["method"],
+        "method": METHOD,
         "min_samples": MIN_CALIBRATION_SAMPLES,
-        "markets": {},
+        "status": "research_only",
+        "instruments": {},  # Deliberately incompatible with live market-level calibration.
     }
     for key, rows in sorted(all_rows.items()):
-        market, tf = key.split(":")
-        rows.sort(key=lambda r: r["time"])
-        if len(rows) < 400:
-            print(f"skip report {key}: {len(rows)} samples", flush=True)
+        tf = key.rsplit(":", 1)[1]
+        if not rows:
             continue
-        walk_stats, walk_rows = _walk_forward(rows)
+        _, walk_rows = _walk_forward(rows)
         summary = _summary(rows, walk_rows)
-        summary["walk_forward_rows"] = walk_stats
+        summary["manual_lead_possible"] = FRAMES[tf] > PREPUBLISH_SECONDS
         report["results"][key] = summary
-        table = _bucket_table(rows)
-        calibration["markets"].setdefault(market, {})[tf] = {
+        calibration["instruments"][key] = {
             "samples": len(rows),
-            "enabled": False,  # candidate only; promotion requires review
-            "walk_forward": walk_stats,
-            "baseline_always_up": summary["baseline_always_up"],
-            "bins": table,
+            "buckets": _bucket_table(rows),
         }
 
     if not report["results"]:
-        raise SystemExit("No supported frame returned enough real samples; no calibration was written.")
-    output = Path(args.output)
+        raise SystemExit("No supported frame returned eligible real samples; no calibration was written.")
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    cal_path = Path(args.calibration)
+    output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     cal_path.parent.mkdir(parents=True, exist_ok=True)
-    cal_path.write_text(json.dumps(calibration, indent=2), encoding="utf-8")
-    _write_markdown(report, output.with_suffix(".md"))
+    cal_path.write_text(json.dumps(calibration, indent=2) + "\n", encoding="utf-8")
+    _write_markdown(report, markdown)
     print(f"wrote {output} and {cal_path}", flush=True)
 
 
 def _write_markdown(report: dict, path: Path) -> None:
     lines = [
-        "# Next-Candle Walk-Forward Backtest",
-        "",
-        f"Generated: `{report['generated_at']}`",
-        "",
-        "Real ExpertOption OHLC from the read-only bridge. Every prediction uses bars `0..i`;",
-        "the target is bar `i+1`. Calibration is expanding and applied out of sample.",
-        "",
-        "| Market / TF | Samples | Baseline UP | Combo walk-forward | Coverage |",
-        "|---|---:|---:|---:|---:|",
+        "# Next-Candle Walk-Forward Replay", "",
+        f"As of `{report['as_of']}`.", "",
+        "Features use bars ending at `i`, and the target is the first unopened bar, `i+2`.",
+        "Only strictly earlier settled labels teach the instrument's signed score buckets.",
+        "All baselines use the very same selected candles; draws count as misses for everyone.", "",
+        "| Market / Instrument / TF | Samples | Selected | Forecast | Always UP | Always DOWN | Past majority | Previous candle |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
+
+    def pct(value):
+        return f"{value:.2f}%" if value is not None else "—"
+
     for key, result in sorted(report["results"].items()):
-        wf = result["walk_forward_rows"]
-        lines.append(
-            f"| {key} | {result['samples']} | {result['baseline_always_up']:.2f}% | "
-            f"{wf['hit_rate']:.2f}% ({wf['wins']}/{wf['signals']}) | {wf['coverage']:.1f}% |"
-        )
-    lines += ["", "## Strategy comparison (same samples)", "",
-              "| Market / TF | Trend | Momentum | Price action | Location | Combo raw |",
-              "|---|---:|---:|---:|---:|---:|"]
-    for key, result in sorted(report["results"].items()):
-        s = result["strategies"]
-        lines.append(
-            f"| {key} | {s['trend']['hit_rate']:.1f}%/{s['trend']['signals']} | "
-            f"{s['momentum']['hit_rate']:.1f}%/{s['momentum']['signals']} | "
-            f"{s['price_action']['hit_rate']:.1f}%/{s['price_action']['signals']} | "
-            f"{s['location_reversion']['hit_rate']:.1f}%/{s['location_reversion']['signals']} | "
-            f"{s['combo_raw']['hit_rate']:.1f}%/{s['combo_raw']['signals']} |"
-        )
-    lines += ["", "Hit rate is wins / verified signals (draws are not wins). Coverage is signals / samples."]
+        wf, bases = result["walk_forward"], result["matched_baselines"]
+        columns = [pct(bases[name]["hit_rate"])
+                   for name in ("always_up", "always_down", "past_majority", "last_candle")]
+        lines.append(f"| {key} | {result['samples']} | {wf['signals']} | {pct(wf['hit_rate'])} | "
+                     + " | ".join(columns) + " |")
+    lines += ["", report["limits"],
+              "The 52% research screen is not a profitability threshold, and results cannot enable live signals."]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

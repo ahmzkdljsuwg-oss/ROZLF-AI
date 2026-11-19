@@ -127,7 +127,8 @@ def test_walk_forward_cannot_train_on_overlapping_future_labels():
     overdue = (start + timedelta(hours=1)).isoformat()
     rows = [{"time": (start+timedelta(seconds=i)).isoformat(), "settled_at": overdue,
              "score": 8, "target": "UP"} for i in range(330)]
-    rows.append({**rows[-1], "time": (start+timedelta(hours=2)).isoformat()})
+    rows.append({**rows[-1], "time": (start+timedelta(hours=2)).isoformat(),
+                 "settled_at": (start+timedelta(hours=2, minutes=1)).isoformat()})
     _, results = _walk_forward(rows)
     assert all(r["prediction"] == "NO TRADE" for r in results[:-1])
     assert results[-1]["prediction"] == "UP"
