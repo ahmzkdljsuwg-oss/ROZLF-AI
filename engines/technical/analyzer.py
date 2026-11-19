@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import logging
 
 from engines.markets import profile_for
-from engines.technical.evidence import evaluate_evidence
+from engines.technical.evidence import FAMILY_ALIASES, evaluate_evidence
 from engines.technical.indicators import compute_indicators, frame_from_candles
 from engines.technical.next_candle import forecast_from_frame, target_open_for
 from engines.technical.regime_candle import TARGET_OFFSET, diagnose_regime
@@ -82,6 +82,8 @@ def analyze_market_data(
     now: datetime | None = None,
     duration_seconds: int | None = None,
     analysis_mode: str = "strong",
+    *,
+    live_candle_target: bool = False,
 ) -> AnalysisResult:
     if not market_data.validation.ok:
         raise DataUnavailable("INVALID_DATA", f"Refusing to analyse invalid candles: {market_data.validation.summary}")
@@ -101,10 +103,11 @@ def analyze_market_data(
             "UNSUPPORTED_FRAME",
             f"{profile.name} analyses only {', '.join(profile.frames)}",
         )
-    if analysis_mode == "pro":
+    aligned_target = live_candle_target or analysis_mode in {"lo", "pro"} or market_data.asset.market is Market.SMARTY
+    if aligned_target:
         step = timedelta(seconds=market_data.timeframe.seconds)
         if usable[-1].time + step * 2 <= now:
-            raise DataUnavailable("MISSING_RECENT_CANDLE", "شموع PRO متأخرة")
+            raise DataUnavailable("MISSING_RECENT_CANDLE", "آخر شمعة مغلقة متأخرة عن توقيت السوق")
         usable = contiguous_candles(usable, market_data.timeframe.seconds)
     min_bars = max(60, profile.min_bars)
     if len(usable) < min_bars:
@@ -119,9 +122,6 @@ def analyze_market_data(
     )
     seconds = market_data.timeframe.seconds
     is_smarty = market_data.asset.market is Market.SMARTY
-    if (is_smarty or analysis_mode == "lo") and usable[-1].time + timedelta(seconds=TARGET_OFFSET * seconds) <= now:
-        raise DataUnavailable("MISSING_RECENT_CANDLE", "آخر شمعة مغلقة متأخرة عن توقيت السوق")
-
     current = market_data.candles[-1]
     closed_times = {candle.time for candle in usable}
     current_candle = {}
@@ -137,19 +137,16 @@ def analyze_market_data(
             "time": current.time.isoformat(),
         }
     frame = frame_from_candles(usable)
-    live_frame = frame_from_candles(market_data.candles)
-    target_open = target_open_for(live_frame, seconds, now)
-    regime = None
-    if is_smarty or analysis_mode in {"lo","pro"}:
+    if aligned_target:
         # The future target must immediately follow the currently forming slot,
         # even if the feed has not published that slot yet.
         target_open = usable[-1].time + timedelta(seconds=TARGET_OFFSET * seconds)
-        if is_smarty:
-            regime = diagnose_regime(frame, seconds)
+    else:
+        target_open = target_open_for(frame_from_candles(market_data.candles), seconds, now)
+    regime = diagnose_regime(frame, seconds) if is_smarty else None
     # Calibrations were trained on completed candles only. Using the forming
     # candle here changes the feature distribution and invalidates the measured
-    # hit rates, especially on 5s/15s/30s frames. Keep the live frame solely
-    # for locating the next target open; score only the last closed candle.
+    # hit rates, especially on 5s/15s/30s frames.
     forecast = forecast_from_frame(
         frame,
         market=market_data.asset.market.value,
@@ -158,7 +155,7 @@ def analyze_market_data(
         now=now,
         target_open_at=target_open,
         require_calibration=analysis_mode != "lo",
-        required_target_offset=TARGET_OFFSET if analysis_mode == "pro" else None,
+        required_target_offset=TARGET_OFFSET if live_candle_target or analysis_mode == "pro" else None,
     )
     ind = compute_indicators(frame)
     smc = analyze_smc(frame, ind["atr"])
@@ -268,7 +265,7 @@ def analyze_market_data(
         reasons = [f"متاح {len(usable)} شمعة مغلقة متتالية. يحتاج PRO إلى 200 لتوقع الاتجاه."]
         blocks = reasons[:]
     if analysis_mode == "pro" and direction in ("UP","DOWN"):
-        families = {signal.family for signal in confirmed}
+        families = {FAMILY_ALIASES.get(signal.family, signal.family) for signal in confirmed}
         if len(families) < 3 or ind["volatility"] == "HIGH" or (
                 evidence.direction in ("UP","DOWN") and evidence.direction != direction):
             direction, confidence = "NO TRADE", 0.0

@@ -285,11 +285,12 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
         return
     market = Market[market_name]
     user_id = callback.from_user.id
-    if _analysis_lock(user_id).locked():
+    lock = _analysis_lock(user_id)
+    if lock.locked():
         await callback.answer("التحليل السابق لم ينتهِ بعد", show_alert=True)
         return
-    await callback.answer()
-    async with _analysis_lock(user_id):
+    async with lock:
+        await callback.answer()
         await _edit(
             callback,
             f"<b>{fmt.NEXUS_ANALYSIS_BANNER}</b>\n\n⏳ جارٍ قراءة الشموع المغلقة · {market.label}",

@@ -74,18 +74,22 @@ def stochastic(frame: pd.DataFrame, k_period: int = 14, d_period: int = 3):
 
 def find_swings(frame: pd.DataFrame, window: int = 3) -> list[dict]:
     """Confirmed fractal swings: `window` lower/higher bars on each side."""
+    if window < 1:
+        raise ValueError("swing confirmation window must be positive")
+    if len(frame) < 2 * window + 1:
+        return []
     highs = frame["high"].to_numpy()
     lows = frame["low"].to_numpy()
-    swings: list[dict] = []
-    for index in range(window, len(frame) - window):
-        left_high = highs[index - window : index]
-        right_high = highs[index + 1 : index + 1 + window]
-        if highs[index] >= left_high.max() and highs[index] >= right_high.max():
-            swings.append({"index": index, "price": float(highs[index]), "kind": "high"})
-        left_low = lows[index - window : index]
-        right_low = lows[index + 1 : index + 1 + window]
-        if lows[index] <= left_low.min() and lows[index] <= right_low.min():
-            swings.append({"index": index, "price": float(lows[index]), "kind": "low"})
+    width = 2 * window + 1
+    high = np.lib.stride_tricks.sliding_window_view(highs, width)
+    low = np.lib.stride_tricks.sliding_window_view(lows, width)
+    # Preserve chronological ordering and high-before-low on the same bar,
+    # including tied extrema. Keep both endpoints out until confirmed.
+    hits = np.column_stack((high[:, window] == high.max(axis=1), low[:, window] == low.min(axis=1)))
+    swings = []
+    for row, kind in np.argwhere(hits):
+        i = int(row) + window
+        swings.append({"index": i, "price": float((lows if kind else highs)[i]), "kind": "low" if kind else "high"})
     return swings
 
 

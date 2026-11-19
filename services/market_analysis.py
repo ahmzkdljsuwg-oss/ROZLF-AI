@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass, field
 
 from ai.review import AIReviewer
@@ -29,6 +30,10 @@ def native_frame_plan(asset, mode):
     return tuple(f for f in NATIVE_FRAMES if f in profile and timeframe(f).seconds > PREPUBLISH_SECONDS)[:3]
 FETCH_TIMEOUT = 18.0
 ANALYSIS_TIMEOUT = 22.0
+LO_BUDGET = 12.0
+LO_FRAME_BUDGET = 6.0
+FAST_BUDGET = 12.0
+DEEP_BUDGET = 15.0
 
 
 @dataclass(slots=True)
@@ -68,11 +73,18 @@ class MarketAnalysisService:
             assets = list(await self.inventory.assets(market))
         else:
             assets = list(assets_for(market))
-        if asset_key:
-            assets = [asset for asset in assets if asset.key == asset_key]
-        return assets[:MAX_ASSETS]
+        return [asset for asset in assets if asset.market is market
+                and (not asset_key or asset.key == asset_key)][:MAX_ASSETS]
 
     async def analyse(self, market: Market, asset_key: str | None = None) -> MarketAnalysis:
+        started = time.monotonic()
+        outcome = await self._analyse(market, asset_key)
+        logger.info("NEXUS manual market=%s mode=%s frames=%d received=%d actionable=%s elapsed_ms=%d",
+                    market.value, self.mode, outcome.attempted, outcome.fetched, outcome.actionable,
+                    round((time.monotonic() - started) * 1000))
+        return outcome
+
+    async def _analyse(self, market: Market, asset_key: str | None) -> MarketAnalysis:
         outcome = MarketAnalysis(market=market)
         try:
             assets = await asyncio.wait_for(self.assets_for(market, asset_key), 5)
@@ -83,82 +95,88 @@ class MarketAnalysisService:
             outcome.errors.append(f"no verified {market.label} instruments")
             return outcome
 
-        jobs: list[tuple[Asset, str]] = []
-        for asset in assets:
-            profile_frames = profile_for(asset.market).frames
-            frames = (tuple(profile_frames[:3]) if self.mode == "lo"
-                      else forecast_frames(asset.market.value, profile_frames))
-            if self.mode in {"fast", "pro"}:
-                frames = native_frame_plan(asset, self.mode)
-            if self.mode == "lo" and market is Market.SMARTY:
-                frames = tuple(f for f in ("30sec", "1min", "15sec") if f in profile_frames)
-            frames = tuple(f for f in frames if timeframe(f).seconds > PREPUBLISH_SECONDS)
-            for frame in frames:
-                jobs.append((asset, frame))
+        profile_frames = profile_for(market).frames
+        if self.mode in {"fast", "pro"}:
+            frames = native_frame_plan(assets[0], self.mode)
+        elif self.mode == "lo" and market is Market.SMARTY:
+            frames = tuple(f for f in ("30sec", "1min", "15sec") if f in profile_frames)
+        elif self.mode == "lo":
+            frames = profile_frames[:3]
+        else:
+            frames = forecast_frames(market.value, profile_frames)
+        frames = tuple(f for f in frames if timeframe(f).seconds > PREPUBLISH_SECONDS)
+        jobs = [(asset, frame) for asset in assets for frame in frames]
         semaphore = asyncio.Semaphore(4)
         results: list[tuple[AnalysisResult, str]] = []
+        failure_codes: list[str] = []
 
         def collect(item) -> None:
             if isinstance(item, DataUnavailable):
                 outcome.errors.append(item.detail or item.message)
+                failure_codes.append(item.code)
             elif isinstance(item, Exception):
                 outcome.errors.append(type(item).__name__)
+                failure_codes.append(type(item).__name__)
             elif item is not None:
                 results.append(item)
 
-        if self.mode in {"fast", "pro"}:
-            outcome.attempted = len(jobs)
-            tasks = [asyncio.create_task(self._one(a, f, semaphore)) for a, f in jobs]
-            try:
-                for task in asyncio.as_completed(tasks, timeout=12 if self.mode == "fast" else 18):
-                    try:
-                        item = await task
-                        collect(item)
-                        if self.mode == "fast" and item is not None and self._timely(item[0]):
-                            break
-                    except DataUnavailable as exc:
-                        collect(exc)
-            except TimeoutError:
-                outcome.errors.append("انتهت مهلة جلب أحدث الشموع")
-            finally:
-                for task in tasks:
-                    task.cancel()
-                await asyncio.gather(*tasks, return_exceptions=True)
-        elif self.mode == "lo" and len(assets) == 1:
+        timeout = LO_BUDGET if self.mode == "lo" else FAST_BUDGET if self.mode == "fast" else DEEP_BUDGET
+        deadline = time.monotonic() + timeout
+        if self.mode == "lo" and len(assets) == 1:
             # Avoid launching all frames for the same asset at once. For EO a
             # quote and sibling requests share the same socket as history; for
             # Forex they consume extra credits. Use the first timely direction.
             if market is Market.SMARTY and all(frame != "1min" for _, frame in jobs):
                 jobs.append((assets[0], "1min"))
             for asset, frame in jobs:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
                 outcome.attempted += 1
                 try:
-                    collect(await self._one(asset, frame, semaphore))
+                    slice_budget = min(LO_FRAME_BUDGET, remaining)
+                    item = await asyncio.wait_for(self._one(asset, frame, semaphore), timeout=slice_budget)
+                    collect(item)
+                    if item and (self._timely(item[0]) or (
+                        market is Market.SMARTY and self._current_reading(item[0])
+                    )):
+                        break
+                except TimeoutError:
+                    collect(DataUnavailable("TIMEOUT", "تأخر مصدر الشموع في الرد."))
                 except DataUnavailable as exc:
                     collect(exc)
                     if exc.code in {"RATE_LIMITED", "INVALID_KEY", "INACTIVE_ASSET",
                                     "EO_BRIDGE_UNAUTHORIZED", "EO_BRIDGE_NOT_CONFIGURED", "TOKEN_INVALID"}:
                         break
-                if results and self._timely(results[-1][0]):
-                    break
         else:
+            if market is Market.SMARTY and self.mode != "pro" and all(frame != "1min" for _, frame in jobs):
+                jobs.append((assets[0], "1min"))
             outcome.attempted = len(jobs)
-            gathered = await asyncio.gather(
-                *(self._one(asset, frame, semaphore) for asset, frame in jobs),
-                return_exceptions=True,
-            )
-            for item in gathered:
-                collect(item)
-            if not results and market is Market.SMARTY and all(frame != "1min" for _, frame in jobs):
-                outcome.attempted += 1
-                try:
-                    collect(await self._one(assets[0], "1min", semaphore))
-                except DataUnavailable as exc:
-                    collect(exc)
+            tasks = [asyncio.create_task(self._one(a, f, semaphore)) for a, f in jobs]
+            try:
+                for task in asyncio.as_completed(tasks, timeout=timeout):
+                    try:
+                        item = await task
+                        collect(item)
+                        if self.mode == "fast" and item and (self._timely(item[0]) or (
+                            market is Market.SMARTY and self._current_reading(item[0])
+                        )):
+                            break
+                    except DataUnavailable as exc:
+                        collect(exc)
+            except TimeoutError:
+                collect(DataUnavailable("TIMEOUT", "انتهت مهلة جلب أحدث الشموع"))
+            finally:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
         outcome.fetched = len(results)
         if not results:
             mark = getattr(self.registry, "mark_unavailable", None)
-            if mark is not None and len(assets) == 1 and market.is_expertoption:
+            if (mark is not None and len(assets) == 1 and market.is_expertoption and failure_codes
+                    and all(code in {"INACTIVE_ASSET", "EO_BRIDGE_NOT_CONFIGURED", "EO_BRIDGE_UNAUTHORIZED"}
+                            for code in failure_codes)):
                 mark(assets[0])
             if not outcome.errors:
                 outcome.errors.append("no verified candles were returned")
@@ -198,7 +216,7 @@ class MarketAnalysisService:
             else:
                 opposing = [
                     other for other, _ in actionable[1:]
-                    if (self.mode != "pro" or other.asset_key == best.asset_key)
+                    if other.asset_key == best.asset_key
                     and other.direction != best.direction
                     and other.confidence >= max(52.0, best.confidence - 8.0)
                 ]
@@ -231,11 +249,12 @@ class MarketAnalysisService:
                 # LO is a fast, explicitly unverified technical mode. External AI
                 # reviewers can rate-limit (429) and delay the target candle.
                 # Keep the independent AI veto for calibrated/strong mode only.
-                if self.mode not in {"lo", "fast"} and self.reviewer.configured():
+                review_budget = min(2.0, (best.target_open_at - utc_now()).total_seconds() - PREPUBLISH_SECONDS)
+                if self.mode not in {"lo", "fast"} and review_budget >= 0.15 and self.reviewer.configured():
                     try:
                         review = await asyncio.wait_for(self.reviewer.review(
                             best.direction, _review_payload(best, duration, reason)
-                        ), timeout=2)
+                        ), timeout=review_budget)
                     except TimeoutError:
                         review = None
                     if review and review.conflict:
@@ -259,15 +278,19 @@ class MarketAnalysisService:
         return (result.direction in ("UP", "DOWN") and
                 can_publish(timeframe(result.timeframe).seconds, result.target_open_at, utc_now()))
 
+    @staticmethod
+    def _current_reading(result: AnalysisResult) -> bool:
+        return result.target_open_at is not None and result.target_open_at > utc_now()
+
     async def _one(self, asset: Asset, frame: str, semaphore: asyncio.Semaphore):
         async with semaphore:
             try:
                 data = await asyncio.wait_for(
-                    self.registry.fetch(asset, timeframe(frame), with_quote=self.mode not in {"lo", "fast", "pro"}), timeout=FETCH_TIMEOUT
+                    self.registry.fetch(asset, timeframe(frame), with_quote=False), timeout=FETCH_TIMEOUT
                 )
                 result = await asyncio.wait_for(
                     asyncio.to_thread(
-                        analyze_market_data, data, None, None, self.mode
+                        analyze_market_data, data, None, None, self.mode, live_candle_target=True
                     ),
                     timeout=ANALYSIS_TIMEOUT,
                 )

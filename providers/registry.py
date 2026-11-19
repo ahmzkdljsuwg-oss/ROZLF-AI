@@ -6,7 +6,7 @@ import logging
 import time
 from collections import deque
 from dataclasses import replace
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Iterable
 
 from engines.validation import closed_candles, validate_candles
@@ -33,7 +33,7 @@ class DataSourceRegistry:
         self._providers = list(providers)
         self._clock = clock
         self._cache_ttl = max(0.0, cache_ttl)
-        self._cache: dict[tuple[str, str, int], tuple[float, MarketData]] = {}
+        self._cache: dict[tuple[str, str, int], tuple[float, MarketData, datetime]] = {}
         self._panel_cooldown: dict[str, float] = {}
         self._inflight: dict[tuple[str, str, int], asyncio.Task] = {}
         self._last_valid: dict[str, dict] = {}
@@ -77,9 +77,9 @@ class DataSourceRegistry:
                     *, with_quote: bool = True, fresh: bool = False) -> MarketData:
         tf = timeframe(tf) if isinstance(tf, str) else tf
         key = (asset.key, tf.code, int(limit))
-        cached = self._cache.get(key)
-        if not fresh and cached and cached[0] > time.monotonic():
-            data = cached[1]
+        cached = self.cached_candles(asset, tf, limit) if not fresh else None
+        if cached is not None:
+            data = cached
         else:
             pending = self._inflight.get(key)
             if pending is None:
@@ -97,22 +97,24 @@ class DataSourceRegistry:
         try:
             data = await self._fetch_uncached(asset, tf, limit)
             if self._cache_ttl:
-                if len(self._cache) >= 512:
-                    self._cache.pop(next(iter(self._cache)), None)
-                captured = data.closure_cutoff
-                closes = [bar.time + timedelta(seconds=tf.seconds) for bar in data.candles
-                          if bar.time + timedelta(seconds=tf.seconds) > captured]
-                until_close = (min(closes) - self._clock()).total_seconds() if closes else tf.seconds
-                if until_close > 0:
-                    self._cache[key] = (time.monotonic() + min(
-                        self._cache_ttl, tf.seconds / 2, until_close), data)
+                closed = closed_candles(data.candles, tf, data.closure_cutoff)
+                if closed:
+                    # Even if the source omits the forming candle, the last
+                    # closed candle's successor will close at this boundary.
+                    next_close = closed[-1].time + timedelta(seconds=tf.seconds * 2)
+                    until_close = (next_close - self._clock()).total_seconds()
+                    if until_close > 0:
+                        if len(self._cache) >= 512:
+                            self._cache.pop(next(iter(self._cache)), None)
+                        self._cache[key] = (time.monotonic() + min(
+                            self._cache_ttl, tf.seconds / 2, until_close), data, next_close)
             return data
         finally:
             self._inflight.pop(key, None)
 
     def cached_candles(self, asset, tf, limit=300):
         row = self._cache.get((asset.key, tf.code, int(limit)))
-        return row[1] if row and row[0] > time.monotonic() else None
+        return row[1] if row and row[0] > time.monotonic() and row[2] > self._clock() else None
 
     def market_readiness(self, market):
         current = self._last_valid.get(market.value)

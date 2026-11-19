@@ -269,17 +269,19 @@ def forecast_from_frame(
             "none", [f"only {len(frame)} candles; 200 are needed"],
         )
 
+    if require_calibration:
+        calibration = calibration if calibration is not None else load_calibration()
+        if required_target_offset is not None and calibration.get("target_offset") != required_target_offset:
+            return NextCandleForecast(
+                "NO TRADE", 0.0, None, None, [], {}, target, timeframe_seconds, "none",
+                ["لا توجد معايرة مطابقة لتوقيت الشمعة المستهدفة"],
+            )
+
     arrays = _series(frame)
     score, components = score_at(frame, arrays)
     if not require_calibration:
         score, components = _lo_components(frame, arrays, score, components)
         return _technical_forecast(score, components, target, timeframe_seconds, [])
-    calibration = calibration if calibration is not None else load_calibration()
-    if required_target_offset is not None and calibration.get("target_offset") != required_target_offset:
-        return NextCandleForecast(
-            "NO TRADE", score, None, None, [], components, target, timeframe_seconds, "none",
-            ["لا توجد معايرة كافية لنفس توقيت الشمعة المستهدفة في وضع PRO"],
-        )
     table, label = _table_for(calibration, market, timeframe_code)
     if table is None:
         return NextCandleForecast(

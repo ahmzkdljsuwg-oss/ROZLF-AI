@@ -4,7 +4,7 @@ from statistics import mean
 
 from engines.markets import profile_for
 from engines.technical.candle_reading import valid_candle
-from engines.validation import closed_candles
+from engines.validation import closed_candles, contiguous_candles
 from providers.base import DataUnavailable
 
 
@@ -22,13 +22,14 @@ def analyze_fast(data, now):
     if tf.code not in profile_for(data.asset.market).frames:
         raise DataUnavailable("UNSUPPORTED_FRAME", "الإطار غير مدعوم للأصل")
     bars = closed_candles(data.candles, tf, min(now, data.closure_cutoff))
+    bars = contiguous_candles(bars, tf.seconds)
     if len(bars) < 200:
         raise DataUnavailable("INSUFFICIENT_BARS", "نحتاج 200 شمعة مغلقة لحساب EMA200")
     step = timedelta(seconds=tf.seconds)
     last = bars[-1]
     target = last.time + step * 2
-    if target <= now or any(y.time - x.time != step for x,y in zip(bars[-16:-1],bars[-15:])):
-        raise DataUnavailable("MISSING_RECENT_CANDLE", "الشموع الأخيرة متأخرة أو غير متتابعة")
+    if target <= now:
+        raise DataUnavailable("MISSING_RECENT_CANDLE", "الشموع الأخيرة متأخرة")
     candles = bars[-300:]
     if any(not valid_candle(b) for b in candles):
         raise DataUnavailable("INVALID_DATA", "المصدر أعاد أسعاراً غير صالحة")

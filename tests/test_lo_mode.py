@@ -284,7 +284,7 @@ async def test_lo_uses_candles_only_and_skips_external_review(settings, monkeypa
 
 
 @pytest.mark.asyncio
-async def test_smarty_lo_tries_one_minute_after_no_trade_fast_frames(settings, monkeypatch):
+async def test_smarty_lo_returns_first_current_observation_without_unnecessary_fallback(settings, monkeypatch):
     from services import market_analysis
 
     attempted = []
@@ -301,6 +301,6 @@ async def test_smarty_lo_tries_one_minute_after_no_trade_fast_frames(settings, m
     monkeypatch.setattr(market_analysis.MarketAnalysisService, "_one", one)
     service = market_analysis.MarketAnalysisService(DataSourceRegistry([]), settings, mode="lo")
     outcome = await service.analyse(Market.SMARTY)
-    assert attempted == ["30sec", "1min"]
-    assert not outcome.actionable and outcome.result.timeframe == "1min"
-    assert "لم يثبت" in outcome.conflict
+    assert attempted == ["30sec"]
+    assert not outcome.actionable and outcome.result.timeframe == "30sec"
+    assert outcome.conflict is None

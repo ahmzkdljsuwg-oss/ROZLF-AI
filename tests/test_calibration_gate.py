@@ -28,8 +28,10 @@ def test_real_calibration_is_present_for_every_market():
 
 @pytest.mark.parametrize(("market", "frame"), [("forex", "1min"), ("football", "5min"), ("smarty", "1h")])
 def test_unproven_market_and_frame_returns_no_trade(market, frame):
+    from providers.catalog import timeframe
+
     asset = assets_for(Market[market.upper()])[0]
-    result = analyze_market_data(_market(asset, make_candles(260, tf_seconds=300), tf=frame))
+    result = analyze_market_data(_market(asset, make_candles(260, tf_seconds=timeframe(frame).seconds), tf=frame))
     assert result.direction == "NO TRADE"
     assert any("walk-forward" in reason for reason in result.reasons)
 
