@@ -123,16 +123,28 @@ def analyze_market_data(
     frame = frame_from_candles(usable)
     live_frame = frame_from_candles(market_data.candles)
     target_open = target_open_for(live_frame, market_data.timeframe.seconds, now)
+    ind = compute_indicators(frame)
+    expiry_seconds = (
+        profile.expiry_for(ind["volatility"], market_data.timeframe.seconds)
+        if duration_seconds is None else duration_seconds
+    )
+    horizon_bars = max(1, round(
+        (target_open - usable[-1].time).total_seconds() / market_data.timeframe.seconds
+    ))
+    # Forecast features must stop at the last fully closed candle. The last
+    # provider row may still be forming, but it is used only to identify the
+    # next executable candle time.
     forecast = forecast_from_frame(
-        live_frame,
+        frame,
         market=market_data.asset.market.value,
         timeframe_code=market_data.timeframe.code,
         timeframe_seconds=market_data.timeframe.seconds,
         now=now,
         target_open_at=target_open,
+        horizon_bars=horizon_bars,
+        expiry_seconds=expiry_seconds,
         require_calibration=analysis_mode != "lo",
     )
-    ind = compute_indicators(frame)
     smc = analyze_smc(frame, ind["atr"])
     report = evaluate_strategies(
         frame, ind, smc, market_data.asset.market, market_data.timeframe.seconds, now, profile
@@ -173,7 +185,10 @@ def analyze_market_data(
     )
     direction = evidence.direction
     confidence = evidence.confidence
-    cancellation_reason = evidence.blockers[0] if evidence.blockers else None
+    cancellation_reason = (
+        evidence.blockers[0] if evidence.blockers else
+        forecast.blockers[0] if forecast.blockers else None
+    )
     warnings.extend(evidence.warnings)
     if cancellation_reason:
         warnings.append(cancellation_reason)
@@ -224,10 +239,6 @@ def analyze_market_data(
     invalidation = [signal.invalidation for signal in confirmed[:3]]
 
     # Expiry is the market's own volatility map, never the candle frame.
-    expiry_seconds = duration_seconds or profile.expiry_for(
-        ind["volatility"], market_data.timeframe.seconds
-    )
-
     total_score = score_up + score_down
     if total_score > 0:
         buyers = round(100 * score_up / total_score)

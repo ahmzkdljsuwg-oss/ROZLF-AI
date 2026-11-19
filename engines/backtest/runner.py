@@ -1,8 +1,9 @@
-"""Causal backtester: every decision only sees candles closed before it.
+"""Causal backtester: decisions see closed bars and execution uses later OHLC.
 
-Latency is applied by entering at the close of the bar that follows the
-decision; the trade expires at ``entry_time + expiry_seconds`` and is settled
-with the first candle closed at or after that timestamp.
+Latency is measured in bars from the decision candle; entry uses the selected
+bar's open, and expiry is settled at the last observed close no later than
+``entry_time + expiry_seconds``. Binary-option returns use a configurable
+payout ratio and cost per trade instead of assuming even-money payouts.
 """
 from __future__ import annotations
 
@@ -22,6 +23,16 @@ class BacktestConfig:
     warmup_bars: int = 150
     latency_bars: int = 1
     step_bars: int = 1
+    payout_ratio: float = 0.80
+    cost_per_trade: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.expiry_seconds <= 0 or self.warmup_bars < 0 or self.step_bars <= 0:
+            raise ValueError("expiry, warmup, or step configuration is invalid")
+        if self.latency_bars < 1:
+            raise ValueError("latency_bars must be at least one future bar")
+        if self.payout_ratio < 0 or self.cost_per_trade < 0:
+            raise ValueError("payout_ratio and cost_per_trade must be non-negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +50,7 @@ class BacktestTrade:
     setup_reasons: tuple[str, ...] = ()
     strategy_labels: tuple[str, ...] = ()
     result_reason: str = ""
+    net_return: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,9 +101,13 @@ def compute_metrics(trades: list[BacktestTrade], decisions: int | None = None) -
     losses = sum(1 for trade in trades if trade.result == "LOSS")
     draws = sum(1 for trade in trades if trade.result == "DRAW")
     decided = wins + losses
-    pnls = [1.0 if trade.result == "WIN" else -1.0 if trade.result == "LOSS" else 0.0 for trade in trades]
-    gross_win = float(wins)
-    gross_loss = float(losses)
+    pnls = [
+        trade.net_return if trade.net_return is not None else
+        (0.8 if trade.result == "WIN" else -1.0 if trade.result == "LOSS" else 0.0)
+        for trade in trades
+    ]
+    gross_win = sum(max(0.0, pnl) for pnl in pnls)
+    gross_loss = abs(sum(min(0.0, pnl) for pnl in pnls))
     return BacktestMetrics(
         trades=len(trades),
         wins=wins,
@@ -156,8 +172,11 @@ def run_backtest(config: BacktestConfig, candles: list[Candle], source: str) -> 
         )
         decisions += 1
         try:
+            # The OHLC row at ``index`` is complete in historical data. Make
+            # it available only at its close, then enter on a later candle.
+            decision_time = decision.time + timedelta(seconds=config.timeframe.seconds)
             analysis = analyze_market_data(
-                market_data, now=decision.time, duration_seconds=config.expiry_seconds
+                market_data, now=decision_time, duration_seconds=config.expiry_seconds
             )
         except DataUnavailable:
             continue
@@ -183,6 +202,11 @@ def run_backtest(config: BacktestConfig, candles: list[Candle], source: str) -> 
             outcome = "WIN"
         else:
             outcome = "LOSS"
+        gross_return = (
+            config.payout_ratio if outcome == "WIN" else
+            -1.0 if outcome == "LOSS" else 0.0
+        )
+        net_return = gross_return - max(0.0, config.cost_per_trade)
         direction_word = "rose" if exit_price > entry_price else "fell" if exit_price < entry_price else "stayed flat"
         reason = (
             f"At a {config.expiry_seconds}s expiry the price {direction_word} "
@@ -203,6 +227,7 @@ def run_backtest(config: BacktestConfig, candles: list[Candle], source: str) -> 
                 setup_reasons=tuple(analysis.reasons[:3]),
                 strategy_labels=tuple(analysis.strategy_labels),
                 result_reason=reason,
+                net_return=net_return,
             )
         )
     return BacktestResult(config, trades, compute_metrics(trades, decisions), source, len(candles))

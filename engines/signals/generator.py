@@ -58,6 +58,14 @@ class SignalGenerator:
         duration_seconds: int | None = None,
     ) -> tuple[MarketData, AnalysisResult]:
         tf = timeframe(tf) if isinstance(tf, str) else tf
+        # Strong-mode calibration is for a specific candle horizon. If the
+        # caller leaves expiry unset, use the supported duration closest to
+        # that candle horizon so stored signal expiry and calibrated target
+        # describe the same trade.
+        if duration_seconds is None:
+            duration_seconds = min(
+                supported_durations(asset, tf), key=lambda value: abs(value - tf.seconds)
+            )
         market_data = await self.registry.fetch(asset, tf)
         result = analyze_market_data(market_data, duration_seconds=duration_seconds)
         return market_data, result

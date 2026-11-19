@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
+import pytest
 
 from engines.backtest.runner import BacktestConfig, BacktestTrade, compute_metrics, run_backtest
 from providers.base import Candle
@@ -20,7 +21,15 @@ def _candles(count: int = 260) -> list[Candle]:
     ]
 
 
-def test_no_lookahead_future_candles_do_not_change_earlier_trades():
+def test_no_lookahead_future_candles_do_not_change_earlier_trades(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        "engines.backtest.runner.analyze_market_data",
+        lambda *args, **kwargs: SimpleNamespace(
+            direction="UP", confidence=60.0, reasons=[], strategy_labels=[]
+        ),
+    )
     candles = _candles()
     cutoff = 210
     mutated = list(candles)
@@ -28,7 +37,7 @@ def test_no_lookahead_future_candles_do_not_change_earlier_trades():
         candle = mutated[index]
         mutated[index] = Candle(candle.time, candle.open * 1.1, candle.high * 1.1, candle.low * 1.1, candle.close * 1.1)
 
-    config = BacktestConfig(ASSET, TF, 300, warmup_bars=200)
+    config = BacktestConfig(ASSET, TF, 60, warmup_bars=200)
     base = run_backtest(config, candles, "test")
     other = run_backtest(config, mutated, "test")
     horizon = candles[cutoff].time
@@ -48,8 +57,8 @@ def test_metrics_exclude_draws_from_win_rate():
     ]
     metrics = compute_metrics(trades)
     assert metrics.win_rate == 50.0
-    assert metrics.profit_factor == 1.0
-    assert metrics.expectancy == 0.0
+    assert metrics.profit_factor == 0.8
+    assert metrics.expectancy == pytest.approx(-0.0666667)
     assert metrics.max_drawdown == 1.0
 
 

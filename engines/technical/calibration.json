@@ -1,2393 +1,564 @@
 {
-  "version": 1,
-  "generated_at": "2026-11-16T06:28:38.157916+00:00",
+  "version": 2,
+  "generated_at": "2026-11-19T20:45:40.376755+00:00",
   "source": "ExpertOption bridge /verify/history (real OHLC, read-only)",
-  "method": "expanding walk-forward; features use bars <= i, label is bar i+1 only",
+  "method": "expanding walk-forward grouped by timestamp; features use closed bars <= i; target candle is i+horizon; entry at its open and one-candle expiry at its close",
   "min_samples": 30,
-  "enabled_rule": "walk-forward combo hit rate >= 53% with >= 100 verified signals",
   "markets": {
     "ai": {
-      "1min": {
-        "samples": 1279,
-        "baseline_always_up": 48.23,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 396,
-            "up_wins": 180,
-            "down_wins": 205,
-            "draws": 11
+      "15min": {
+        "horizons": {
+          "1": {
+            "samples": 1279,
+            "horizon_bars": 1,
+            "expiry_seconds": 900,
+            "baseline_always_up": 47.75,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 339,
-            "up_wins": 157,
-            "down_wins": 172,
-            "draws": 10
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 249,
-            "up_wins": 116,
-            "down_wins": 126,
-            "draws": 7
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 231,
-            "up_wins": 121,
-            "down_wins": 101,
-            "draws": 9
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 62,
-            "up_wins": 23,
-            "down_wins": 37,
-            "draws": 2
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 2,
-            "up_wins": 1,
-            "down_wins": 1,
-            "draws": 0
+          "2": {
+            "samples": 1278,
+            "horizon_bars": 2,
+            "expiry_seconds": 900,
+            "baseline_always_up": 47.79,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           }
-        ],
-        "walk_forward": {
-          "signals": 394,
-          "wins": 201,
-          "draws": 12,
-          "hit_rate": 51.02,
-          "coverage": 30.81
-        },
-        "enabled": false
+        }
       },
       "5min": {
-        "samples": 1279,
-        "baseline_always_up": 49.16,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 448,
-            "up_wins": 216,
-            "down_wins": 222,
-            "draws": 10
+        "horizons": {
+          "1": {
+            "samples": 1279,
+            "horizon_bars": 1,
+            "expiry_seconds": 300,
+            "baseline_always_up": 47.4,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 307,
-            "up_wins": 161,
-            "down_wins": 142,
-            "draws": 4
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 267,
-            "up_wins": 120,
-            "down_wins": 141,
-            "draws": 6
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 209,
-            "up_wins": 95,
-            "down_wins": 111,
-            "draws": 3
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 47,
-            "up_wins": 24,
-            "down_wins": 22,
-            "draws": 1
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 1,
-            "up_wins": 1,
-            "down_wins": 0,
-            "draws": 0
+          "2": {
+            "samples": 1278,
+            "horizon_bars": 2,
+            "expiry_seconds": 300,
+            "baseline_always_up": 47.36,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           }
-        ],
-        "walk_forward": {
-          "signals": 270,
-          "wins": 132,
-          "draws": 5,
-          "hit_rate": 48.89,
-          "coverage": 21.11
-        },
-        "enabled": false
-      },
-      "15min": {
-        "samples": 1279,
-        "baseline_always_up": 48.74,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 398,
-            "up_wins": 189,
-            "down_wins": 204,
-            "draws": 5
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 356,
-            "up_wins": 175,
-            "down_wins": 177,
-            "draws": 4
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 278,
-            "up_wins": 132,
-            "down_wins": 145,
-            "draws": 1
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 193,
-            "up_wins": 97,
-            "down_wins": 94,
-            "draws": 2
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 54,
-            "up_wins": 24,
-            "down_wins": 29,
-            "draws": 1
-          }
-        ],
-        "walk_forward": {
-          "signals": 230,
-          "wins": 96,
-          "draws": 4,
-          "hit_rate": 41.74,
-          "coverage": 17.98
-        },
-        "enabled": false
-      },
-      "30min": {
-        "samples": 1279,
-        "baseline_always_up": 46.19,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 389,
-            "up_wins": 184,
-            "down_wins": 204,
-            "draws": 1
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 346,
-            "up_wins": 158,
-            "down_wins": 185,
-            "draws": 3
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 304,
-            "up_wins": 139,
-            "down_wins": 163,
-            "draws": 2
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 167,
-            "up_wins": 77,
-            "down_wins": 90,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 68,
-            "up_wins": 30,
-            "down_wins": 38,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 5,
-            "up_wins": 0,
-            "down_wins": 5,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 573,
-          "wins": 305,
-          "draws": 3,
-          "hit_rate": 53.23,
-          "coverage": 44.8
-        },
-        "enabled": true
-      },
-      "1h": {
-        "samples": 1279,
-        "baseline_always_up": 47.8,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 400,
-            "up_wins": 187,
-            "down_wins": 210,
-            "draws": 3
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 339,
-            "up_wins": 172,
-            "down_wins": 165,
-            "draws": 2
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 279,
-            "up_wins": 126,
-            "down_wins": 153,
-            "draws": 0
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 174,
-            "up_wins": 86,
-            "down_wins": 88,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 85,
-            "up_wins": 37,
-            "down_wins": 48,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 2,
-            "up_wins": 1,
-            "down_wins": 1,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 320,
-          "wins": 181,
-          "draws": 2,
-          "hit_rate": 56.56,
-          "coverage": 25.02
-        },
-        "enabled": true
-      }
-    },
-    "cricket": {
-      "1min": {
-        "samples": 1279,
-        "baseline_always_up": 49.72,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 438,
-            "up_wins": 230,
-            "down_wins": 206,
-            "draws": 2
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 337,
-            "up_wins": 157,
-            "down_wins": 173,
-            "draws": 7
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 268,
-            "up_wins": 130,
-            "down_wins": 132,
-            "draws": 6
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 192,
-            "up_wins": 85,
-            "down_wins": 106,
-            "draws": 1
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 43,
-            "up_wins": 25,
-            "down_wins": 18,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 1,
-            "up_wins": 1,
-            "down_wins": 0,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 289,
-          "wins": 152,
-          "draws": 1,
-          "hit_rate": 52.6,
-          "coverage": 22.6
-        },
-        "enabled": false
-      },
-      "5min": {
-        "samples": 1279,
-        "baseline_always_up": 49.45,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 412,
-            "up_wins": 196,
-            "down_wins": 213,
-            "draws": 3
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 363,
-            "up_wins": 187,
-            "down_wins": 174,
-            "draws": 2
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 268,
-            "up_wins": 127,
-            "down_wins": 138,
-            "draws": 3
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 172,
-            "up_wins": 89,
-            "down_wins": 82,
-            "draws": 1
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 63,
-            "up_wins": 29,
-            "down_wins": 34,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 1,
-            "up_wins": 0,
-            "down_wins": 1,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 409,
-          "wins": 203,
-          "draws": 2,
-          "hit_rate": 49.63,
-          "coverage": 31.98
-        },
-        "enabled": false
-      },
-      "15min": {
-        "samples": 1279,
-        "baseline_always_up": 49.02,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 414,
-            "up_wins": 202,
-            "down_wins": 210,
-            "draws": 2
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 333,
-            "up_wins": 156,
-            "down_wins": 175,
-            "draws": 2
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 294,
-            "up_wins": 143,
-            "down_wins": 150,
-            "draws": 1
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 156,
-            "up_wins": 78,
-            "down_wins": 77,
-            "draws": 1
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 77,
-            "up_wins": 40,
-            "down_wins": 37,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 5,
-            "up_wins": 5,
-            "down_wins": 0,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 253,
-          "wins": 124,
-          "draws": 2,
-          "hit_rate": 49.01,
-          "coverage": 19.78
-        },
-        "enabled": false
-      },
-      "30min": {
-        "samples": 1279,
-        "baseline_always_up": 50.27,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 397,
-            "up_wins": 187,
-            "down_wins": 208,
-            "draws": 2
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 311,
-            "up_wins": 150,
-            "down_wins": 159,
-            "draws": 2
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 271,
-            "up_wins": 147,
-            "down_wins": 122,
-            "draws": 2
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 207,
-            "up_wins": 101,
-            "down_wins": 106,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 92,
-            "up_wins": 54,
-            "down_wins": 38,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 1,
-            "up_wins": 1,
-            "down_wins": 0,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 287,
-          "wins": 160,
-          "draws": 1,
-          "hit_rate": 55.75,
-          "coverage": 22.44
-        },
-        "enabled": true
-      },
-      "1h": {
-        "samples": 1279,
-        "baseline_always_up": 51.84,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 364,
-            "up_wins": 179,
-            "down_wins": 185,
-            "draws": 0
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 300,
-            "up_wins": 152,
-            "down_wins": 148,
-            "draws": 0
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 303,
-            "up_wins": 147,
-            "down_wins": 156,
-            "draws": 0
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 207,
-            "up_wins": 118,
-            "down_wins": 89,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 102,
-            "up_wins": 65,
-            "down_wins": 37,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 3,
-            "up_wins": 2,
-            "down_wins": 1,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 304,
-          "wins": 171,
-          "draws": 0,
-          "hit_rate": 56.25,
-          "coverage": 23.77
-        },
-        "enabled": true
+        }
       }
     },
     "football": {
-      "1min": {
-        "samples": 1279,
-        "baseline_always_up": 51.38,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 423,
-            "up_wins": 215,
-            "down_wins": 192,
-            "draws": 16
+      "15min": {
+        "horizons": {
+          "1": {
+            "samples": 1279,
+            "horizon_bars": 1,
+            "expiry_seconds": 900,
+            "baseline_always_up": 49.06,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 355,
-            "up_wins": 179,
-            "down_wins": 162,
-            "draws": 14
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 232,
-            "up_wins": 107,
-            "down_wins": 120,
-            "draws": 5
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 203,
-            "up_wins": 101,
-            "down_wins": 95,
-            "draws": 7
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 66,
-            "up_wins": 33,
-            "down_wins": 32,
-            "draws": 1
+          "2": {
+            "samples": 1278,
+            "horizon_bars": 2,
+            "expiry_seconds": 900,
+            "baseline_always_up": 49.01,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           }
-        ],
-        "walk_forward": {
-          "signals": 299,
-          "wins": 142,
-          "draws": 8,
-          "hit_rate": 47.49,
-          "coverage": 23.38
-        },
-        "enabled": false
+        }
+      },
+      "1min": {
+        "horizons": {
+          "1": {
+            "samples": 1279,
+            "horizon_bars": 1,
+            "expiry_seconds": 60,
+            "baseline_always_up": 48.59,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
+          },
+          "2": {
+            "samples": 1278,
+            "horizon_bars": 2,
+            "expiry_seconds": 60,
+            "baseline_always_up": 48.55,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
+          }
+        }
       },
       "5min": {
-        "samples": 1279,
-        "baseline_always_up": 51.03,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 435,
-            "up_wins": 217,
-            "down_wins": 213,
-            "draws": 5
+        "horizons": {
+          "1": {
+            "samples": 1279,
+            "horizon_bars": 1,
+            "expiry_seconds": 300,
+            "baseline_always_up": 50.16,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 338,
-            "up_wins": 172,
-            "down_wins": 159,
-            "draws": 7
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 277,
-            "up_wins": 139,
-            "down_wins": 133,
-            "draws": 5
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 159,
-            "up_wins": 83,
-            "down_wins": 74,
-            "draws": 2
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 70,
-            "up_wins": 32,
-            "down_wins": 38,
-            "draws": 0
+          "2": {
+            "samples": 1278,
+            "horizon_bars": 2,
+            "expiry_seconds": 300,
+            "baseline_always_up": 50.12,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           }
-        ],
-        "walk_forward": {
-          "signals": 103,
-          "wins": 54,
-          "draws": 1,
-          "hit_rate": 52.43,
-          "coverage": 8.05
-        },
-        "enabled": false
-      },
-      "15min": {
-        "samples": 1279,
-        "baseline_always_up": 50.08,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 427,
-            "up_wins": 215,
-            "down_wins": 209,
-            "draws": 3
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 365,
-            "up_wins": 180,
-            "down_wins": 181,
-            "draws": 4
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 278,
-            "up_wins": 141,
-            "down_wins": 135,
-            "draws": 2
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 146,
-            "up_wins": 69,
-            "down_wins": 77,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 61,
-            "up_wins": 31,
-            "down_wins": 30,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 2,
-            "up_wins": 0,
-            "down_wins": 2,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 349,
-          "wins": 179,
-          "draws": 3,
-          "hit_rate": 51.29,
-          "coverage": 27.29
-        },
-        "enabled": false
-      },
-      "30min": {
-        "samples": 1279,
-        "baseline_always_up": 50.2,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 383,
-            "up_wins": 209,
-            "down_wins": 171,
-            "draws": 3
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 325,
-            "up_wins": 148,
-            "down_wins": 177,
-            "draws": 0
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 276,
-            "up_wins": 140,
-            "down_wins": 135,
-            "draws": 1
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 225,
-            "up_wins": 108,
-            "down_wins": 115,
-            "draws": 2
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 70,
-            "up_wins": 34,
-            "down_wins": 36,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 300,
-          "wins": 156,
-          "draws": 1,
-          "hit_rate": 52.0,
-          "coverage": 23.46
-        },
-        "enabled": false
-      },
-      "1h": {
-        "samples": 1279,
-        "baseline_always_up": 49.84,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 384,
-            "up_wins": 185,
-            "down_wins": 196,
-            "draws": 3
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 344,
-            "up_wins": 173,
-            "down_wins": 170,
-            "draws": 1
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 305,
-            "up_wins": 155,
-            "down_wins": 150,
-            "draws": 0
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 185,
-            "up_wins": 93,
-            "down_wins": 91,
-            "draws": 1
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 61,
-            "up_wins": 29,
-            "down_wins": 32,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 253,
-          "wins": 120,
-          "draws": 2,
-          "hit_rate": 47.43,
-          "coverage": 19.78
-        },
-        "enabled": false
+        }
       }
     },
     "forex": {
-      "1min": {
-        "samples": 2830,
-        "baseline_always_up": 49.84,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 921,
-            "up_wins": 466,
-            "down_wins": 421,
-            "draws": 34
+      "15min": {
+        "horizons": {
+          "1": {
+            "samples": 1279,
+            "horizon_bars": 1,
+            "expiry_seconds": 900,
+            "baseline_always_up": 47.79,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 750,
-            "up_wins": 354,
-            "down_wins": 376,
-            "draws": 20
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 553,
-            "up_wins": 262,
-            "down_wins": 279,
-            "draws": 12
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 468,
-            "up_wins": 224,
-            "down_wins": 226,
-            "draws": 18
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 138,
-            "up_wins": 58,
-            "down_wins": 71,
-            "draws": 9
+          "2": {
+            "samples": 1278,
+            "horizon_bars": 2,
+            "expiry_seconds": 900,
+            "baseline_always_up": 47.75,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           }
-        ],
-        "walk_forward": {
-          "signals": 842,
-          "wins": 399,
-          "draws": 26,
-          "hit_rate": 47.39,
-          "coverage": 29.75
-        },
-        "enabled": false
+        }
+      },
+      "1min": {
+        "horizons": {
+          "1": {
+            "samples": 1279,
+            "horizon_bars": 1,
+            "expiry_seconds": 60,
+            "baseline_always_up": 49.47,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
+          },
+          "2": {
+            "samples": 1278,
+            "horizon_bars": 2,
+            "expiry_seconds": 60,
+            "baseline_always_up": 49.51,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
+          }
+        }
       },
       "5min": {
-        "samples": 3837,
-        "baseline_always_up": 48.48,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 1221,
-            "up_wins": 585,
-            "down_wins": 622,
-            "draws": 14
+        "horizons": {
+          "1": {
+            "samples": 1279,
+            "horizon_bars": 1,
+            "expiry_seconds": 300,
+            "baseline_always_up": 47.7,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 1042,
-            "up_wins": 506,
-            "down_wins": 520,
-            "draws": 16
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 821,
-            "up_wins": 391,
-            "down_wins": 417,
-            "draws": 13
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 603,
-            "up_wins": 281,
-            "down_wins": 314,
-            "draws": 8
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 150,
-            "up_wins": 71,
-            "down_wins": 76,
-            "draws": 3
+          "2": {
+            "samples": 1278,
+            "horizon_bars": 2,
+            "expiry_seconds": 300,
+            "baseline_always_up": 47.74,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           }
-        ],
-        "walk_forward": {
-          "signals": 1019,
-          "wins": 518,
-          "draws": 15,
-          "hit_rate": 50.83,
-          "coverage": 26.56
-        },
-        "enabled": false
-      },
-      "15min": {
-        "samples": 3837,
-        "baseline_always_up": 50.85,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 1138,
-            "up_wins": 580,
-            "down_wins": 550,
-            "draws": 8
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 935,
-            "up_wins": 464,
-            "down_wins": 466,
-            "draws": 5
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 844,
-            "up_wins": 415,
-            "down_wins": 424,
-            "draws": 5
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 668,
-            "up_wins": 347,
-            "down_wins": 316,
-            "draws": 5
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 247,
-            "up_wins": 131,
-            "down_wins": 115,
-            "draws": 1
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 5,
-            "up_wins": 2,
-            "down_wins": 3,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 942,
-          "wins": 519,
-          "draws": 7,
-          "hit_rate": 55.1,
-          "coverage": 24.55
-        },
-        "enabled": true
-      },
-      "30min": {
-        "samples": 3837,
-        "baseline_always_up": 51.21,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 1124,
-            "up_wins": 567,
-            "down_wins": 551,
-            "draws": 6
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 911,
-            "up_wins": 441,
-            "down_wins": 466,
-            "draws": 4
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 886,
-            "up_wins": 461,
-            "down_wins": 418,
-            "draws": 7
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 644,
-            "up_wins": 338,
-            "down_wins": 305,
-            "draws": 1
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 270,
-            "up_wins": 145,
-            "down_wins": 122,
-            "draws": 3
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 2,
-            "up_wins": 2,
-            "down_wins": 0,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 1254,
-          "wins": 710,
-          "draws": 7,
-          "hit_rate": 56.62,
-          "coverage": 32.68
-        },
-        "enabled": true
-      },
-      "1h": {
-        "samples": 3837,
-        "baseline_always_up": 49.99,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 1129,
-            "up_wins": 556,
-            "down_wins": 569,
-            "draws": 4
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 925,
-            "up_wins": 459,
-            "down_wins": 460,
-            "draws": 6
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 911,
-            "up_wins": 430,
-            "down_wins": 479,
-            "draws": 2
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 627,
-            "up_wins": 328,
-            "down_wins": 297,
-            "draws": 2
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 244,
-            "up_wins": 136,
-            "down_wins": 106,
-            "draws": 2
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 1,
-            "up_wins": 1,
-            "down_wins": 0,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 1180,
-          "wins": 670,
-          "draws": 3,
-          "hit_rate": 56.78,
-          "coverage": 30.75
-        },
-        "enabled": true
-      }
-    },
-    "gold": {
-      "1min": {
-        "samples": 1279,
-        "baseline_always_up": 47.34,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 395,
-            "up_wins": 198,
-            "down_wins": 196,
-            "draws": 1
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 343,
-            "up_wins": 154,
-            "down_wins": 188,
-            "draws": 1
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 286,
-            "up_wins": 131,
-            "down_wins": 154,
-            "draws": 1
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 187,
-            "up_wins": 90,
-            "down_wins": 97,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 65,
-            "up_wins": 29,
-            "down_wins": 36,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 3,
-            "up_wins": 2,
-            "down_wins": 1,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 344,
-          "wins": 180,
-          "draws": 2,
-          "hit_rate": 52.33,
-          "coverage": 26.9
-        },
-        "enabled": false
-      },
-      "5min": {
-        "samples": 1279,
-        "baseline_always_up": 47.34,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 406,
-            "up_wins": 193,
-            "down_wins": 212,
-            "draws": 1
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 336,
-            "up_wins": 162,
-            "down_wins": 174,
-            "draws": 0
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 257,
-            "up_wins": 126,
-            "down_wins": 131,
-            "draws": 0
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 202,
-            "up_wins": 90,
-            "down_wins": 112,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 78,
-            "up_wins": 34,
-            "down_wins": 44,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 540,
-          "wins": 271,
-          "draws": 1,
-          "hit_rate": 50.19,
-          "coverage": 42.22
-        },
-        "enabled": false
-      },
-      "15min": {
-        "samples": 1279,
-        "baseline_always_up": 47.15,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 366,
-            "up_wins": 187,
-            "down_wins": 179,
-            "draws": 0
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 279,
-            "up_wins": 125,
-            "down_wins": 154,
-            "draws": 0
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 309,
-            "up_wins": 148,
-            "down_wins": 161,
-            "draws": 0
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 194,
-            "up_wins": 84,
-            "down_wins": 110,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 129,
-            "up_wins": 57,
-            "down_wins": 72,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 2,
-            "up_wins": 2,
-            "down_wins": 0,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 447,
-          "wins": 256,
-          "draws": 0,
-          "hit_rate": 57.27,
-          "coverage": 34.95
-        },
-        "enabled": true
-      },
-      "30min": {
-        "samples": 1279,
-        "baseline_always_up": 46.32,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 361,
-            "up_wins": 159,
-            "down_wins": 202,
-            "draws": 0
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 281,
-            "up_wins": 138,
-            "down_wins": 143,
-            "draws": 0
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 306,
-            "up_wins": 139,
-            "down_wins": 167,
-            "draws": 0
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 183,
-            "up_wins": 90,
-            "down_wins": 92,
-            "draws": 1
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 148,
-            "up_wins": 66,
-            "down_wins": 82,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 390,
-          "wins": 219,
-          "draws": 1,
-          "hit_rate": 56.15,
-          "coverage": 30.49
-        },
-        "enabled": true
-      },
-      "1h": {
-        "samples": 1279,
-        "baseline_always_up": 45.23,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 349,
-            "up_wins": 162,
-            "down_wins": 186,
-            "draws": 1
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 275,
-            "up_wins": 139,
-            "down_wins": 136,
-            "draws": 0
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 288,
-            "up_wins": 142,
-            "down_wins": 146,
-            "draws": 0
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 205,
-            "up_wins": 75,
-            "down_wins": 130,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 158,
-            "up_wins": 59,
-            "down_wins": 99,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 4,
-            "up_wins": 1,
-            "down_wins": 3,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 384,
-          "wins": 227,
-          "draws": 0,
-          "hit_rate": 59.11,
-          "coverage": 30.02
-        },
-        "enabled": true
+        }
       }
     },
     "luxury": {
-      "1min": {
-        "samples": 1279,
-        "baseline_always_up": 49.37,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 422,
-            "up_wins": 209,
-            "down_wins": 206,
-            "draws": 7
+      "15min": {
+        "horizons": {
+          "1": {
+            "samples": 1279,
+            "horizon_bars": 1,
+            "expiry_seconds": 900,
+            "baseline_always_up": 51.45,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 351,
-            "up_wins": 161,
-            "down_wins": 185,
-            "draws": 5
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 261,
-            "up_wins": 137,
-            "down_wins": 123,
-            "draws": 1
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 191,
-            "up_wins": 92,
-            "down_wins": 98,
-            "draws": 1
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 53,
-            "up_wins": 25,
-            "down_wins": 27,
-            "draws": 1
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 1,
-            "up_wins": 0,
-            "down_wins": 1,
-            "draws": 0
+          "2": {
+            "samples": 1278,
+            "horizon_bars": 2,
+            "expiry_seconds": 900,
+            "baseline_always_up": 51.41,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           }
-        ],
-        "walk_forward": {
-          "signals": 269,
-          "wins": 135,
-          "draws": 1,
-          "hit_rate": 50.19,
-          "coverage": 21.03
-        },
-        "enabled": false
+        }
+      },
+      "1min": {
+        "horizons": {
+          "1": {
+            "samples": 1279,
+            "horizon_bars": 1,
+            "expiry_seconds": 60,
+            "baseline_always_up": 52.72,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
+          },
+          "2": {
+            "samples": 1278,
+            "horizon_bars": 2,
+            "expiry_seconds": 60,
+            "baseline_always_up": 52.69,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
+          }
+        }
       },
       "5min": {
-        "samples": 1279,
-        "baseline_always_up": 52.04,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 431,
-            "up_wins": 237,
-            "down_wins": 193,
-            "draws": 1
+        "horizons": {
+          "1": {
+            "samples": 1279,
+            "horizon_bars": 1,
+            "expiry_seconds": 300,
+            "baseline_always_up": 49.92,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 371,
-            "up_wins": 187,
-            "down_wins": 183,
-            "draws": 1
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 267,
-            "up_wins": 128,
-            "down_wins": 138,
-            "draws": 1
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 160,
-            "up_wins": 82,
-            "down_wins": 78,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 50,
-            "up_wins": 30,
-            "down_wins": 20,
-            "draws": 0
+          "2": {
+            "samples": 1278,
+            "horizon_bars": 2,
+            "expiry_seconds": 300,
+            "baseline_always_up": 49.88,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           }
-        ],
-        "walk_forward": {
-          "signals": 455,
-          "wins": 249,
-          "draws": 2,
-          "hit_rate": 54.73,
-          "coverage": 35.57
-        },
-        "enabled": true
-      },
-      "15min": {
-        "samples": 1279,
-        "baseline_always_up": 50.16,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 449,
-            "up_wins": 233,
-            "down_wins": 215,
-            "draws": 1
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 342,
-            "up_wins": 163,
-            "down_wins": 179,
-            "draws": 0
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 285,
-            "up_wins": 140,
-            "down_wins": 145,
-            "draws": 0
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 136,
-            "up_wins": 73,
-            "down_wins": 63,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 66,
-            "up_wins": 32,
-            "down_wins": 34,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 1,
-            "up_wins": 0,
-            "down_wins": 1,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 249,
-          "wins": 121,
-          "draws": 0,
-          "hit_rate": 48.59,
-          "coverage": 19.47
-        },
-        "enabled": false
-      },
-      "30min": {
-        "samples": 1279,
-        "baseline_always_up": 51.13,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 402,
-            "up_wins": 202,
-            "down_wins": 200,
-            "draws": 0
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 322,
-            "up_wins": 157,
-            "down_wins": 165,
-            "draws": 0
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 320,
-            "up_wins": 166,
-            "down_wins": 154,
-            "draws": 0
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 146,
-            "up_wins": 83,
-            "down_wins": 63,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 87,
-            "up_wins": 45,
-            "down_wins": 42,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 2,
-            "up_wins": 1,
-            "down_wins": 1,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 272,
-          "wins": 142,
-          "draws": 0,
-          "hit_rate": 52.21,
-          "coverage": 21.27
-        },
-        "enabled": false
-      },
-      "1h": {
-        "samples": 1279,
-        "baseline_always_up": 47.45,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 381,
-            "up_wins": 190,
-            "down_wins": 190,
-            "draws": 1
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 311,
-            "up_wins": 154,
-            "down_wins": 156,
-            "draws": 1
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 303,
-            "up_wins": 139,
-            "down_wins": 164,
-            "draws": 0
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 207,
-            "up_wins": 87,
-            "down_wins": 120,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 77,
-            "up_wins": 36,
-            "down_wins": 41,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 375,
-          "wins": 202,
-          "draws": 0,
-          "hit_rate": 53.87,
-          "coverage": 29.32
-        },
-        "enabled": true
-      }
-    },
-    "otc": {
-      "1min": {
-        "samples": 3837,
-        "baseline_always_up": 51.51,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 1241,
-            "up_wins": 654,
-            "down_wins": 572,
-            "draws": 15
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 1072,
-            "up_wins": 534,
-            "down_wins": 521,
-            "draws": 17
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 761,
-            "up_wins": 368,
-            "down_wins": 380,
-            "draws": 13
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 596,
-            "up_wins": 310,
-            "down_wins": 280,
-            "draws": 6
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 162,
-            "up_wins": 81,
-            "down_wins": 81,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 5,
-            "up_wins": 3,
-            "down_wins": 2,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 989,
-          "wins": 483,
-          "draws": 12,
-          "hit_rate": 48.84,
-          "coverage": 25.78
-        },
-        "enabled": false
-      },
-      "5min": {
-        "samples": 3837,
-        "baseline_always_up": 48.87,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 1271,
-            "up_wins": 635,
-            "down_wins": 627,
-            "draws": 9
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 1034,
-            "up_wins": 514,
-            "down_wins": 514,
-            "draws": 6
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 772,
-            "up_wins": 369,
-            "down_wins": 396,
-            "draws": 7
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 591,
-            "up_wins": 273,
-            "down_wins": 315,
-            "draws": 3
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 166,
-            "up_wins": 69,
-            "down_wins": 95,
-            "draws": 2
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 3,
-            "up_wins": 2,
-            "down_wins": 1,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 1332,
-          "wins": 666,
-          "draws": 12,
-          "hit_rate": 50.0,
-          "coverage": 34.71
-        },
-        "enabled": false
-      },
-      "15min": {
-        "samples": 3837,
-        "baseline_always_up": 49.61,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 1139,
-            "up_wins": 568,
-            "down_wins": 568,
-            "draws": 3
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 887,
-            "up_wins": 426,
-            "down_wins": 454,
-            "draws": 7
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 880,
-            "up_wins": 450,
-            "down_wins": 430,
-            "draws": 0
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 670,
-            "up_wins": 319,
-            "down_wins": 350,
-            "draws": 1
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 260,
-            "up_wins": 135,
-            "down_wins": 125,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 1,
-            "up_wins": 0,
-            "down_wins": 1,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 848,
-          "wins": 463,
-          "draws": 4,
-          "hit_rate": 54.6,
-          "coverage": 22.1
-        },
-        "enabled": true
-      },
-      "30min": {
-        "samples": 3837,
-        "baseline_always_up": 49.19,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 1186,
-            "up_wins": 591,
-            "down_wins": 593,
-            "draws": 2
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 986,
-            "up_wins": 496,
-            "down_wins": 487,
-            "draws": 3
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 831,
-            "up_wins": 402,
-            "down_wins": 425,
-            "draws": 4
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 626,
-            "up_wins": 304,
-            "down_wins": 322,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 207,
-            "up_wins": 89,
-            "down_wins": 118,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 1,
-            "up_wins": 1,
-            "down_wins": 0,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 659,
-          "wins": 345,
-          "draws": 1,
-          "hit_rate": 52.35,
-          "coverage": 17.17
-        },
-        "enabled": false
-      },
-      "1h": {
-        "samples": 3837,
-        "baseline_always_up": 49.52,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 1155,
-            "up_wins": 589,
-            "down_wins": 566,
-            "draws": 0
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 944,
-            "up_wins": 463,
-            "down_wins": 478,
-            "draws": 3
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 849,
-            "up_wins": 436,
-            "down_wins": 412,
-            "draws": 1
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 652,
-            "up_wins": 301,
-            "down_wins": 350,
-            "draws": 1
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 234,
-            "up_wins": 107,
-            "down_wins": 126,
-            "draws": 1
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 3,
-            "up_wins": 1,
-            "down_wins": 2,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 1149,
-          "wins": 650,
-          "draws": 1,
-          "hit_rate": 56.57,
-          "coverage": 29.95
-        },
-        "enabled": true
+        }
       }
     },
     "smarty": {
-      "1min": {
-        "samples": 1279,
-        "baseline_always_up": 50.43,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 463,
-            "up_wins": 231,
-            "down_wins": 230,
-            "draws": 2
+      "15min": {
+        "horizons": {
+          "1": {
+            "samples": 1279,
+            "horizon_bars": 1,
+            "expiry_seconds": 900,
+            "baseline_always_up": 51.96,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 354,
-            "up_wins": 177,
-            "down_wins": 171,
-            "draws": 6
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 231,
-            "up_wins": 108,
-            "down_wins": 119,
-            "draws": 4
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 181,
-            "up_wins": 98,
-            "down_wins": 82,
-            "draws": 1
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 48,
-            "up_wins": 22,
-            "down_wins": 25,
-            "draws": 1
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 2,
-            "up_wins": 2,
-            "down_wins": 0,
-            "draws": 0
+          "2": {
+            "samples": 1278,
+            "horizon_bars": 2,
+            "expiry_seconds": 900,
+            "baseline_always_up": 51.92,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           }
-        ],
-        "walk_forward": {
-          "signals": 141,
-          "wins": 53,
-          "draws": 3,
-          "hit_rate": 37.59,
-          "coverage": 11.02
-        },
-        "enabled": false
+        }
       },
       "5min": {
-        "samples": 1279,
-        "baseline_always_up": 52.0,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 415,
-            "up_wins": 224,
-            "down_wins": 187,
-            "draws": 4
+        "horizons": {
+          "1": {
+            "samples": 1279,
+            "horizon_bars": 1,
+            "expiry_seconds": 300,
+            "baseline_always_up": 49.61,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 353,
-            "up_wins": 177,
-            "down_wins": 175,
-            "draws": 1
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 264,
-            "up_wins": 131,
-            "down_wins": 133,
-            "draws": 0
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 191,
-            "up_wins": 98,
-            "down_wins": 92,
-            "draws": 1
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 56,
-            "up_wins": 32,
-            "down_wins": 24,
-            "draws": 0
+          "2": {
+            "samples": 1278,
+            "horizon_bars": 2,
+            "expiry_seconds": 300,
+            "baseline_always_up": 49.65,
+            "walk_forward": {
+              "signals": 0,
+              "wins": 0,
+              "draws": 0,
+              "hit_rate": null,
+              "coverage": 0.0
+            },
+            "payout_ratio": 0.8,
+            "cost_per_trade": 0.0,
+            "wilson_95_lower_hit_rate": 0.0,
+            "break_even_hit_rate": 55.56,
+            "enabled": false,
+            "bins": []
           }
-        ],
-        "walk_forward": {
-          "signals": 320,
-          "wins": 158,
-          "draws": 2,
-          "hit_rate": 49.38,
-          "coverage": 25.02
-        },
-        "enabled": false
-      },
-      "15min": {
-        "samples": 1279,
-        "baseline_always_up": 51.73,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 432,
-            "up_wins": 215,
-            "down_wins": 215,
-            "draws": 2
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 353,
-            "up_wins": 189,
-            "down_wins": 164,
-            "draws": 0
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 267,
-            "up_wins": 142,
-            "down_wins": 124,
-            "draws": 1
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 189,
-            "up_wins": 93,
-            "down_wins": 94,
-            "draws": 2
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 38,
-            "up_wins": 20,
-            "down_wins": 18,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 347,
-          "wins": 179,
-          "draws": 1,
-          "hit_rate": 51.59,
-          "coverage": 27.13
-        },
-        "enabled": false
-      },
-      "30min": {
-        "samples": 1279,
-        "baseline_always_up": 51.68,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 428,
-            "up_wins": 224,
-            "down_wins": 204,
-            "draws": 0
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 371,
-            "up_wins": 191,
-            "down_wins": 180,
-            "draws": 0
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 247,
-            "up_wins": 130,
-            "down_wins": 117,
-            "draws": 0
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 194,
-            "up_wins": 94,
-            "down_wins": 100,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 38,
-            "up_wins": 21,
-            "down_wins": 17,
-            "draws": 0
-          },
-          {
-            "low": 20.0,
-            "high": 26.0,
-            "n": 1,
-            "up_wins": 1,
-            "down_wins": 0,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 253,
-          "wins": 132,
-          "draws": 0,
-          "hit_rate": 52.17,
-          "coverage": 19.78
-        },
-        "enabled": false
-      },
-      "1h": {
-        "samples": 1279,
-        "baseline_always_up": 52.43,
-        "bins": [
-          {
-            "low": 0.0,
-            "high": 4.0,
-            "n": 434,
-            "up_wins": 231,
-            "down_wins": 201,
-            "draws": 2
-          },
-          {
-            "low": 4.0,
-            "high": 8.0,
-            "n": 354,
-            "up_wins": 176,
-            "down_wins": 178,
-            "draws": 0
-          },
-          {
-            "low": 8.0,
-            "high": 12.0,
-            "n": 250,
-            "up_wins": 129,
-            "down_wins": 120,
-            "draws": 1
-          },
-          {
-            "low": 12.0,
-            "high": 16.0,
-            "n": 200,
-            "up_wins": 111,
-            "down_wins": 89,
-            "draws": 0
-          },
-          {
-            "low": 16.0,
-            "high": 20.0,
-            "n": 41,
-            "up_wins": 22,
-            "down_wins": 19,
-            "draws": 0
-          }
-        ],
-        "walk_forward": {
-          "signals": 393,
-          "wins": 199,
-          "draws": 1,
-          "hit_rate": 50.64,
-          "coverage": 30.73
-        },
-        "enabled": false
+        }
       }
     }
   }

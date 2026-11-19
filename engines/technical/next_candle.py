@@ -171,17 +171,31 @@ def _table_for(cal: dict[str, Any], market: str, timeframe: str) -> tuple[dict[s
     markets = cal.get("markets") or {}
     for key in (market, market.lower(), "global"):
         table = (markets.get(key) or {}).get(timeframe)
-        if table and table.get("bins"):
+        if table and (table.get("bins") or table.get("horizons")):
             return table, f"{key}/{timeframe}"
     return None, "none"
 
 
 def enabled_frames(market: str, calibration: dict[str, Any] | None = None) -> list[str]:
     """Frames whose walk-forward edge passed the stored out-of-sample gate."""
-    cal = calibration or load_calibration()
+    cal = load_calibration() if calibration is None else calibration
     tables = (cal.get("markets") or {}).get(market.lower()) or {}
     order = ("30sec", "1min", "5min", "15min", "30min", "1h")
-    return [frame for frame in order if (tables.get(frame) or {}).get("enabled")]
+    result = []
+    for frame in order:
+        root = tables.get(frame) or {}
+        candidates = list((root.get("horizons") or {}).values()) or [root]
+        if any(
+            item.get("enabled") is True
+            and item.get("horizon_bars") in (1, 2)
+            and item.get("expiry_seconds")
+            and item.get("wilson_95_lower_hit_rate") is not None
+            and item.get("break_even_hit_rate") is not None
+            and item["wilson_95_lower_hit_rate"] > item["break_even_hit_rate"]
+            for item in candidates
+        ):
+            result.append(frame)
+    return result
 
 
 def forecast_frames(market: str, profile_frames: tuple[str, ...],
@@ -190,13 +204,29 @@ def forecast_frames(market: str, profile_frames: tuple[str, ...],
     return tuple(enabled[:3]) or tuple(profile_frames[:3])
 
 
-def _bin_for(table: dict[str, Any], score: float) -> dict[str, Any] | None:
+def _bin_for(table: dict[str, Any], score: float,
+             direction: str | None = None) -> dict[str, Any] | None:
     for bucket in table.get("bins", []):
         if bucket["low"] <= abs(score) < bucket["high"]:
             if bucket.get("n", 0) >= MIN_CALIBRATION_SAMPLES:
+                if direction == "UP" and bucket.get("predicted_up_n", 0) < MIN_CALIBRATION_SAMPLES:
+                    return None
+                if direction == "DOWN" and bucket.get("predicted_down_n", 0) < MIN_CALIBRATION_SAMPLES:
+                    return None
                 return bucket
             return None
     return None
+
+
+def _wilson_lower_bound(wins: int, trials: int, z: float = 1.96) -> float:
+    if trials <= 0:
+        return 0.0
+    p = wins / trials
+    z2 = z * z
+    denominator = 1 + z2 / trials
+    center = p + z2 / (2 * trials)
+    margin = z * math.sqrt(p * (1 - p) / trials + z2 / (4 * trials * trials))
+    return max(0.0, (center - margin) / denominator)
 
 
 def _technical_forecast(score: float, components: dict[str, float], target: datetime,
@@ -226,6 +256,8 @@ def forecast_from_frame(
     timeframe_seconds: int,
     now: datetime,
     target_open_at: datetime | None = None,
+    horizon_bars: int = 1,
+    expiry_seconds: int | None = None,
     calibration: dict[str, Any] | None = None,
     require_calibration: bool = True,
 ) -> NextCandleForecast:
@@ -238,7 +270,9 @@ def forecast_from_frame(
     target = target_open_at or (now + timedelta(seconds=timeframe_seconds))
     if target.tzinfo is None:
         target = target.replace(tzinfo=timezone.utc)
-    if now >= target:
+    if horizon_bars < 1:
+        raise ValueError("horizon_bars must be at least 1")
+    if now > target:
         return NextCandleForecast(
             "NO TRADE", 0.0, None, None, [], {}, target, timeframe_seconds,
             "none", ["target candle already opened; refusing a late prediction"],
@@ -251,7 +285,8 @@ def forecast_from_frame(
 
     arrays = _series(frame)
     score, components = score_at(frame, arrays)
-    table, label = _table_for(calibration or load_calibration(), market, timeframe_code)
+    cal = load_calibration() if calibration is None else calibration
+    table, label = _table_for(cal, market, timeframe_code)
     if not require_calibration:
         return _technical_forecast(score, components, target, timeframe_seconds, [])
     if table is None:
@@ -259,35 +294,78 @@ def forecast_from_frame(
             "NO TRADE", score, None, None, [], components, target, timeframe_seconds,
             label, [f"no calibrated walk-forward table for {market}/{timeframe_code}"],
         )
-    if not table.get("enabled", False):
+    horizon_table = (table.get("horizons") or {}).get(str(horizon_bars))
+    if horizon_table is not None:
+        table = horizon_table
+    calibrated_horizon = table.get("horizon_bars")
+    if calibrated_horizon != horizon_bars:
+        return NextCandleForecast(
+            "NO TRADE", score, None, None, [], components, target, timeframe_seconds,
+            label,
+            [f"walk-forward calibration horizon mismatch: need {horizon_bars} bars, "
+             f"available table is for {calibrated_horizon or 'unspecified'} bars"],
+        )
+    requested_expiry = timeframe_seconds if expiry_seconds is None else expiry_seconds
+    calibrated_expiry = table.get("expiry_seconds")
+    if calibrated_expiry != requested_expiry:
+        return NextCandleForecast(
+            "NO TRADE", score, None, None, [], components, target, timeframe_seconds,
+            label,
+            [f"walk-forward calibration expiry mismatch: need {requested_expiry}s, "
+             f"available table is for {calibrated_expiry or 'unspecified'}s"],
+        )
+    lower_bound = table.get("wilson_95_lower_hit_rate")
+    break_even = table.get("break_even_hit_rate")
+    edge_proven = (
+        lower_bound is not None and break_even is not None
+        and float(lower_bound) > float(break_even)
+    )
+    if not table.get("enabled", False) or not edge_proven:
         walk = table.get("walk_forward") or {}
+        hit_rate = walk.get("hit_rate")
+        hit_rate_text = f"{hit_rate:.1f}%" if isinstance(hit_rate, (int, float)) else "unavailable"
         return NextCandleForecast(
             "NO TRADE", score, None, None, [], components, target, timeframe_seconds,
             label,
             [
-                "walk-forward edge is not proven for "
-                f"{market}/{timeframe_code} (hit rate {walk.get('hit_rate', 0):.1f}%, "
-                f"{walk.get('signals', 0)} signals)"
+                "payout-adjusted walk-forward edge is not proven for "
+                f"{market}/{timeframe_code} (hit rate {hit_rate_text}, "
+                f"{walk.get('signals', 0)} signals; 95% lower bound "
+                f"{lower_bound if lower_bound is not None else 'missing'}%, "
+                f"break-even {break_even if break_even is not None else 'missing'}%)"
             ],
         )
-    bucket = _bin_for(table, score)
+    predicted = "UP" if score > 0 else "DOWN" if score < 0 else "NO TRADE"
+    if predicted == "NO TRADE":
+        return NextCandleForecast(
+            predicted, score, None, None, [], components, target, timeframe_seconds,
+            label, ["forecast score is neutral"],
+        )
+    bucket = _bin_for(table, score, predicted)
     if bucket is None:
         return NextCandleForecast(
             "NO TRADE", score, None, None, [], components, target, timeframe_seconds,
             label, ["score falls outside a bucket with enough verified samples"],
         )
 
-    predicted = "UP" if score > 0 else "DOWN" if score < 0 else "NO TRADE"
-    up_rate = float(bucket["up_wins"] + 0.5 * bucket.get("draws", 0)) / max(bucket["n"], 1)
-    probability_up = up_rate * 100
-    confidence = up_rate * 100 if predicted == "UP" else (1 - up_rate) * 100
+    count_key, wins_key = (
+        ("predicted_up_n", "predicted_up_wins") if predicted == "UP"
+        else ("predicted_down_n", "predicted_down_wins")
+    )
+    side_count = int(bucket.get(count_key, 0))
+    side_wins = int(bucket.get(wins_key, 0))
+    confidence = side_wins / max(side_count, 1) * 100
+    probability_up = confidence if predicted == "UP" else 100 - confidence
     components_sorted = sorted(components.items(), key=lambda item: -abs(item[1]))
     reasons = [f"{name} {value:+.1f}" for name, value in components_sorted[:3]]
-    if not predicted == "NO TRADE" and confidence < 52.0:
+    break_even = table.get("break_even_hit_rate")
+    lower_bound = _wilson_lower_bound(side_wins, side_count) * 100
+    if break_even is None or lower_bound <= float(break_even):
         return NextCandleForecast(
             "NO TRADE", score, round(probability_up, 1), round(confidence, 1),
             reasons, components, target, timeframe_seconds, label,
-            ["calibrated edge is below 52%; no trade"],
+            [f"score bucket 95% lower bound {lower_bound:.1f}% does not exceed "
+             f"payout break-even {break_even if break_even is not None else 'missing'}%; no trade"],
         )
     return NextCandleForecast(
         predicted, score, round(probability_up, 1), round(confidence, 1),
@@ -303,6 +381,6 @@ def target_open_for(frame: pd.DataFrame, timeframe_seconds: int, now: datetime) 
     if last_open.tzinfo is None:
         last_open = last_open.replace(tzinfo=timezone.utc)
     close_time = last_open + timedelta(seconds=timeframe_seconds)
-    while close_time <= now:
+    while close_time < now:
         close_time += timedelta(seconds=timeframe_seconds)
     return close_time

@@ -1,5 +1,10 @@
 # NEXUS AI — Next-Candle Accuracy by Market
 
+> **Superseded on 2026-11-19.** The results below came from calibration version 1, which did not
+> record prediction lead or expiry and used a 53% hit-rate gate without payout-adjusted uncertainty.
+> They are not current evidence of a tradable edge. See the corrected [engine audit](ENGINE-REPAIR-2026-11-19.md)
+> and [same-data before/after Walk-Forward report](NEXUS-AI-WALK-FORWARD-2026-11-19.md).
+
 Calibration generated: 2026-11-16T06:28:38.157916+00:00
 Source: ExpertOption bridge /verify/history (real OHLC, read-only)
 Method: expanding walk-forward; features use bars <= i, label is bar i+1 only

@@ -20,10 +20,17 @@ def _real_calibration():
     importlib.reload(nc)
 
 
-def test_real_calibration_is_present_for_every_market():
+def test_real_calibration_contains_only_audited_horizon_tables():
     calibration = nc.load_calibration()
-    for market in ("otc", "smarty", "football", "luxury", "ai", "cricket", "forex", "gold"):
-        assert market in calibration["markets"]
+    assert calibration["version"] == 2
+    assert calibration["markets"]
+    for frames in calibration["markets"].values():
+        for table in frames.values():
+            assert table["horizons"]
+            for horizon, data in table["horizons"].items():
+                assert data["horizon_bars"] == int(horizon)
+                assert data["expiry_seconds"] > 0
+                assert data["wilson_95_lower_hit_rate"] <= data["break_even_hit_rate"]
 
 
 @pytest.mark.parametrize(("market", "frame"), [("forex", "1min"), ("football", "5min"), ("smarty", "1h")])
@@ -41,8 +48,8 @@ def test_proven_frame_uses_calibrated_confidence():
     asset = assets_for(Market.GOLD)[0]
     result = analyze_market_data(_market(asset, candles, tf="15min"), duration_seconds=900)
     assert result.direction in {"UP", "DOWN", "NO TRADE"}
-    if result.direction in {"UP", "DOWN"}:
-        assert 52.0 <= result.confidence <= 100.0
-    else:
-        assert result.next_candle["calibration"] == "gold/15min"
+    assert result.direction == "NO TRADE"
+    assert result.confidence == 0.0
+    assert any("no calibrated walk-forward table" in blocker
+               for blocker in result.next_candle["blockers"])
     assert timeframe("15min").seconds == 900

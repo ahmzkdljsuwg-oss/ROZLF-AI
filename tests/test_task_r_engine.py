@@ -12,7 +12,12 @@ from tests.test_evidence_engine import _market
 
 
 def _result(asset, tf, duration, drift=0.00008, seed=3):
-    candles = make_candles(240, drift=drift, noise=0.00035, seed=seed)
+    from providers.catalog import timeframe
+
+    candles = make_candles(
+        240, drift=drift, noise=0.00035, seed=seed,
+        tf_seconds=timeframe(tf).seconds,
+    )
     return analyze_market_data(_market(asset, candles, tf=tf), duration_seconds=duration)
 
 
@@ -27,11 +32,24 @@ def test_each_market_can_emit_a_directional_signal(market):
 
 def test_duration_changes_the_evidence_weighting():
     asset = assets_for(Market.FOREX)[0]
-    short = _result(asset, "1min", 30)
+    short = _result(asset, "1min", 60)
     long = _result(asset, "5min", 300)
     assert short.direction in {"UP", "DOWN"}
     assert long.direction in {"UP", "DOWN"}
-    assert short.confidence != long.confidence
+    from engines.markets import profile_for
+    from engines.technical.evidence import _duration_weights
+
+    weights_short = _duration_weights(profile_for(Market.FOREX), 60)
+    weights_long = _duration_weights(profile_for(Market.FOREX), 300)
+    assert weights_short != weights_long
+
+
+def test_unmatched_expiry_has_no_calibrated_signal():
+    asset = assets_for(Market.FOREX)[0]
+    result = _result(asset, "1min", 30)
+    assert result.direction == "NO TRADE"
+    assert result.confidence == 0.0
+    assert any("expiry mismatch" in blocker for blocker in result.blockers)
 
 
 @pytest.mark.parametrize(

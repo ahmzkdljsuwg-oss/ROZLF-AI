@@ -105,19 +105,33 @@ def _synthetic_calibration(monkeypatch):
         up = (55 + index * 2) / 100
         bins.append({"low": low, "high": high, "n": 100, "up_wins": int(up * 100), "draws": 0})
 
-    def table(offset=0):
+    def table(offset=0, frame="1min", horizon=1):
         rows = []
         for index, row in enumerate(bins):
             up = (55 + index * 2 + offset) / 100
-            rows.append({**row, "up_wins": round(up * row["n"])})
-        return {"enabled": True, "bins": rows, "walk_forward": {"hit_rate": 60.0, "signals": 200}}
+            rows.append({**row, "up_wins": round(up * row["n"]),
+                         "predicted_up_n": 50, "predicted_up_wins": 40,
+                         "predicted_down_n": 50, "predicted_down_wins": 40})
+        seconds = {"30sec": 30, "1min": 60, "5min": 300,
+                   "15min": 900, "30min": 1800, "1h": 3600}[frame]
+        return {"enabled": True, "bins": rows, "horizon_bars": horizon,
+                "expiry_seconds": seconds,
+                "wilson_95_lower_hit_rate": 58.0,
+                "break_even_hit_rate": 55.56,
+                "walk_forward": {"hit_rate": 60.0, "signals": 200}}
 
     markets = {}
     for market in ("otc", "smarty", "football", "luxury", "ai", "cricket", "forex", "gold"):
-        markets[market] = {
-            frame: table(0 if frame in ("1min", "30sec", "15min", "30min") else 1)
-            for frame in ("30sec", "1min", "5min", "15min", "30min", "1h")
-        }
+        markets[market] = {}
+        for frame in ("30sec", "1min", "5min", "15min", "30min", "1h"):
+            offset = 0 if frame in ("1min", "30sec", "15min", "30min") else 1
+            markets[market][frame] = {
+                **table(offset, frame, horizon=2),
+                "horizons": {
+                    "1": table(offset, frame, horizon=1),
+                    "2": table(offset, frame, horizon=2),
+                },
+            }
     monkeypatch.setattr(nc, "load_calibration", lambda: {
         "version": 1, "markets": markets, "min_samples": 30,
     })
