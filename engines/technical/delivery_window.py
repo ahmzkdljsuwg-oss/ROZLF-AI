@@ -7,6 +7,7 @@ PREPUBLISH_SECONDS = 8
 ACKNOWLEDGED_SECONDS = 5
 SHORT_FRAME_REASON = "الفريم أقصر من مهلة العرض اللازمة. الشموع معروضة للقراءة فقط."
 LATE_REASON = "الوقت المتبقي قبل فتح الشمعة غير كافٍ؛ ما نعرض إشارة متأخرة."
+LO_EXPIRED_REASON = "انتهى وقت القراءة؛ المعروض آخر شمعة مغلقة."
 UNVERIFIED_SMARTY_REASON = "اختبار SMARTY التاريخي لم يثبت دقة التوقع. هذا الفريم للقراءة الفنية، وليس إشارة."
 
 

@@ -102,7 +102,8 @@ async def test_lo_engine_gives_direction_but_no_calibrated_confidence(monkeypatc
         "forex", result.direction, 60, result.confidence, result.target_open_at,
         result.reasons, confidence_verified=False, mode="lo",
     )
-    assert "الاتجاه التجريبي" in text
+    assert "الميل الفني" in text and "ليست إشارة دخول" in text
+    assert "الشمعة المستهدفة" not in text and "الصفقة" not in text
     assert "UNCALIBRATED" not in text and "UNVERIFIED" not in text
     assert result.indicators["last_closed_direction"] in {"UP", "DOWN", "FLAT"}
 
@@ -277,7 +278,8 @@ async def test_lo_uses_candles_only_and_skips_external_review(settings, monkeypa
     service = market_analysis.MarketAnalysisService(DataSourceRegistry([Provider()], clock=lambda: fixed), settings, mode="lo")
     service.reviewer = Reviewer()
     outcome = await service.analyse(Market.FOREX, "EUR_USD_FOREX")
-    assert outcome.actionable
+    assert not outcome.actionable and outcome.reading_direction == "UP"
+    assert outcome.duration_seconds is None
     assert frames == [("EUR_USD_FOREX", "1min")]
     assert outcome.result.target_open_at > fixed
     assert not outcome.result.confidence_verified
@@ -304,3 +306,171 @@ async def test_smarty_lo_returns_first_current_observation_without_unnecessary_f
     assert attempted == ["30sec"]
     assert not outcome.actionable and outcome.result.timeframe == "30sec"
     assert outcome.conflict is None
+
+
+def _closed_frame(*, direction=1, count=240):
+    import pandas as pd
+
+    end = pd.Timestamp("2026-11-20T04:00:00Z")
+    times = pd.date_range(end=end, periods=count, freq="min")
+    closes = [100 + i * direction * .05 for i in range(count)]
+    opens = [close - direction * .04 for close in closes]
+    return pd.DataFrame({"open": opens, "close": closes,
+                         "high": [max(o, c) + .03 for o, c in zip(opens, closes)],
+                         "low": [min(o, c) - .03 for o, c in zip(opens, closes)]}, index=times)
+
+
+def _lo_forecast(frame, *, last_close=None):
+    from engines.technical.next_candle import forecast_from_frame
+
+    now = last_close or frame.index[-1] + timedelta(minutes=1)
+    return forecast_from_frame(
+        frame, market="forex", timeframe_code="1min", timeframe_seconds=60,
+        now=now, target_open_at=now + timedelta(minutes=1), require_calibration=False,
+    )
+
+
+@pytest.mark.parametrize(("side", "bias"), [(1, "UP"), (-1, "DOWN")])
+def test_lo_uses_closed_evidence_not_legacy_score(side, bias, monkeypatch):
+    from engines.technical import next_candle
+
+    def forbidden(*_args):
+        pytest.fail("LO must not use the uncalibrated legacy score")
+
+    monkeypatch.setattr(next_candle, "score_at", forbidden)
+    frame = _closed_frame(direction=side)
+    result = _lo_forecast(frame)
+    assert result.direction == bias and not result.verified and result.confidence is None
+    assert _lo_forecast(frame.tail(200)).as_dict() == result.as_dict()
+
+
+@pytest.mark.parametrize(("change", "reason"), [
+    ("contradict", "مو متوافقين"), ("shock", "التذبذب"), ("range", "عرضي"),
+    ("gap", "شمعة مغلقة متتالية"),
+])
+def test_lo_declines_ambiguous_or_unsafe_readings(change, reason):
+    frame = _closed_frame()
+    end = frame.index[-1]
+    if change == "contradict":
+        frame.loc[end, "open"] = frame.loc[end, "close"] + .01
+    elif change == "shock":
+        frame.loc[end, "high"] += 1.
+    elif change == "range":
+        for i, timestamp in enumerate(frame.index):
+            frame.loc[timestamp, ["open", "high", "low", "close"]] = [100., 100.1, 99.9, 100.04 if i % 2 else 99.96]
+    else:
+        frame = frame.drop(frame.index[-5])
+    result = _lo_forecast(frame)
+    assert result.direction == "NO TRADE" and result.confidence is None
+    assert reason in result.blockers[0]
+
+
+def test_forming_bar_does_not_change_lo_reading():
+    import pandas as pd
+
+    frame = _closed_frame()
+    at = frame.index[-1] + timedelta(minutes=1)
+    expected = _lo_forecast(frame, last_close=at)
+    live = pd.concat([frame, pd.DataFrame(
+        {"open": [70.], "high": [900.], "low": [1.], "close": [2.]}, index=[at]
+    )])
+    assert _lo_forecast(live, last_close=at).as_dict() == expected.as_dict()
+
+
+@pytest.mark.asyncio
+async def test_neutral_lo_does_not_hunt_for_a_direction_on_another_frame(settings, monkeypatch):
+    from services import market_analysis
+
+    attempted = []
+
+    async def one(self, asset, frame, semaphore):
+        attempted.append(frame)
+        now = utc_now()
+        result = AnalysisResult(
+            asset.key, asset.display, "forex", frame, "NO TRADE" if frame == "1min" else "DOWN",
+            0, 0, 0, 1, "test", now, target_open_at=now + timedelta(seconds=20),
+        )
+        return result, frame
+
+    monkeypatch.setattr(market_analysis.MarketAnalysisService, "_one", one)
+    service = market_analysis.MarketAnalysisService(DataSourceRegistry([]), settings, mode="lo")
+    outcome = await service.analyse(Market.FOREX, "EUR_USD_FOREX")
+    assert attempted == ["1min"]
+    assert outcome.result.timeframe == "1min" and not outcome.actionable
+    assert outcome.reading_direction is None
+
+
+@pytest.mark.asyncio
+async def test_lo_direction_is_never_saved_as_signal_on_repeat(settings, monkeypatch):
+    from bot import context
+
+    async def get_mode(_):
+        return "lo"
+
+    async def add_signal(**_):
+        pytest.fail("a technical reading must not enter the signal ledger")
+
+    class Service:
+        def __init__(self, *_args, mode, **_kwargs):
+            assert mode == "lo"
+
+        async def analyse(self, market, asset_key=None):
+            target = utc_now() + timedelta(seconds=30)
+            result = AnalysisResult(
+                asset_key, "EUR/USD", "forex", "1min", "UP", 0, 1, 0, 10, "test", utc_now(),
+                reasons=["القراءة واضحة."], target_open_at=target,
+            )
+            return MarketAnalysis(market, result, 60, reading_direction="UP")
+
+    monkeypatch.setattr(context, "_context", _ctx(SimpleNamespace(get_analysis_mode=get_mode, add_signal=add_signal)))
+    monkeypatch.setattr(handlers, "MarketAnalysisService", Service)
+    callback = Callback("nx:again:FOREX:EUR_USD_FOREX", 77)
+    for _ in range(2):
+        await handlers.cb_nx_again(callback)
+        card, keyboard = callback.message.edits[-1]
+        assert "الميل الفني: <b>صعود" in card and "ليست إشارة دخول" in card
+        assert "الشمعة المستهدفة" not in card and "الثقة" not in card
+        assert keyboard.inline_keyboard[0][0].callback_data == callback.data
+
+
+def test_stale_closed_bars_do_not_create_a_current_lo_reading():
+    frame = _closed_frame()
+    result = _lo_forecast(frame, last_close=frame.index[-1] + timedelta(minutes=2))
+    assert result.direction == "NO TRADE"
+    assert "متأخرة" in result.blockers[0]
+
+
+@pytest.mark.asyncio
+async def test_lo_multi_asset_order_does_not_depend_on_fastest_result(settings, monkeypatch):
+    import asyncio
+
+    from providers.catalog import find_by_symbol
+    from services import market_analysis
+
+    first = find_by_symbol("EUR/USD", Market.FOREX)
+    second = find_by_symbol("GBP/USD", Market.FOREX)
+    arrived = asyncio.Event()
+
+    async def assets(self, market, asset_key=None):
+        return [first, second]
+
+    async def one(self, asset, frame, semaphore):
+        if asset == first:
+            await arrived.wait()
+            await asyncio.sleep(0)
+        else:
+            arrived.set()
+        now = utc_now()
+        result = AnalysisResult(
+            asset.key, asset.display, "forex", frame, "NO TRADE" if asset == first else "UP",
+            0, 0, 0, 1, "test", now, target_open_at=now + timedelta(seconds=20),
+        )
+        return result, frame
+
+    service_type = market_analysis.MarketAnalysisService
+    monkeypatch.setattr(service_type, "assets_for", assets)
+    monkeypatch.setattr(service_type, "_one", one)
+    service = service_type(DataSourceRegistry([]), settings, mode="lo")
+    outcome = await service.analyse(Market.FOREX)
+    assert outcome.result.asset_key == first.key and outcome.result.timeframe == "1min"
+    assert outcome.reading_direction is None and not outcome.actionable

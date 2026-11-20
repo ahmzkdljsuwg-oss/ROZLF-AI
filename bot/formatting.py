@@ -1027,7 +1027,7 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
     else:
         duration = f"{expiry_seconds} ثوانٍ" if 3 <= expiry_seconds <= 10 else f"{expiry_seconds} ثانية"
     clock = ""
-    if target_open_at is not None and expiry_seconds and direction in ("UP", "DOWN"):
+    if mode != "lo" and target_open_at is not None and expiry_seconds and direction in ("UP", "DOWN"):
         start = target_open_at.astimezone(ZoneInfo("Asia/Kuwait"))
         end = start + timedelta(seconds=expiry_seconds)
         clock = f"\n🕒 الشمعة المستهدفة · <code>{start:%H:%M:%S} → {end:%H:%M:%S}</code> الكويت"
@@ -1042,11 +1042,13 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
     ]
     if mode == "scanner" and asset:
         lines.append(f"💱 الأصل · <b>{html.escape(asset)}</b>")
-    lines += [f"⚡ الوضع · <b>{mode_name}</b>", f"الوقت: <b>{duration}</b> ⏱️{clock}"]
+    lines.append(f"⚡ الوضع · <b>{mode_name}</b>")
+    lines.append(f"الفريم: <b>{duration}</b>" if mode == "lo" else f"الوقت: <b>{duration}</b> ⏱️{clock}")
     if mode == "lo":
+        lines.append("قراءة فنية فقط · ليست إشارة دخول.")
         if direction in ("UP", "DOWN"):
             bias = "صعود 🟢" if direction == "UP" else "هبوط 🔴"
-            lines.append(f"🕯️ الاتجاه التجريبي: <b>{bias}</b>")
+            lines.append(f"🕯️ الميل الفني: <b>{bias}</b>")
         else:
             observed = {"UP": "صعود 🟢", "DOWN": "هبوط 🔴", "FLAT": "ثابتة ⚪"}.get(candle_direction)
             lines.append(f"🕯️ آخر شمعة مغلقة: <b>{observed}</b>" if observed else "🕯️ قراءة فنية فقط")
@@ -1064,6 +1066,10 @@ def nexus_signal_text(market: str, direction: str, expiry_seconds: int | None,
     if mode != "lo" and reasons:
         selected = " · ".join(reasons[:2]) if direction in ("UP", "DOWN") else reasons[0]
         lines.append(f"🔍 <i>{html.escape(selected)}</i>")
+    if mode == "lo" and reasons:
+        reason = reasons[0]
+        if any("\u0600" <= character <= "\u06ff" for character in reason):
+            lines.append(f"🔍 <i>{html.escape(reason)}</i>")
     if strategy_readings:
         names_by_family = {"trend": "الترند", "momentum": "الزخم", "reversal": "الانعكاس",
                            "structure": "هيكل السعر", "price_action": "حركة الشموع"}
