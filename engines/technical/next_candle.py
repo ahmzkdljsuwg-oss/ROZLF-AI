@@ -201,7 +201,7 @@ def _bin_for(table: dict[str, Any], score: float) -> dict[str, Any] | None:
 
 def _technical_forecast(score: float, components: dict[str, float], target: datetime,
                         timeframe_seconds: int, blockers: list[str]) -> NextCandleForecast:
-    """Uncalibrated LO-mode direction from agreement among independent components."""
+    """Legacy raw-score baseline retained only for historical comparisons."""
     directional = {name: value for name, value in components.items() if name != "volatility"}
     agreeing = sum(1 for value in directional.values() if value * score > 0)
     direction = "UP" if score > 0 else "DOWN" if score < 0 else "NO TRADE"
@@ -218,23 +218,48 @@ def _technical_forecast(score: float, components: dict[str, float], target: date
     )
 
 
-def _lo_components(frame: pd.DataFrame, arrays: dict[str, pd.Series],
-                   score: float, components: dict[str, float]) -> tuple[float, dict[str, float]]:
-    """Adjust only LO for range conditions and volatility relative to this asset."""
+def _lo_reading(frame: pd.DataFrame, arrays: dict[str, pd.Series],
+                target: datetime, seconds: int) -> NextCandleForecast:
+    """Describe agreement among trend, recent movement and completed candles.
+
+    This is an evidence filter, not a fitted probability or a trade signal.
+    Correlated indicator subtotals do not vote and the legacy score is unused.
+    """
+    def reading(direction, reasons=None, blocker=None):
+        return NextCandleForecast(
+            direction, 0.0, None, None, reasons or [], {}, target, seconds,
+            "unverified", [blocker] if blocker else [],
+        )
+
     atr = arrays["atr"]
-    baseline = float(atr.iloc[-97:-1].median())
-    latest = float(atr.iloc[-1])
-    walk = frame["close"].tail(21)
-    travel = float(walk.diff().abs().sum())
-    efficiency = abs(float(walk.iloc[-1] - walk.iloc[0])) / travel if travel else 0.0
-    adjusted = dict(components)
-    if efficiency < 0.20:
-        adjusted["trend"] *= 0.65
-    if baseline > 0 and latest > 1.6 * baseline:
-        adjusted["volatility"] = -math.copysign(min(2.0, abs(score) / 3), score)
-    elif baseline > 0 and latest < 0.65 * baseline:
-        adjusted["volatility"] = 0.0
-    return round(sum(adjusted.values()), 4), adjusted
+    scale = float(atr.iloc[-1])
+    previous_scale = float(atr.iloc[-2])
+    reference = float(atr.iloc[-97:-1].median())
+    close = arrays["close"]
+    last_range = max(float(arrays["high"].iloc[-1] - arrays["low"].iloc[-1]),
+                     abs(float(arrays["high"].iloc[-1] - close.iloc[-2])),
+                     abs(float(arrays["low"].iloc[-1] - close.iloc[-2])))
+    if (not (reference > 0 and previous_scale > 0 and .65 * reference <= scale <= 1.60 * reference)
+            or last_range > 2.5 * previous_scale):
+        return reading("NO TRADE", blocker="التذبذب خارج النطاق المعتاد؛ القراءة محايدة.")
+
+    recent = close.iloc[-21:]
+    travel = float(recent.diff().abs().sum())
+    efficiency = abs(float(recent.iloc[-1] - recent.iloc[0])) / travel if travel else 0.0
+    if efficiency < .30:
+        return reading("NO TRADE", blocker="السوق عرضي؛ ما فيه ميل واضح.")
+
+    ema21, ema50 = arrays["ema21"], arrays["ema50"]
+    separation = float(ema21.iloc[-1] - ema50.iloc[-1])
+    slope = float(ema21.iloc[-1] - ema21.iloc[-6])
+    movement = float(close.iloc[-1] - close.iloc[-6])
+    bodies = (close - frame["open"]).iloc[-3:]
+    for sign, direction in ((1, "UP"), (-1, "DOWN")):
+        if (separation * sign >= .20 * scale and slope * sign >= .15 * scale
+                and movement * sign >= .75 * scale and bodies.iloc[-1] * sign > 0
+                and (bodies * sign > 0).sum() >= 2):
+            return reading(direction, ["الترند والزخم وآخر الشموع المغلقة متوافقة."])
+    return reading("NO TRADE", blocker="الترند والزخم وآخر الشموع مو متوافقين؛ القراءة محايدة.")
 
 
 def forecast_from_frame(
@@ -251,9 +276,8 @@ def forecast_from_frame(
 ) -> NextCandleForecast:
     """Predict the next candle. Must be called before that candle opens.
 
-    ``require_calibration=False`` is the LO mode: raw technical components may
-    produce a direction, but confidence stays ``None`` (reported as UNVERIFIED)
-    because no walk-forward hit rate backs it.
+    ``require_calibration=False`` is LO mode. It describes technical bias
+    without a probability or trade signal.
     """
     target = target_open_at or (now + timedelta(seconds=timeframe_seconds))
     if target.tzinfo is None:
@@ -263,10 +287,40 @@ def forecast_from_frame(
             "NO TRADE", 0.0, None, None, [], {}, target, timeframe_seconds,
             "none", ["target candle already opened; refusing a late prediction"],
         )
+    if not require_calibration:
+        # The caller already supplies a closed, contiguous tail on the live
+        # route; enforce that independently for direct/replay consumers.
+        index = frame.index
+        if (timeframe_seconds <= 0 or not isinstance(index, pd.DatetimeIndex)
+                or index.tz is None or index.hasnans
+                or index.has_duplicates or not index.is_monotonic_increasing):
+            return NextCandleForecast(
+                "NO TRADE", 0.0, None, None, [], {}, target, timeframe_seconds,
+                "unverified", ["توقيت بيانات الشموع غير صالح للقراءة."],
+            )
+        step = pd.Timedelta(seconds=timeframe_seconds)
+        frame = frame.loc[index + step <= now]
+        if not frame.empty:
+            discontinuities = np.flatnonzero(frame.index.to_series().diff().ne(step).to_numpy())
+            frame = frame.iloc[discontinuities[-1]:].tail(200)
+            if frame.index[-1] + 2 * step <= now:
+                return NextCandleForecast(
+                    "NO TRADE", 0.0, None, None, [], {}, target, timeframe_seconds,
+                    "unverified", ["آخر شمعة مغلقة متأخرة عن توقيت السوق."],
+                )
+        prices = frame[["open", "high", "low", "close"]].to_numpy(dtype=float)
+        op, hi, lo, cl = prices.T
+        if not (np.isfinite(prices).all() and (prices > 0).all()
+                and (hi >= np.maximum(op, cl)).all() and (lo <= np.minimum(op, cl)).all()):
+            return NextCandleForecast(
+                "NO TRADE", 0.0, None, None, [], {}, target, timeframe_seconds,
+                "unverified", ["بيانات الشموع غير صالحة للقراءة."],
+            )
     if len(frame) < 200:
         return NextCandleForecast(
             "NO TRADE", 0.0, None, None, [], {}, target, timeframe_seconds,
-            "none", [f"only {len(frame)} candles; 200 are needed"],
+            "none", [f"متاح {len(frame)} شمعة مغلقة متتالية؛ القراءة تحتاج 200."
+                     if not require_calibration else f"only {len(frame)} candles; 200 are needed"],
         )
 
     if require_calibration:
@@ -278,10 +332,9 @@ def forecast_from_frame(
             )
 
     arrays = _series(frame)
-    score, components = score_at(frame, arrays)
     if not require_calibration:
-        score, components = _lo_components(frame, arrays, score, components)
-        return _technical_forecast(score, components, target, timeframe_seconds, [])
+        return _lo_reading(frame, arrays, target, timeframe_seconds)
+    score, components = score_at(frame, arrays)
     table, label = _table_for(calibration, market, timeframe_code)
     if table is None:
         return NextCandleForecast(

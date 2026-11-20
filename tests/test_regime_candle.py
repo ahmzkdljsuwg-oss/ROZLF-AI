@@ -114,4 +114,5 @@ async def test_smarty_falls_back_to_real_minute_and_blocks_expired_target(settin
     assert requested == ["30sec", "1min", "15sec"]
     assert outcome.fetched == 1
     assert not outcome.actionable
-    assert "غير كافٍ" in outcome.conflict
+    assert outcome.reading_direction is None
+    assert "انتهى وقت القراءة" in outcome.conflict

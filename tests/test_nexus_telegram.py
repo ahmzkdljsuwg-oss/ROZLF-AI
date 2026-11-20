@@ -406,7 +406,8 @@ def test_lo_card_shows_experimental_bias_without_the_removed_rows():
         "otc", "UP", 60, 0.0, asset="EUR/USD OTC", confidence_verified=False, mode="lo",
     )
     assert "السوق: <b>OTC</b>" in text
-    assert "الاتجاه التجريبي: <b>صعود 🟢</b>" in text
+    assert "الميل الفني: <b>صعود 🟢</b>" in text
+    assert "ليست إشارة دخول" in text
     assert all(line not in text for line in ("الأصل", "LO MODE", "UNVERIFIED", "الثقة", "NO TRADE"))
 
 

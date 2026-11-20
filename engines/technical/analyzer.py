@@ -203,22 +203,12 @@ def analyze_market_data(
     if cancellation_reason:
         warnings.append(cancellation_reason)
 
-    # STRONG mode is authoritative only when the walk-forward bucket is verified.
-    # LO mode accepts a direction from the raw technical components and reports
-    # its confidence as UNVERIFIED instead of inventing a hit rate.
+    # LO is a technical observation, not a calibrated probability.
     if analysis_mode == "lo":
-        if forecast.direction in ("UP", "DOWN"):
-            direction = forecast.direction
-            confidence = 0.0
-            reasons = forecast.reasons + [
-                f"technical evidence {evidence.confidence:.0f}% (uncalibrated)",
-            ]
-            blocks = forecast.blockers
-        else:
-            direction = "NO TRADE"
-            confidence = 0.0
-            reasons = forecast.blockers or evidence.blockers[:3]
-            blocks = forecast.blockers or evidence.blockers
+        direction = forecast.direction
+        confidence = 0.0
+        reasons = forecast.reasons or forecast.blockers
+        blocks = forecast.blockers
     elif forecast.direction in ("UP", "DOWN") and forecast.confidence is not None:
         direction = forecast.direction
         confidence = forecast.confidence
@@ -240,7 +230,9 @@ def analyze_market_data(
     confirmed = report.confirmed(direction) if direction in ("UP", "DOWN") else []
     opposed = report.opposed(direction) if direction in ("UP", "DOWN") else []
     technical_reasons = [signal.reason for signal in confirmed][:4]
-    if direction in ("UP", "DOWN"):
+    if analysis_mode == "lo":
+        reasons = (forecast.reasons or forecast.blockers)[:3]
+    elif direction in ("UP", "DOWN"):
         reasons = (forecast.reasons + technical_reasons)[:4] or reasons
     else:
         reasons = (forecast.blockers or evidence.blockers or technical_reasons)[:4]

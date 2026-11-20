@@ -21,7 +21,7 @@ from engines.signals.duration import auto_frames, choose_auto_duration
 from engines.markets import profile_for
 from engines.signals.generator import DURATION_LABELS, supported_durations
 from services.market_analysis import MarketAnalysisService
-from engines.technical.delivery_window import LATE_REASON, can_publish
+from engines.technical.delivery_window import LATE_REASON, LO_EXPIRED_REASON, can_publish
 from providers.base import DataUnavailable, utc_now
 from providers.catalog import (
     SMARTY_ASSET, TIMEFRAMES, Asset, Market, assets_for, get_asset, register_dynamic, timeframe,
@@ -318,6 +318,22 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
             return
 
         result = outcome.result
+        if mode == "lo":
+            # A descriptive result must never enter the send/acknowledge/save
+            # lifecycle for a recommendation, even if upstream reports a side.
+            reading = None if outcome.conflict else outcome.reading_direction
+            reasons = [outcome.conflict] if outcome.conflict else result.reasons
+            if result.target_open_at is None or result.target_open_at <= utc_now():
+                reading = None
+                reasons = [LO_EXPIRED_REASON]
+            await _edit(callback, fmt.nexus_signal_text(
+                market.value, reading or "NO TRADE", timeframe(result.timeframe).seconds, None,
+                mode="lo", reasons=reasons, trend=result.indicators.get("trend"),
+                volatility=result.indicators.get("volatility"),
+                candle_direction=result.indicators.get("last_closed_direction"),
+            ), retry)
+            return
+
         def hold_text(reasons: list[str], seconds: int | None = None) -> str:
             return fmt.nexus_signal_text(
                 market.value, "NO TRADE", seconds, None, reasons=reasons,
@@ -341,14 +357,14 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
             outcome.duration_seconds,
             mode,
         )
-        if result.target_open_at is not None or mode in {"lo", "fast", "pro"} or market is Market.SMARTY:
+        if result.target_open_at is not None or mode in {"fast", "pro"} or market is Market.SMARTY:
             fingerprint += (result.target_open_at,)
             if not can_publish(outcome.duration_seconds, result.target_open_at, utc_now()):
                 await _edit(callback, hold_text([LATE_REASON]), retry)
                 return
         previous = _NEXUS_LAST.get((user_id, market.value))
         repeated = previous is not None and previous[0] == fingerprint and time.monotonic() - previous[1] < 600
-        if repeated and mode != "lo":
+        if repeated:
             await _edit(callback, fmt.nexus_unchanged_text(market.value), retry)
             return
 
@@ -359,8 +375,6 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
             mode=mode, trend=result.indicators.get("trend"), volatility=result.indicators.get("volatility"),
             strategy_readings=getattr(result, "strategy_readings", None),
         )
-        if repeated:
-            text += "\n\n<i>نفس الشمعة المستهدفة</i>"
         target = result.target_open_at
         requested_at = utc_now()
         if not can_publish(outcome.duration_seconds, target, requested_at):
@@ -378,7 +392,7 @@ async def _nexus_analyse(callback: CallbackQuery, market_name: str, asset_key: s
             if isinstance(receipt, datetime):
                 await _edit(callback, hold_text([LATE_REASON]), retry)
             return
-        if repeated or not isinstance(receipt, datetime):
+        if not isinstance(receipt, datetime):
             return
         _NEXUS_LAST[(user_id, market.value)] = (fingerprint, time.monotonic())
         delivery = now
@@ -414,7 +428,7 @@ async def _user_mode(ctx, user_id: int) -> str:
         return "strong"
 
 
-@router.message(Command("lo"))
+@router.message(Command("lo", ignore_case=True))
 async def cmd_lo(message: Message) -> None:
     ctx = get_context()
     setter = getattr(ctx.repo, "set_analysis_mode", None)

@@ -12,7 +12,7 @@ from engines.markets import profile_for
 from engines.technical.analyzer import AnalysisResult, analyze_market_data
 from engines.technical.next_candle import forecast_frames
 from engines.technical.delivery_window import (
-    PREPUBLISH_SECONDS, LATE_REASON, UNVERIFIED_SMARTY_REASON, can_publish, is_research_only,
+    PREPUBLISH_SECONDS, LATE_REASON, LO_EXPIRED_REASON, UNVERIFIED_SMARTY_REASON, can_publish, is_research_only,
 )
 from providers.base import DataUnavailable, utc_now
 from providers.catalog import Asset, Market, assets_for, timeframe
@@ -46,6 +46,7 @@ class MarketAnalysis:
     conflict: str | None = None
     attempted: int = 0
     fetched: int = 0
+    reading_direction: str | None = None  # Descriptive LO bias, never an actionable signal.
 
     @property
     def actionable(self) -> bool:
@@ -125,7 +126,8 @@ class MarketAnalysisService:
         if self.mode == "lo" and len(assets) == 1:
             # Avoid launching all frames for the same asset at once. For EO a
             # quote and sibling requests share the same socket as history; for
-            # Forex they consume extra credits. Use the first timely direction.
+            # Forex they consume extra credits. Fall back only when the
+            # preferred frame cannot supply a current reading.
             if market is Market.SMARTY and all(frame != "1min" for _, frame in jobs):
                 jobs.append((assets[0], "1min"))
             for asset, frame in jobs:
@@ -137,9 +139,7 @@ class MarketAnalysisService:
                     slice_budget = min(LO_FRAME_BUDGET, remaining)
                     item = await asyncio.wait_for(self._one(asset, frame, semaphore), timeout=slice_budget)
                     collect(item)
-                    if item and (self._timely(item[0]) or (
-                        market is Market.SMARTY and self._current_reading(item[0])
-                    )):
+                    if item and self._current_reading(item[0]):
                         break
                 except TimeoutError:
                     collect(DataUnavailable("TIMEOUT", "تأخر مصدر الشموع في الرد."))
@@ -182,6 +182,22 @@ class MarketAnalysisService:
                 outcome.errors.append("no verified candles were returned")
             return outcome
 
+        if self.mode == "lo":
+            # Select by the configured preference, not whichever direction
+            # arrives first or has the largest uncalibrated score.
+            by_job = {(result.asset_key, frame): result for result, frame in results}
+            ordered = [by_job[(asset.key, frame)] for asset, frame in jobs if (asset.key, frame) in by_job]
+            if not ordered:
+                outcome.errors.append("تعذر تأكيد هوية بيانات الشموع.")
+                return outcome
+            current = next((result for result in ordered if self._current_reading(result)), None)
+            outcome.result = current if current is not None else ordered[0]
+            if current is None:
+                outcome.conflict = LO_EXPIRED_REASON
+            elif current.direction in ("UP", "DOWN"):
+                outcome.reading_direction = current.direction
+            return outcome
+
         actionable = [item for item in results if item[0].direction in ("UP", "DOWN")]
         if actionable:
             now = utc_now()
@@ -197,16 +213,16 @@ class MarketAnalysisService:
                 return outcome
             actionable = usable
         if actionable:
-            actionable.sort(key=lambda item: _strength(item[0], self.mode), reverse=True)
+            actionable.sort(key=lambda item: item[0].confidence, reverse=True)
             best, frame = actionable[0]
-            if self.mode in {"lo", "fast"}:
+            if self.mode == "fast":
                 opposing = [
                     other for other, _ in actionable[1:]
                     if other.asset_key == best.asset_key and other.timeframe == best.timeframe
                     and other.target_open_at == best.target_open_at
-                    and other.direction != best.direction and _strength(other, "lo") >= 6.0
+                    and other.direction != best.direction and _raw_strength(other) >= 6.0
                 ]
-                if opposing and _strength(best, "lo") < 12.0:
+                if opposing and _raw_strength(best) < 12.0:
                     outcome.result = best
                     outcome.conflict = (
                         f"{best.direction} on {frame} conflicts with "
@@ -229,7 +245,7 @@ class MarketAnalysisService:
                     )
                     return outcome
             duration = timeframe(best.timeframe).seconds
-            if self.mode in {"lo", "fast"}:
+            if self.mode == "fast":
                 reason = (
                     f"target candle {best.timeframe} chosen from live technical components; "
                     "confidence is UNVERIFIED (no walk-forward calibration)"
@@ -241,16 +257,14 @@ class MarketAnalysisService:
                 )
             minimum = (self.settings.min_confidence if self.mode == "pro"
                        else max(52.0, self.settings.min_confidence - 8.0))
-            passes = self.mode in {"lo", "fast"} or best.confidence >= minimum
+            passes = self.mode == "fast" or best.confidence >= minimum
             if duration is not None and passes:
                 outcome.result = best
                 outcome.duration_seconds = duration
                 outcome.duration_reason = reason
-                # LO is a fast, explicitly unverified technical mode. External AI
-                # reviewers can rate-limit (429) and delay the target candle.
-                # Keep the independent AI veto for calibrated/strong mode only.
+                # Keep the AI veto for calibrated modes only.
                 review_budget = min(2.0, (best.target_open_at - utc_now()).total_seconds() - PREPUBLISH_SECONDS)
-                if self.mode not in {"lo", "fast"} and review_budget >= 0.15 and self.reviewer.configured():
+                if self.mode != "fast" and review_budget >= 0.15 and self.reviewer.configured():
                     try:
                         review = await asyncio.wait_for(self.reviewer.review(
                             best.direction, _review_payload(best, duration, reason)
@@ -305,9 +319,7 @@ class MarketAnalysisService:
                 return None
 
 
-def _strength(result: AnalysisResult, mode: str) -> float:
-    if mode != "lo":
-        return result.confidence
+def _raw_strength(result: AnalysisResult) -> float:
     raw = result.next_candle.get("raw_score") if result.next_candle else None
     return abs(float(raw)) if isinstance(raw, (int, float)) else result.evidence_score
 
